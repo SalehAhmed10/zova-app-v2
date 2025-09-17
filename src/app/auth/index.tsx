@@ -41,7 +41,7 @@ export default function AuthIndex() {
                 Sign in to your account or create a new one to start connecting with trusted service providers.
               </Text>
               
-              <View className="space-y-4">
+              <View className="gap-4">
                 <Button
                   size="lg"
                   onPress={() => router.push('/auth/login' as any)}
@@ -63,7 +63,7 @@ export default function AuthIndex() {
           </Card>
 
           {/* Features preview */}
-          <View className="space-y-3">
+          <View className="gap-3">
             <FeatureItem 
               icon="🔒" 
               title="Secure & Safe" 
@@ -107,7 +107,7 @@ interface FeatureItemProps {
 
 function FeatureItem({ icon, title, description }: FeatureItemProps) {
   return (
-    <View className="flex-row items-center space-x-3">
+    <View className="flex-row items-center gap-3">
       <View className="w-10 h-10 bg-muted rounded-full items-center justify-center">
         <Text className="text-lg">{icon}</Text>
       </View>

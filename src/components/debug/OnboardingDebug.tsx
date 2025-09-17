@@ -89,7 +89,7 @@ export function OnboardingDebug({ show = __DEV__, className }: OnboardingDebugPr
         🛠️ Onboarding Debug
       </Text>
 
-      <View className="space-y-2 mb-3">
+      <View className="gap-2 mb-3">
         <Text className="text-xs text-muted-foreground">
           Status: {isCompleted ? '✅ Completed' : '⏳ Not Completed'}
         </Text>

@@ -11,6 +11,7 @@ interface AppState {
 
 interface AppActions {
   completeOnboarding: () => void;
+  forceCompleteOnboarding: () => void;
   setAuthenticated: (authenticated: boolean, role?: 'customer' | 'provider') => void;
   setLoading: (loading: boolean) => void;
   logout: () => void;
@@ -29,6 +30,14 @@ export const useAppStore = create<AppStore>((set) => ({
 
   // Actions
   completeOnboarding: () => {
+    console.log('[AppStore] Completing onboarding');
+    set({ isOnboardingComplete: true });
+    AsyncStorage.setItem('onboarding_complete', 'true');
+  },
+
+  // Force complete onboarding (for fixing state mismatch)
+  forceCompleteOnboarding: () => {
+    console.log('[AppStore] Force completing onboarding');
     set({ isOnboardingComplete: true });
     AsyncStorage.setItem('onboarding_complete', 'true');
   },
@@ -50,6 +59,7 @@ export const useAppStore = create<AppStore>((set) => ({
   },
 
   logout: () => {
+    console.log('[AppStore] Logout called - clearing auth state');
     // Only reset auth state, keep onboarding complete
     set({
       isAuthenticated: false,
@@ -57,6 +67,7 @@ export const useAppStore = create<AppStore>((set) => ({
       isLoading: false,
     });
     AsyncStorage.removeItem('user_role');
+    console.log('[AppStore] Logout completed - state cleared');
   },
 
   reset: () => {
@@ -74,26 +85,46 @@ export const useAppStore = create<AppStore>((set) => ({
 // Simple initialization function
 export const initializeApp = async () => {
   try {
+    console.log('[AppStore] Initializing app...');
     const [onboardingComplete, userRole] = await AsyncStorage.multiGet([
       'onboarding_complete',
       'user_role'
     ]);
+
+    console.log('[AppStore] Retrieved from storage:', {
+      onboardingComplete: onboardingComplete[1],
+      userRole: userRole[1]
+    });
 
     const store = useAppStore.getState();
     
     store.setLoading(false);
     
     if (onboardingComplete[1] === 'true') {
+      console.log('[AppStore] Marking onboarding as complete');
       store.completeOnboarding();
+    } else {
+      console.log('[AppStore] Onboarding not completed');
     }
     
     if (userRole[1]) {
+      console.log('[AppStore] Setting authenticated with role:', userRole[1]);
       store.setAuthenticated(true, userRole[1] as 'customer' | 'provider');
+    } else {
+      console.log('[AppStore] No user role found');
     }
+    
+    const finalState = useAppStore.getState();
+    console.log('[AppStore] Final state after initialization:', {
+      isOnboardingComplete: finalState.isOnboardingComplete,
+      isAuthenticated: finalState.isAuthenticated,
+      userRole: finalState.userRole,
+      isLoading: finalState.isLoading
+    });
     
     return true;
   } catch (error) {
-    console.error('Failed to initialize app:', error);
+    console.error('[AppStore] Failed to initialize app:', error);
     useAppStore.getState().setLoading(false);
     return false;
   }

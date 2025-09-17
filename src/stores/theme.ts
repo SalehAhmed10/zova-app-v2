@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { Appearance } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { colorScheme } from 'nativewind';
 
 type ThemePreference = 'light' | 'dark' | 'system';
 
@@ -26,6 +27,10 @@ export const useThemeStore = create<ThemeState>()(
         const resolvedTheme = preference === 'system'
           ? (Appearance.getColorScheme() ?? 'light')
           : preference;
+        
+        // Update NativeWind color scheme immediately
+        colorScheme.set(resolvedTheme);
+        
         set({ preference, resolvedTheme });
       },
 
@@ -34,9 +39,17 @@ export const useThemeStore = create<ThemeState>()(
         if (preference === 'system') {
           const systemTheme = Appearance.getColorScheme() ?? 'light';
           const newTheme = systemTheme === 'dark' ? 'light' : 'dark';
+          
+          // Update NativeWind color scheme immediately
+          colorScheme.set(newTheme);
+          
           set({ preference: newTheme, resolvedTheme: newTheme });
         } else {
           const newTheme = preference === 'dark' ? 'light' : 'dark';
+          
+          // Update NativeWind color scheme immediately
+          colorScheme.set(newTheme);
+          
           set({ preference: newTheme, resolvedTheme: newTheme });
         }
       },
@@ -46,6 +59,10 @@ export const useThemeStore = create<ThemeState>()(
         const resolvedTheme = preference === 'system'
           ? (Appearance.getColorScheme() ?? 'light')
           : preference;
+        
+        // Update NativeWind color scheme immediately
+        colorScheme.set(resolvedTheme);
+        
         set({ resolvedTheme });
       },
 
@@ -61,6 +78,11 @@ export const useThemeStore = create<ThemeState>()(
         if (state) {
           state.updateResolvedTheme();
           state.setHasHydrated(true);
+          
+          // Ensure NativeWind is synced after rehydration
+          setTimeout(() => {
+            colorScheme.set(state.resolvedTheme);
+          }, 0);
         }
       },
     }

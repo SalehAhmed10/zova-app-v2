@@ -94,7 +94,7 @@ function ServiceBookingIllustration() {
 function GetStartedIllustration() {
   return (
     <View className="items-center mb-4">
-      <View className="w-32 h-32 bg-gradient-to-br from-primary to-primary/80 rounded-full items-center justify-center mb-4 shadow-2xl shadow-primary/30">
+      <View className="w-32 h-32 bg-primary rounded-full items-center justify-center mb-4 shadow-2xl">
         <Text className="text-5xl">🎉</Text>
       </View>
 

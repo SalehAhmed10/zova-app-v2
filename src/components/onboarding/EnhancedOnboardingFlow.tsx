@@ -283,7 +283,7 @@ export function EnhancedOnboardingFlow() {
             </Animated.View>
 
             {/* Navigation */}
-            <View className="space-y-3">
+            <View className="gap-3">
               <Button
                 size="lg"
                 onPress={handleNext}
@@ -310,7 +310,7 @@ export function EnhancedOnboardingFlow() {
       </PanGestureHandler>
 
       {/* Step indicators */}
-      <View className="flex-row justify-center space-x-2 pb-6">
+      <View className="flex-row justify-center gap-2 pb-6">
         {onboardingSteps.map((_, index) => (
           <View
             key={index}

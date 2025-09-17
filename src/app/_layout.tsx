@@ -14,6 +14,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { colorScheme } from 'nativewind';
 import { SessionProvider, useSession } from '@/lib/auth-context';
 import { SplashScreenController } from '@/lib/splash-controller';
+import { useThemeHydration } from '@/stores/theme';
 
 const LIGHT_THEME: Theme = NAV_THEME.light;
 const DARK_THEME: Theme = NAV_THEME.dark;
@@ -22,6 +23,8 @@ const DARK_THEME: Theme = NAV_THEME.dark;
 LogBox.ignoreLogs([
   'SafeAreaView has been deprecated',
   'SafeAreaView has been deprecated and will be removed in a future release',
+  'Please use \'react-native-safe-area-context\' instead',
+  /SafeAreaView.*deprecated/i,
 ]);
 
 // Create a client
@@ -36,11 +39,19 @@ const queryClient = new QueryClient({
 
 export default function RootLayout() {
   const { colorScheme: scheme, isDarkColorScheme } = useColorScheme();
+  const isThemeHydrated = useThemeHydration();
 
   React.useEffect(() => {
-    // Set the initial color scheme for nativewind
-    colorScheme.set(scheme);
-  }, [scheme]);
+    // Set the initial color scheme for nativewind only after theme is hydrated
+    if (isThemeHydrated) {
+      colorScheme.set(scheme);
+    }
+  }, [scheme, isThemeHydrated]);
+
+  // Wait for theme hydration before rendering
+  if (!isThemeHydrated) {
+    return null; // or a loading screen
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

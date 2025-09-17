@@ -1,16 +1,20 @@
 import { buttonTextVariants, buttonVariants } from '@/components/ui/button';
+import { NativeOnlyAnimatedView } from '@/components/ui/native-only-animated-view';
 import { TextClassContext } from '@/components/ui/text';
 import { cn } from '@/lib/utils';
 import * as AlertDialogPrimitive from '@rn-primitives/alert-dialog';
 import * as React from 'react';
 import { Platform, View, type ViewProps } from 'react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import { FadeIn, FadeOut } from 'react-native-reanimated';
+import { FullWindowOverlay as RNFullWindowOverlay } from 'react-native-screens';
 
 const AlertDialog = AlertDialogPrimitive.Root;
 
 const AlertDialogTrigger = AlertDialogPrimitive.Trigger;
 
 const AlertDialogPortal = AlertDialogPrimitive.Portal;
+
+const FullWindowOverlay = Platform.OS === 'ios' ? RNFullWindowOverlay : React.Fragment;
 
 function AlertDialogOverlay({
   className,
@@ -21,25 +25,23 @@ function AlertDialogOverlay({
     children?: React.ReactNode;
   }) {
   return (
-    <AlertDialogPrimitive.Overlay
-      className={cn(
-        'absolute bottom-0 left-0 right-0 top-0 z-50 flex items-center justify-center bg-black/50 p-2',
-        Platform.select({
-          web: 'animate-in fade-in-0 fixed',
-        }),
-        className
-      )}
-      {...props}>
-      {Platform.OS !== 'web' ? (
-        <Animated.View
+    <FullWindowOverlay>
+      <AlertDialogPrimitive.Overlay
+        className={cn(
+          'absolute bottom-0 left-0 right-0 top-0 z-50 flex items-center justify-center bg-black/50 p-2',
+          Platform.select({
+            web: 'animate-in fade-in-0 fixed',
+          }),
+          className
+        )}
+        {...props}>
+        <NativeOnlyAnimatedView
           entering={FadeIn.duration(200).delay(50)}
           exiting={FadeOut.duration(150)}>
           <>{children}</>
-        </Animated.View>
-      ) : (
-        <>{children}</>
-      )}
-    </AlertDialogPrimitive.Overlay>
+        </NativeOnlyAnimatedView>
+      </AlertDialogPrimitive.Overlay>
+    </FullWindowOverlay>
   );
 }
 

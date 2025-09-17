@@ -8,7 +8,7 @@ const textVariants = cva(
   cn(
     'text-foreground text-base',
     Platform.select({
-      web: 'select-text transition-colors',
+      web: 'select-text',
     })
   ),
   {
