@@ -1,11 +1,13 @@
-import { useColorScheme as useNativewindColorScheme } from 'nativewind';
+import { useThemeStore } from '@/stores/theme';
 
 export function useColorScheme() {
-  const { colorScheme, setColorScheme, toggleColorScheme } = useNativewindColorScheme();
+  const { resolvedTheme, preference, setTheme, toggleTheme } = useThemeStore();
+
   return {
-    colorScheme: colorScheme ?? 'dark',
-    isDarkColorScheme: colorScheme === 'dark',
-    setColorScheme,
-    toggleColorScheme,
+    colorScheme: resolvedTheme,
+    isDarkColorScheme: resolvedTheme === 'dark',
+    setColorScheme: (theme: 'light' | 'dark' | 'system') => setTheme(theme as any),
+    toggleColorScheme: toggleTheme,
+    preference, // Add preference to see what the user has set
   };
 }

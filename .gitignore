@@ -1,7 +1,9 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+# Dependencies
 node_modules/
+.pnp
+.pnp.js
 
 # Expo
 .expo/
@@ -17,10 +19,25 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# Android
+android/app/build/
+android/build/
+*.apk
+*.aab
+*.aar
+gradle-wrapper.jar
+# Ignore entire android directory (contains build artifacts and generated code)
+android/
+
+# iOS
+ios/build/
+*.xcworkspace/xcuserdata/
+*.xcworkspace/xcshareddata/
+
 # Metro
 .metro-health-check*
 
-# debug
+# Debug
 npm-debug.*
 yarn-debug.*
 yarn-error.*
@@ -29,10 +46,100 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# Local env files
+.env
 .env*.local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# typescript
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# GitHub
+.github/
+
+# TypeScript
 *.tsbuildinfo
+.tscache/
 
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# ESLint cache
+.eslintcache
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+
+# Nuxt.js build / generate output
+.nuxt
+dist
+
+# Gatsby files
+.cache/
+public
+
+# Storybook build outputs
+.out
+.storybook-out
+
+# Temporary folders
+tmp/
+temp/
+
+# Build artifacts
+build/
+dist/
+
+# App example
 app-example
+
+
+

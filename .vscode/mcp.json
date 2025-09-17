@@ -5,9 +5,32 @@
             "id": "apiKey",
             "description": "Firecrawl API Key",
             "password": true
+        },
+        {
+            "type": "promptString",
+            "id": "supabase-access-token",
+            "description": "Supabase personal access token",
+            "password": true
+        },
+        {
+            "type": "promptString",
+            "id": "project-ref",
+            "description": "Supabase project reference ID",
+            "password": false
         }
     ],
     "servers": {
+        "supabase": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@supabase/mcp-server-supabase@latest",
+                "--access-token",
+                "${input:supabase-access-token}",
+                "--project-ref=${input:project-ref}"
+            ],
+            "type": "stdio"
+        },
         "firecrawl": {
             "command": "npx",
             "args": [
