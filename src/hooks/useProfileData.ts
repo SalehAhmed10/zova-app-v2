@@ -271,3 +271,80 @@ export const useUpdateNotificationSettings = () => {
     },
   });
 };
+
+export interface TrustedProvider {
+  id: string;
+  first_name: string;
+  last_name: string;
+  business_name?: string;
+  avatar_url?: string;
+  bio?: string;
+  city?: string;
+  is_verified: boolean;
+  availability_status: 'available' | 'busy' | 'offline';
+  avg_rating?: number;
+  total_reviews?: number;
+  featured_service?: {
+    title: string;
+    base_price: string;
+    price_type: 'fixed' | 'hourly';
+  };
+}
+
+// Hook to fetch trusted providers near user
+export const useTrustedProviders = (limit: number = 5) => {
+  return useQuery({
+    queryKey: ['trustedProviders', limit],
+    queryFn: async () => {
+      // Get providers with their services and ratings
+      const { data, error } = await supabase
+        .from('profiles')
+        .select(`
+          id,
+          first_name,
+          last_name,
+          business_name,
+          avatar_url,
+          bio,
+          city,
+          is_verified,
+          availability_status,
+          provider_services (
+            title,
+            base_price,
+            price_type
+          )
+        `)
+        .eq('role', 'provider')
+        .eq('is_business_visible', true)
+        .eq('availability_status', 'available')
+        .order('is_verified', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+
+      // Transform data to include featured service and mock ratings for now
+      const transformedData: TrustedProvider[] = data.map((provider: any) => ({
+        id: provider.id,
+        first_name: provider.first_name,
+        last_name: provider.last_name,
+        business_name: provider.business_name,
+        avatar_url: provider.avatar_url,
+        bio: provider.bio,
+        city: provider.city,
+        is_verified: provider.is_verified,
+        availability_status: provider.availability_status,
+        avg_rating: Math.round((Math.random() * 1.5 + 3.5) * 10) / 10, // Mock rating between 3.5-5.0
+        total_reviews: Math.floor(Math.random() * 50) + 10, // Mock reviews between 10-60
+        featured_service: provider.provider_services?.[0] ? {
+          title: provider.provider_services[0].title,
+          base_price: provider.provider_services[0].base_price,
+          price_type: provider.provider_services[0].price_type,
+        } : undefined,
+      }));
+
+      return transformedData;
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes
+  });
+};

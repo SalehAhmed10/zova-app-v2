@@ -1,12 +1,31 @@
-import React from 'react';
-import { Tabs } from 'expo-router';
+import React, { useEffect } from 'react';
+import { Tabs, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/lib/useColorScheme';
+import { useAppStore } from '@/stores/app';
 
 export default function ProviderLayout() {
   const { isDarkColorScheme } = useColorScheme();
   const insets = useSafeAreaInsets();
+  const { userRole, isAuthenticated } = useAppStore();
+
+  // Role-based access control
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.replace('/auth/login');
+      return;
+    }
+    
+    if (userRole !== 'provider') {
+      console.log('[Provider Layout] Access denied for role:', userRole);
+      if (userRole === 'customer') {
+        router.replace('/customer');
+      } else {
+        router.replace('/auth/login');
+      }
+    }
+  }, [userRole, isAuthenticated]);
 
   return (
     <Tabs

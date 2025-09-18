@@ -183,11 +183,11 @@ export default function ProfileScreen() {
             <Text className="text-lg font-bold text-foreground mb-4">Account Settings</Text>
             <View className="gap-2">
               <TouchableOpacity 
-                className="bg-white dark:bg-card rounded-xl p-4 shadow-sm"
+                className="bg-card rounded-xl p-4 shadow-sm border border-border"
                 onPress={() => setPersonalInfoModalVisible(true)}
               >
                 <View className="flex-row items-center">
-                  <View className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl items-center justify-center mr-4">
+                  <View className="w-10 h-10 bg-primary/10 rounded-xl items-center justify-center mr-4">
                     <Text className="text-xl">👤</Text>
                   </View>
                   <View className="flex-1">
@@ -199,11 +199,11 @@ export default function ProfileScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity 
-                className="bg-white dark:bg-card rounded-xl p-4 shadow-sm"
+                className="bg-card rounded-xl p-4 shadow-sm border border-border"
                 onPress={() => setNotificationModalVisible(true)}
               >
                 <View className="flex-row items-center">
-                  <View className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-xl items-center justify-center mr-4">
+                  <View className="w-10 h-10 bg-secondary/20 rounded-xl items-center justify-center mr-4">
                     <Text className="text-xl">⚙️</Text>
                   </View>
                   <View className="flex-1">
@@ -220,9 +220,9 @@ export default function ProfileScreen() {
           <View>
             <Text className="text-lg font-bold text-foreground mb-4">Activity</Text>
             <View className="gap-2">
-              <TouchableOpacity className="bg-white dark:bg-card rounded-xl p-4 shadow-sm">
+              <TouchableOpacity className="bg-card rounded-xl p-4 shadow-sm border border-border">
                 <View className="flex-row items-center">
-                  <View className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-xl items-center justify-center mr-4">
+                  <View className="w-10 h-10 bg-destructive/10 rounded-xl items-center justify-center mr-4">
                     <Text className="text-xl">❤️</Text>
                   </View>
                   <View className="flex-1">
@@ -233,9 +233,9 @@ export default function ProfileScreen() {
                 </View>
               </TouchableOpacity>
 
-              <TouchableOpacity className="bg-white dark:bg-card rounded-xl p-4 shadow-sm">
+              <TouchableOpacity className="bg-card rounded-xl p-4 shadow-sm border border-border">
                 <View className="flex-row items-center">
-                  <View className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/30 rounded-xl items-center justify-center mr-4">
+                  <View className="w-10 h-10 bg-primary/10 rounded-xl items-center justify-center mr-4">
                     <Text className="text-xl">⭐</Text>
                   </View>
                   <View className="flex-1">
@@ -247,11 +247,11 @@ export default function ProfileScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity 
-                className="bg-white dark:bg-card rounded-xl p-4 shadow-sm"
+                className="bg-card rounded-xl p-4 shadow-sm border border-border"
                 onPress={() => setBookingHistoryModalVisible(true)}
               >
                 <View className="flex-row items-center">
-                  <View className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-xl items-center justify-center mr-4">
+                  <View className="w-10 h-10 bg-secondary/20 rounded-xl items-center justify-center mr-4">
                     <Text className="text-xl">📅</Text>
                   </View>
                   <View className="flex-1">
@@ -268,9 +268,9 @@ export default function ProfileScreen() {
           <View>
             <Text className="text-lg font-bold text-foreground mb-4">More</Text>
             <View className="gap-2">
-              <TouchableOpacity className="bg-white dark:bg-card rounded-xl p-4 shadow-sm">
+              <TouchableOpacity className="bg-card rounded-xl p-4 shadow-sm border border-border">
                 <View className="flex-row items-center">
-                  <View className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl items-center justify-center mr-4">
+                  <View className="w-10 h-10 bg-primary/10 rounded-xl items-center justify-center mr-4">
                     <Text className="text-xl">📍</Text>
                   </View>
                   <View className="flex-1">
@@ -281,9 +281,9 @@ export default function ProfileScreen() {
                 </View>
               </TouchableOpacity>
 
-              <TouchableOpacity className="bg-white dark:bg-card rounded-xl p-4 shadow-sm">
+              <TouchableOpacity className="bg-card rounded-xl p-4 shadow-sm border border-border">
                 <View className="flex-row items-center">
-                  <View className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-xl items-center justify-center mr-4">
+                  <View className="w-10 h-10 bg-secondary/20 rounded-xl items-center justify-center mr-4">
                     <Text className="text-xl">🔔</Text>
                   </View>
                   <View className="flex-1">
@@ -294,7 +294,7 @@ export default function ProfileScreen() {
                 </View>
               </TouchableOpacity>
 
-              <TouchableOpacity className="bg-white dark:bg-card rounded-xl p-4 shadow-sm">
+              <TouchableOpacity className="bg-card rounded-xl p-4 shadow-sm border border-border">
                 <View className="flex-row items-center">
                   <View className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-xl items-center justify-center mr-4">
                     <Text className="text-xl">�</Text>
@@ -307,9 +307,9 @@ export default function ProfileScreen() {
                 </View>
               </TouchableOpacity>
 
-              <TouchableOpacity className="bg-white dark:bg-card rounded-xl p-4 shadow-sm">
+              <TouchableOpacity className="bg-card rounded-xl p-4 shadow-sm border border-border">
                 <View className="flex-row items-center">
-                  <View className="w-10 h-10 bg-cyan-100 dark:bg-cyan-900/30 rounded-xl items-center justify-center mr-4">
+                  <View className="w-10 h-10 bg-secondary/20 rounded-xl items-center justify-center mr-4">
                     <Text className="text-xl">❓</Text>
                   </View>
                   <View className="flex-1">
@@ -321,11 +321,9 @@ export default function ProfileScreen() {
               </TouchableOpacity>
 
               {/* Theme Toggle */}
-              <View className="bg-white dark:bg-card rounded-xl p-4 shadow-sm">
-           
-             
-                  <ThemeToggle />
-                  </View>
+              <View className="bg-card rounded-xl p-4 shadow-sm border border-border">
+                <ThemeToggle />
+              </View>
             </View>
           </View>
 
@@ -345,7 +343,7 @@ export default function ProfileScreen() {
               end={{ x: 1, y: 0 }}
               style={{ borderRadius: 12, padding: 1 }}
             >
-              <TouchableOpacity className="bg-white dark:bg-background rounded-xl p-4">
+              <TouchableOpacity className="bg-card rounded-xl p-4 border border-border">
                 <LogoutButton />
               </TouchableOpacity>
             </LinearGradient>

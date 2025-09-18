@@ -49,24 +49,34 @@ export function LogoutButton({
       setShowDialog(false);
       
       console.log('[Logout] Starting logout process...');
+      
+      // Clear app state first
       logout();
       console.log('[Logout] App state cleared');
       
+      // Try to sign out from Supabase (don't fail if this errors)
       if (signOut) {
         try {
-          await signOut();
-          console.log('[Logout] Auth sign out completed');
+          const result = await signOut();
+          if (result.success) {
+            console.log('[Logout] Auth sign out completed successfully');
+          } else {
+            console.warn('[Logout] Auth sign out had issues but continuing');
+          }
         } catch (authError) {
-          console.warn('[Logout] Auth sign out failed:', authError);
+          console.warn('[Logout] Auth sign out failed, but continuing:', authError);
         }
       }
       
-      console.log('[Logout] Navigating to root...');
-      router.replace('/');
+      console.log('[Logout] Navigating to login...');
+      // Navigate directly to login to avoid double rendering through splash screen
+      router.replace('/auth/login');
+      
     } catch (error) {
       console.error('[Logout] Error during logout:', error);
+      // Still try to clear state and navigate even if something fails
       logout();
-      router.replace('/');
+      router.replace('/auth/login');
     } finally {
       setIsLoading(false);
       console.log('[Logout] Logout process completed');

@@ -26,17 +26,8 @@ export default function LoginScreen() {
     
     if (result.success) {
       console.log('Login successful');
-      // For demo purposes, default to customer role
-      // In production, this would come from the user's profile
-      const userRole = 'customer'; // This should come from backend
-      setAuthenticated(true, userRole);
-      
-      // Navigate based on user role
-      if (userRole === 'customer') {
-        router.replace('/customer');
-      } else if (userRole === 'provider') {
-        router.replace('/provider');
-      }
+      // Don't redirect here - let the auth state change handler detect the role
+      // and handle navigation automatically
     } else {
       Alert.alert('Login Failed', result.error || 'An error occurred');
     }

@@ -25,6 +25,9 @@ LogBox.ignoreLogs([
   'SafeAreaView has been deprecated and will be removed in a future release',
   'Please use \'react-native-safe-area-context\' instead',
   /SafeAreaView.*deprecated/i,
+  // Temporarily ignore Reanimated warnings while we fix core functionality
+  /.*Reanimated.*value.*during.*render.*/i,
+  /.*You shouldn't access.*value.*property.*during.*render.*/i,
 ]);
 
 // Create a client

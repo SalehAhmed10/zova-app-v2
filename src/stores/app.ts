@@ -66,7 +66,16 @@ export const useAppStore = create<AppStore>((set) => ({
       userRole: null,
       isLoading: false,
     });
-    AsyncStorage.removeItem('user_role');
+    
+    // Clear AsyncStorage auth data
+    AsyncStorage.removeItem('user_role').catch(error => {
+      console.warn('[AppStore] Failed to clear user_role from storage:', error);
+    });
+    
+    // Reset initialization flags to allow re-initialization
+    hasInitialized = false;
+    isInitializing = false;
+    
     console.log('[AppStore] Logout completed - state cleared');
   },
 
@@ -79,12 +88,26 @@ export const useAppStore = create<AppStore>((set) => ({
       isLoading: false,
     });
     AsyncStorage.multiRemove(['onboarding_complete', 'user_role']);
+    
+    // Reset initialization flags
+    hasInitialized = false;
+    isInitializing = false;
   },
 }));
 
 // Simple initialization function
+let isInitializing = false;
+let hasInitialized = false;
+
 export const initializeApp = async () => {
+  // Prevent multiple initializations
+  if (isInitializing || hasInitialized) {
+    console.log('[AppStore] Already initialized or initializing, skipping...');
+    return true;
+  }
+  
   try {
+    isInitializing = true;
     console.log('[AppStore] Initializing app...');
     const [onboardingComplete, userRole] = await AsyncStorage.multiGet([
       'onboarding_complete',
@@ -122,10 +145,13 @@ export const initializeApp = async () => {
       isLoading: finalState.isLoading
     });
     
+    hasInitialized = true;
     return true;
   } catch (error) {
     console.error('[AppStore] Failed to initialize app:', error);
     useAppStore.getState().setLoading(false);
     return false;
+  } finally {
+    isInitializing = false;
   }
 };
