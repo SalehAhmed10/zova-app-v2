@@ -42,12 +42,20 @@ export const useAuth = () => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user ?? null);
-      
+
       // Handle sign in events - fetch user profile and set role
       if (event === 'SIGNED_IN' && session?.user) {
+        // Check if email is verified
+        if (!session.user.email_confirmed_at) {
+          console.log('[Auth] User signed in but email not verified');
+          setAuthenticated(false);
+          return;
+        }
+
         const profile = await getUserProfile(session.user.id);
-        
+
         if (profile) {
+          console.log('[Auth] Profile found:', profile);
           setAuthenticated(true, profile.role as 'customer' | 'provider');
         } else {
           console.warn('[Auth] No profile found for user, user needs to complete registration');
@@ -65,12 +73,23 @@ export const useAuth = () => {
   const signIn = async (email: string, password: string) => {
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      
+
       if (error) throw error;
+
+      // Check if email is verified
+      if (data.user && !data.user.email_confirmed_at) {
+        return {
+          success: false,
+          error: 'Please verify your email before signing in.',
+          requiresVerification: true,
+          email: data.user.email
+        };
+      }
+
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -87,6 +106,41 @@ export const useAuth = () => {
         password,
       });
       
+      if (error) throw error;
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verifyOTP = async (email: string, token: string) => {
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: 'email',
+      });
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resendOTP = async (email: string) => {
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+      });
+
       if (error) throw error;
       return { success: true };
     } catch (error: any) {
@@ -134,6 +188,8 @@ export const useAuth = () => {
     loading,
     signIn,
     signUp,
+    verifyOTP,
+    resendOTP,
     signOut,
   };
 };

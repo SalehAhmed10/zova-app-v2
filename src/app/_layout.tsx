@@ -1,10 +1,10 @@
 import "~/global.css";
 
 import { Theme, ThemeProvider, DefaultTheme, DarkTheme } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Slot } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as React from 'react';
-import { Platform, LogBox } from 'react-native';
+import { Platform, LogBox, View } from 'react-native';
 import { NAV_THEME } from '@/lib/theme';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { PortalHost } from '@rn-primitives/portal';
@@ -13,10 +13,11 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { colorScheme } from 'nativewind';
 import { SessionProvider, useSession } from '@/lib/auth-context';
-import { SplashScreenController } from '@/lib/splash-controller';
+import { useAppStore } from '@/stores/app';
 import { useThemeHydration } from '@/stores/theme';
 import { cssInterop } from 'nativewind';
 import * as Icons from '@expo/vector-icons';
+import { Text } from '@/components/ui/text';
 
 // Apply cssInterop to all Expo Vector Icons globally
 Object.keys(Icons).forEach((iconKey) => {
@@ -83,7 +84,6 @@ export default function RootLayout() {
           <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
             <StatusBar style={isDarkColorScheme ? 'light' : 'dark'} />
             <SessionProvider>
-              <SplashScreenController />
               <RootNavigator />
             </SessionProvider>
             <PortalHost />
@@ -96,19 +96,21 @@ export default function RootLayout() {
 
 function RootNavigator() {
   const { session } = useSession();
+  const { userRole, isAuthenticated } = useAppStore();
 
-  return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Protected guard={!!session}>
-        <Stack.Screen name="customer" />
-        <Stack.Screen name="provider" />
-      </Stack.Protected>
+  // Memoize the state to prevent unnecessary re-renders
+  const navigationState = React.useMemo(() => ({
+    session,
+    isAuthenticated,
+    userRole
+  }), [session, isAuthenticated, userRole]);
 
-      <Stack.Protected guard={!session}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="onboarding" />
-        <Stack.Screen name="auth" />
-      </Stack.Protected>
-    </Stack>
-  );
+  // Only log when state actually changes
+  React.useEffect(() => {
+    console.log('[RootNavigator] State:', navigationState);
+  }, [navigationState]);
+
+  // Use Slot to let Expo Router handle navigation naturally
+  // The individual route files will handle their own navigation logic
+  return <Slot />;
 }

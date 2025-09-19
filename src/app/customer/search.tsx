@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, ScrollView } from 'react-native';
+import { View, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { FlashList } from '@shopify/flash-list';
+import { Feather } from '@expo/vector-icons';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,42 +13,53 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useProviderSearch, useServiceCategories, SearchFilters, ProviderSearchResult, useServiceSearch, ServiceSearchResult } from '@/hooks/useSearch';
-import { Feather } from '@expo/vector-icons';
+
+import { useAuth } from '@/hooks/useAuth';
+import { useIsFavorited, useToggleFavorite } from '@/hooks/useFavorites';
 
 // Search Bar Component
 const SearchBar = ({
   value,
   onChangeText,
-  onSubmit
+  onSubmit,
+  searchMode
 }: {
   value: string;
   onChangeText: (text: string) => void;
   onSubmit: () => void;
-}) => (
-  <View className="px-4 mb-4">
-    <View className="flex-row items-center bg-card rounded-2xl px-4 py-3 border border-border">
-      <Feather name="search" size={20} className="text-primary mr-3" />
-      <Input
-        placeholder="Search services or providers..."
-        value={value}
-        onChangeText={onChangeText}
-        onSubmitEditing={onSubmit}
-        className="flex-1 border-0 p-0 text-base"
-        returnKeyType="search"
-      />
-      {value.length > 0 && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onPress={() => onChangeText('')}
-          className="w-8 h-8 p-0"
-        >
-          <Feather name="x" size={18} className="text-primary" />
-        </Button>
-      )}
+  searchMode: 'services' | 'providers';
+}) => {
+  const placeholder = searchMode === 'services'
+    ? "Search services..."
+    : "Search providers...";
+
+  return (
+    <View className="px-4 mb-4">
+      <View className="flex-row items-center bg-background rounded-2xl px-4 py-3 border border-border/50 shadow-lg elevation-3">
+        <Feather name="search" size={20} className="text-muted-foreground mr-3" />
+        <Input
+          placeholder={placeholder}
+          value={value}
+          onChangeText={onChangeText}
+          onSubmitEditing={onSubmit}
+          className="flex-1 border-0 p-0 text-base bg-transparent dark:bg-transparent text-foreground"
+          placeholderTextColor="hsl(var(--muted-foreground))"
+          returnKeyType="search"
+        />
+        {value.length > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onPress={() => onChangeText('')}
+            className="w-8 h-8 p-0 ml-2 hover:bg-muted/50"
+          >
+            <Feather name="x" size={18} className="text-muted-foreground" />
+          </Button>
+        )}
+      </View>
     </View>
-  </View>
-);
+  );
+};
 
 // Filter Bar Component
 const FilterBar = ({
@@ -97,21 +109,38 @@ const FilterBar = ({
                 variant={!filters.category ? "default" : "outline"}
                 size="sm"
                 onPress={() => onFiltersChange({ ...filters, category: undefined })}
-                className="rounded-full px-4 py-2"
+                className="rounded-full px-4 py-2 bg-primary hover:bg-primary/90"
               >
-                <Text>All</Text>
+                <Text className={!filters.category ? "text-primary-foreground font-medium" : "text-primary font-medium"}>All</Text>
               </Button>
-              {categories?.slice(0, 6).map((category) => (
-                <Button
-                  key={category.id}
-                  variant={filters.category === category.name ? "default" : "outline"}
-                  size="sm"
-                  onPress={() => onFiltersChange({ ...filters, category: category.name })}
-                  className="rounded-full px-4 py-2"
-                >
-                  <Text>{category.name}</Text>
-                </Button>
-              ))}
+              {categories?.slice(0, 6).map((category, index) => {
+                const colors = [
+                  "bg-blue-500 hover:bg-blue-600",
+                  "bg-green-500 hover:bg-green-600",
+                  "bg-purple-500 hover:bg-purple-600",
+                  "bg-orange-500 hover:bg-orange-600",
+                  "bg-pink-500 hover:bg-pink-600",
+                  "bg-indigo-500 hover:bg-indigo-600"
+                ];
+                const isSelected = filters.category === category.name;
+                return (
+                  <Button
+                    key={category.id}
+                    variant={isSelected ? "default" : "outline"}
+                    size="sm"
+                    onPress={() => onFiltersChange({ ...filters, category: category.name })}
+                    className={`rounded-full px-4 py-2 ${
+                      isSelected
+                        ? "bg-primary hover:bg-primary/90"
+                        : `${colors[index % colors.length]} border-0`
+                    }`}
+                  >
+                    <Text className={isSelected ? "text-primary-foreground font-medium" : "text-white font-medium"}>
+                      {category.name}
+                    </Text>
+                  </Button>
+                );
+              })}
             </View>
           </ScrollView>
 
@@ -143,7 +172,7 @@ const FilterBar = ({
                   }
                 }}
               >
-                <Text>{option.label}</Text>
+                <Text className="text-foreground font-medium">{option.label}</Text>
               </Button>
             ))}
           </View>
@@ -154,187 +183,242 @@ const FilterBar = ({
 };
 
 // Provider Card Component
-const ProviderCard = React.memo(({ provider }: { provider: ProviderSearchResult }) => (
-  <Card className="bg-card border border-border/50 mb-4">
-    <CardContent className="p-4">
-      <View className="flex-row gap-3">
-        {/* Provider Avatar */}
-        <Avatar className="w-14 h-14" alt={`${provider.first_name} ${provider.last_name}`}>
-          {provider.avatar_url ? (
-            <AvatarImage source={{ uri: provider.avatar_url }} />
-          ) : null}
-          <AvatarFallback className="bg-primary/10">
-            <Text className="text-sm font-bold text-primary">
-              {provider.first_name[0]}{provider.last_name[0]}
-            </Text>
-          </AvatarFallback>
-        </Avatar>
+const ProviderCard = React.memo(({ provider }: { provider: ProviderSearchResult }) => {
+  const { user } = useAuth();
+  const { data: isFavorited } = useIsFavorited(user?.id, 'provider', provider.id);
+  const toggleFavorite = useToggleFavorite();
 
-        {/* Provider Details */}
-        <View className="flex-1">
-          {/* Provider Name - Clickable */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onPress={() => router.push(`/profiles/provider?providerId=${provider.id}`)}
-            className="p-0 h-auto justify-start mb-1"
-          >
-            <Text className="text-lg font-bold text-foreground">
+  const handleToggleFavorite = () => {
+    if (!user?.id) return;
+    toggleFavorite.mutate({
+      userId: user.id,
+      type: 'provider',
+      itemId: provider.id,
+      isFavorited: !!isFavorited
+    });
+  };
+
+  return (
+    <Card className="bg-card border border-border/50 mb-3 shadow-lg elevation-2">
+      <CardContent className="p-3">
+        {/* Top Section - Avatar and Basic Info */}
+        <View className="flex-row items-start gap-3 mb-3">
+          <Avatar className="w-12 h-12" alt={`${provider.first_name} ${provider.last_name}`}>
+            {provider.avatar_url ? (
+              <AvatarImage source={{ uri: provider.avatar_url }} />
+            ) : null}
+            <AvatarFallback className="bg-primary/10">
+              <Text className="text-sm font-bold text-primary">
+                {provider.first_name[0]}{provider.last_name[0]}
+              </Text>
+            </AvatarFallback>
+          </Avatar>
+
+          <View className="flex-1">
+            <Text className="text-lg font-bold text-foreground mb-1">
               {provider.first_name} {provider.last_name}
             </Text>
-          </Button>
+            {provider.business_name && (
+              <Text className="text-sm text-muted-foreground mb-1">
+                {provider.business_name}
+              </Text>
+            )}
 
-          {provider.business_name && (
-            <Text className="text-sm text-muted-foreground mb-1">
-              {provider.business_name}
-            </Text>
-          )}
-
-          {/* Rating and Review Count */}
-          <View className="flex-row items-center gap-2 mb-2">
-            <Feather name="star" size={12} className="text-yellow-500" />
-            <Text className="text-xs text-muted-foreground">
-              {provider.rating?.toFixed(1) || 'New'} ({provider.review_count || 0} reviews)
-            </Text>
+            {/* Rating and Services in one line */}
+            <View className="flex-row items-center gap-3">
+              <View className="flex-row items-center gap-1">
+                <Feather name="star" size={14} className="text-yellow-500" />
+                <Text className="text-sm font-medium text-foreground">
+                  {provider.rating?.toFixed(1) || 'New'}
+                </Text>
+                <Text className="text-xs text-muted-foreground">
+                  ({provider.review_count || 0})
+                </Text>
+              </View>
+              <Text className="text-xs text-muted-foreground">•</Text>
+              <Text className="text-sm text-muted-foreground">
+                {provider.services?.length || 0} service{provider.services?.length === 1 ? '' : 's'}
+              </Text>
+            </View>
           </View>
 
-          {/* Services Count */}
-          <Text className="text-xs text-muted-foreground">
-            {provider.services?.length || 0} service{provider.services?.length === 1 ? '' : 's'} available
-          </Text>
+          {/* Favorite Button */}
+          <TouchableOpacity
+            onPress={handleToggleFavorite}
+            className="w-8 h-8 items-center justify-center"
+            disabled={toggleFavorite.isPending}
+          >
+            <Feather
+              name="heart"
+              size={20}
+              className={isFavorited ? "text-red-500" : "text-muted-foreground"}
+              style={isFavorited ? { color: '#ef4444' } : undefined}
+            />
+          </TouchableOpacity>
         </View>
 
-        {/* Arrow */}
-        <View className="justify-center">
-          <Feather name="chevron-right" size={20} className="text-primary" />
-        </View>
-      </View>
-    </CardContent>
-  </Card>
-));
+        {/* CTA Button */}
+        <Button
+          onPress={() => router.push(`/profiles/provider?providerId=${provider.id}`)}
+          className="w-full bg-primary hover:bg-primary/90 mt-2"
+        >
+          <Text className="text-primary-foreground font-semibold">View Profile</Text>
+          <Feather name="arrow-right" size={16} className="text-primary-foreground ml-2" />
+        </Button>
+      </CardContent>
+    </Card>
+  );
+});
 
 
 
 // Service Card Component
-const ServiceCard = React.memo(({ service }: { service: ServiceSearchResult }) => (
-  <Card className="bg-card border border-border/50 mb-4">
-    <CardContent className="p-4">
-      <View className="flex-row gap-3">
-        {/* Provider Avatar */}
-        <View className="items-center">
-          <Avatar className="w-14 h-14" alt={`${service.provider.first_name} ${service.provider.last_name}`}>
-            {service.provider.avatar_url ? (
-              <AvatarImage source={{ uri: service.provider.avatar_url }} />
-            ) : null}
-            <AvatarFallback className="bg-primary/10">
-              <Text className="text-sm font-bold text-primary">
-                {service.provider.first_name[0]}{service.provider.last_name[0]}
-              </Text>
-            </AvatarFallback>
-          </Avatar>
-          {/* Rating below avatar */}
-          <View className="flex-row items-center mt-1">
-            <Feather name="star" size={10} className="text-yellow-500" />
-            <Text className="text-xs text-muted-foreground ml-1">
-              {service.provider.rating?.toFixed(1) || 'New'}
-            </Text>
-          </View>
-        </View>
+const ServiceCard = React.memo(({ service }: { service: ServiceSearchResult }) => {
+  const { user } = useAuth();
+  const { data: isFavorited } = useIsFavorited(user?.id, 'service', service.id);
+  const toggleFavorite = useToggleFavorite();
 
-        {/* Service Details */}
-        <View className="flex-1">
-          {/* Service Title - Clickable */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onPress={() => router.push('/customer/bookings')}
-            className="p-0 h-auto justify-start"
-          >
-            <Text className="text-lg font-bold text-foreground" numberOfLines={2}>
+  const handleToggleFavorite = () => {
+    if (!user?.id) return;
+    toggleFavorite.mutate({
+      userId: user.id,
+      type: 'service',
+      itemId: service.id,
+      isFavorited: !!isFavorited
+    });
+  };
+
+  return (
+    <Card className="bg-card border border-border/50 mb-3 shadow-lg elevation-2">
+      <CardContent className="p-3">
+        {/* Top Section - Service Title and Price */}
+        <View className="mb-2">
+          <View className="flex-row items-start justify-between mb-1">
+            <Text className="text-lg font-bold text-foreground flex-1 mr-3" numberOfLines={2}>
               {service.title}
             </Text>
-          </Button>
-
-          {/* Provider Name and Price Row */}
-          <View className="flex-row items-center justify-between mb-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => router.push(`/profiles/provider?providerId=${service.provider.id}`)}
-              className="flex-1 mr-2 p-0 h-auto justify-start"
-            >
-              <Text className="text-sm font-medium text-muted-foreground text-left">
-                by {service.provider.first_name} {service.provider.last_name}
-                {service.provider.business_name && ` • ${service.provider.business_name}`}
-              </Text>
-            </Button>
-            <View className="flex-row items-baseline">
-              <Text className="text-sm font-bold text-primary">
+            <View className="items-end">
+              <Text className="text-lg font-bold text-primary">
                 {service.price_type === 'hourly' ? `£${service.base_price}/hr` : `£${service.base_price}`}
               </Text>
-              <Text className="text-xs text-muted-foreground ml-1">
+              <Text className="text-xs text-muted-foreground">
                 {service.price_type === 'hourly' ? 'per hour' : 'fixed'}
               </Text>
             </View>
           </View>
 
-          {/* Service Description - Smaller text */}
-          <Text className="text-xs text-muted-foreground mb-2 leading-4" numberOfLines={2} ellipsizeMode="tail">
+          {/* Service Description */}
+          <Text className="text-sm text-muted-foreground mb-2 leading-5" numberOfLines={2} ellipsizeMode="tail">
             {service.description || 'No description available'}
           </Text>
+        </View>
 
-          {/* Category Badges */}
-          <View className="flex-row gap-1">
-            <Badge variant="secondary" className="text-xs px-2 py-0.5">
-              <Text numberOfLines={1} ellipsizeMode="tail">{service.category_name}</Text>
-            </Badge>
-            <Badge variant="outline" className="text-xs px-2 py-0.5">
-              <Text numberOfLines={1} ellipsizeMode="tail">{service.subcategory_name}</Text>
-            </Badge>
+        {/* Provider Info Section */}
+        <View className="flex-row items-center gap-3 mb-2">
+          <Avatar className="w-10 h-10" alt={`${service.provider.first_name} ${service.provider.last_name}`}>
+            {service.provider.avatar_url ? (
+              <AvatarImage source={{ uri: service.provider.avatar_url }} />
+            ) : null}
+            <AvatarFallback className="bg-primary/10">
+              <Text className="text-xs font-bold text-primary">
+                {service.provider.first_name[0]}{service.provider.last_name[0]}
+              </Text>
+            </AvatarFallback>
+          </Avatar>
+
+          <View className="flex-1">
+            <Text className="text-sm font-medium text-foreground">
+              {service.provider.first_name} {service.provider.last_name}
+            </Text>
+            {service.provider.business_name && (
+              <Text className="text-xs text-muted-foreground">
+                {service.provider.business_name}
+              </Text>
+            )}
+          </View>
+
+          {/* Rating and Favorite Button */}
+          <View className="flex-row items-center gap-2">
+            <View className="flex-row items-center gap-1">
+              <Feather name="star" size={12} className="text-yellow-500" />
+              <Text className="text-sm font-medium text-foreground">
+                {service.provider.rating?.toFixed(1) || 'New'}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              onPress={handleToggleFavorite}
+              className="w-6 h-6 items-center justify-center"
+              disabled={toggleFavorite.isPending}
+            >
+              <Feather
+                name="heart"
+                size={16}
+                className={isFavorited ? "text-red-500" : "text-muted-foreground"}
+                style={isFavorited ? { color: '#ef4444' } : undefined}
+              />
+            </TouchableOpacity>
           </View>
         </View>
-      </View>
-    </CardContent>
-  </Card>
-));
+
+        {/* Category Badges */}
+        <View className="flex-row gap-1 mb-2">
+          <Badge className="text-xs px-2 py-1 bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900 dark:text-blue-100 dark:border-blue-800">
+            <Text numberOfLines={1} ellipsizeMode="tail" className="text-blue-800 dark:text-blue-100">{service.category_name}</Text>
+          </Badge>
+          <Badge className="text-xs px-2 py-1 bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-100 dark:border-green-800">
+            <Text numberOfLines={1} ellipsizeMode="tail" className="text-green-800 dark:text-green-100">{service.subcategory_name}</Text>
+          </Badge>
+        </View>
+
+        {/* Full Width CTA Button */}
+        <Button
+          onPress={() => router.push('/customer/bookings')}
+          className="w-full bg-primary hover:bg-primary/90"
+        >
+          <Text className="text-primary-foreground font-semibold">Book Now</Text>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+});
 
 
 // Loading Skeleton
 const ServiceCardSkeleton = () => (
-  <View className="mb-4">
-    <Card className="bg-card border border-border/50 shadow-sm">
-      <CardContent className="p-4">
-        <View className="flex-row gap-3">
-          {/* Avatar Skeleton */}
-          <View className="items-center">
-            <Skeleton className="w-14 h-14 rounded-full" />
-            <Skeleton className="w-8 h-3 mt-1" />
+  <View className="mb-3">
+    <Card className="bg-card border border-border/50 shadow-lg elevation-2">
+      <CardContent className="p-3">
+        {/* Top Section - Title and Price */}
+        <View className="mb-2">
+          <View className="flex-row items-start justify-between mb-1">
+            <Skeleton className="w-32 h-5 flex-1 mr-3" />
+            <View className="items-end">
+              <Skeleton className="w-16 h-5" />
+              <Skeleton className="w-12 h-3 mt-1" />
+            </View>
           </View>
+          <Skeleton className="w-full h-4 mb-1" />
+          <Skeleton className="w-3/4 h-4 mb-2" />
+        </View>
 
-          {/* Content Skeleton */}
+        {/* Provider Info Section */}
+        <View className="flex-row items-center gap-3 mb-2">
+          <Skeleton className="w-10 h-10 rounded-full" />
           <View className="flex-1">
-            {/* Title and Price Row */}
-            <View className="flex-row items-start justify-between mb-2">
-              <Skeleton className="w-32 h-5 flex-1 mr-2" />
-              <View className="items-end">
-                <Skeleton className="w-16 h-5" />
-                <Skeleton className="w-12 h-3 mt-1" />
-              </View>
-            </View>
-
-            {/* Provider Name */}
-            <Skeleton className="w-24 h-4 mb-2" />
-
-            {/* Description */}
-            <Skeleton className="w-full h-4 mb-1" />
-            <Skeleton className="w-3/4 h-4 mb-3" />
-
-            {/* Badges */}
-            <View className="flex-row gap-1">
-              <Skeleton className="w-16 h-6 rounded-full" />
-              <Skeleton className="w-20 h-6 rounded-full" />
-            </View>
+            <Skeleton className="w-24 h-4 mb-1" />
+            <Skeleton className="w-20 h-3" />
           </View>
+          <Skeleton className="w-12 h-4" />
+        </View>
+
+        {/* Bottom Section */}
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row gap-2">
+            <Skeleton className="w-16 h-6 rounded-full" />
+            <Skeleton className="w-20 h-6 rounded-full" />
+          </View>
+          <Skeleton className="w-20 h-8 rounded-lg" />
         </View>
       </CardContent>
     </Card>
@@ -343,33 +427,21 @@ const ServiceCardSkeleton = () => (
 
 // Provider Card Skeleton
 const ProviderCardSkeleton = () => (
-  <View className="mb-4">
-    <Card className="bg-card border border-border/50 shadow-sm">
-      <CardContent className="p-4">
-        <View className="flex-row gap-3">
-          {/* Avatar Skeleton */}
-          <Skeleton className="w-14 h-14 rounded-full" />
-
-          {/* Content Skeleton */}
+  <View className="mb-3">
+    <Card className="bg-card border border-border/50 shadow-lg elevation-2">
+      <CardContent className="p-3">
+        {/* Top Section - Avatar and Basic Info */}
+        <View className="flex-row items-start gap-3 mb-2">
+          <Skeleton className="w-12 h-12 rounded-full" />
           <View className="flex-1">
-            {/* Provider Name */}
-            <Skeleton className="w-32 h-5 mb-2" />
-
-            {/* Business Name */}
-            <Skeleton className="w-24 h-4 mb-3" />
-
-            {/* Rating and Services */}
-            <View className="flex-row items-center justify-between">
-              <Skeleton className="w-20 h-3" />
-              <Skeleton className="w-16 h-3" />
-            </View>
-          </View>
-
-          {/* Arrow Skeleton */}
-          <View className="justify-center">
-            <Skeleton className="w-5 h-5" />
+            <Skeleton className="w-32 h-5 mb-1" />
+            <Skeleton className="w-24 h-4 mb-1" />
+            <Skeleton className="w-20 h-3" />
           </View>
         </View>
+
+        {/* CTA Button Skeleton */}
+        <Skeleton className="w-full h-10 rounded-lg mt-1" />
       </CardContent>
     </Card>
   </View>
@@ -462,13 +534,6 @@ export default function SearchScreen() {
           </View>
         </View>
 
-        {/* Search Bar */}
-        <SearchBar
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          onSubmit={handleSearch}
-        />
-
         {/* Search Mode Tabs */}
         <View className="px-4 mb-2">
           <View className="flex-row bg-muted rounded-lg p-1">
@@ -494,6 +559,14 @@ export default function SearchScreen() {
             </Button>
           </View>
         </View>
+
+        {/* Search Bar */}
+        <SearchBar
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          onSubmit={handleSearch}
+          searchMode={searchMode}
+        />
 
         {/* Filters */}
         {!categoriesLoading && categories && (

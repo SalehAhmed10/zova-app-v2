@@ -78,7 +78,7 @@ export const useProviderSearch = (filters: SearchFilters = {}) => {
         sortOrder = 'desc'
       } = filters;
 
-      // Build the base query with proper JOINs
+      // Build the base query with proper JOINs - optimized for performance
       let queryBuilder = supabase
         .from('profiles')
         .select(`
@@ -107,11 +107,13 @@ export const useProviderSearch = (filters: SearchFilters = {}) => {
           )
         `)
         .eq('role', 'provider')
-        .eq('is_business_visible', true);
+        .eq('is_business_visible', true)
+        .order('first_name', { ascending: true }); // Add default ordering for consistency
 
-      // Apply search query filter
+      // Apply search query filter - simplified approach
       if (query) {
-        queryBuilder = queryBuilder.or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,business_name.ilike.%${query}%,bio.ilike.%${query}%,provider_services.title.ilike.%${query}%`);
+        // First try to search in basic profile fields
+        queryBuilder = queryBuilder.or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,business_name.ilike.%${query}%,bio.ilike.%${query}%`);
       }
 
       // Apply category filter
@@ -132,6 +134,13 @@ export const useProviderSearch = (filters: SearchFilters = {}) => {
         queryBuilder = queryBuilder.lte('provider_services.base_price', maxPrice);
       }
 
+      // Apply search query filter - simplified approach
+      if (query) {
+        // First try to search in basic profile fields
+        queryBuilder = queryBuilder.or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,business_name.ilike.%${query}%,bio.ilike.%${query}%`);
+      }
+
+      // Execute the main query
       const { data, error } = await queryBuilder.limit(50);
 
       console.log('🔍 useProviderSearch - Query executed:', {
@@ -142,8 +151,54 @@ export const useProviderSearch = (filters: SearchFilters = {}) => {
 
       if (error) throw error;
 
+      // If we have a search query and no results, also search in service titles
+      let additionalResults: any[] = [];
+      if (query && (!data || data.length === 0)) {
+        const { data: serviceData, error: serviceError } = await supabase
+          .from('profiles')
+          .select(`
+            id,
+            first_name,
+            last_name,
+            business_name,
+            avatar_url,
+            bio,
+            coordinates,
+            provider_services!inner (
+              id,
+              title,
+              base_price,
+              price_type,
+              description,
+              service_subcategories (
+                name,
+                service_categories (
+                  name
+                )
+              )
+            ),
+            reviews!reviews_provider_id_fkey (
+              rating
+            )
+          `)
+          .eq('role', 'provider')
+          .eq('is_business_visible', true)
+          .ilike('provider_services.title', `%${query}%`)
+          .limit(50);
+
+        if (!serviceError && serviceData) {
+          additionalResults = serviceData;
+        }
+      }
+
+      // Combine results and remove duplicates
+      const allData = [...(data || []), ...(additionalResults || [])];
+      const uniqueData = allData.filter((item, index, self) =>
+        index === self.findIndex((t) => t.id === item.id)
+      );
+
       // Transform data
-      let results: ProviderSearchResult[] = data?.map((provider: any) => {
+      let results: ProviderSearchResult[] = uniqueData?.map((provider: any) => {
         // Calculate average rating from reviews
         const reviews = provider.reviews || [];
         const rating = reviews.length > 0
@@ -235,7 +290,8 @@ export const useProviderSearch = (filters: SearchFilters = {}) => {
       return results;
     },
     enabled: true,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 2 * 60 * 1000, // 2 minutes - reduced for better responsiveness
+    gcTime: 10 * 60 * 1000, // 10 minutes - keep in cache longer
   });
 };
 
@@ -285,7 +341,8 @@ export const useServiceSearch = (filters: SearchFilters = {}) => {
             )
           `)
           .eq('profiles.role', 'provider')
-          .eq('profiles.is_business_visible', true);
+          .eq('profiles.is_business_visible', true)
+          .order('base_price', { ascending: true }); // Add default ordering for consistency
 
         // Apply search query filter
         if (query) {
@@ -391,7 +448,8 @@ export const useServiceSearch = (filters: SearchFilters = {}) => {
       }
     },
     enabled: true,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 2 * 60 * 1000, // 2 minutes - reduced for better responsiveness
+    gcTime: 10 * 60 * 1000, // 10 minutes - keep in cache longer
   });
 };
 

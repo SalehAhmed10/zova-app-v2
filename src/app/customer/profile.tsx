@@ -19,25 +19,48 @@ import {
   useNotificationSettings 
 } from '@/hooks/useProfileData';
 
+
 // Import modals
 import { PersonalInfoModal } from '@/components/profile/PersonalInfoModal';
 import { NotificationSettingsModal } from '@/components/profile/NotificationSettingsModal';
 import { BookingHistoryModal } from '@/components/profile/BookingHistoryModal';
+import { FavoritesModal } from '@/components/profile/FavoritesModal';
+import { useUserFavorites } from '@/hooks/useFavorites';
 
 export default function ProfileScreen() {
   const { userRole } = useAppStore();
   const { user } = useAuth();
   
-  // Data fetching hooks with user ID
-  const { data: profileData, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useProfile(user?.id);
-  const { data: statsData, isLoading: statsLoading } = useProfileStats(user?.id);
-  const { data: bookingsData, isLoading: bookingsLoading } = useUserBookings(user?.id);
-  const { data: notificationSettings } = useNotificationSettings(user?.id);
+  // Don't fetch data if user is not authenticated or logging out
+  const shouldFetchData = user?.id && userRole === 'customer';
+  
+  // Data fetching hooks with user ID - only call when user is authenticated
+  const { data: profileData, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useProfile(shouldFetchData ? user?.id : undefined);
+  const { data: statsData, isLoading: statsLoading } = useProfileStats(shouldFetchData ? user?.id : undefined);
+  const { data: bookingsData, isLoading: bookingsLoading } = useUserBookings(shouldFetchData ? user?.id : undefined);
+  const { data: notificationSettings } = useNotificationSettings(shouldFetchData ? user?.id : undefined);
+  const { data: favoritesData } = useUserFavorites(shouldFetchData ? user?.id : undefined);
+
+  // Debug logging - only log when user actually changes
+  React.useEffect(() => {
+    if (user?.id) {
+      console.log('ProfileScreen: user object:', user);
+      console.log('ProfileScreen: user.id:', user?.id);
+    }
+  }, [user?.id]);
+
+  // Debug favorites logging - only log when favorites change
+  React.useEffect(() => {
+    if (favoritesData) {
+      console.log('ProfileScreen: favoritesData:', favoritesData);
+    }
+  }, [favoritesData]);
 
   // Modal states
   const [personalInfoModalVisible, setPersonalInfoModalVisible] = React.useState(false);
   const [notificationModalVisible, setNotificationModalVisible] = React.useState(false);
   const [bookingHistoryModalVisible, setBookingHistoryModalVisible] = React.useState(false);
+  const [favoritesModalVisible, setFavoritesModalVisible] = React.useState(false);
 
   // Helper functions
   const getDisplayName = () => {
@@ -220,14 +243,19 @@ export default function ProfileScreen() {
           <View>
             <Text className="text-lg font-bold text-foreground mb-4">Activity</Text>
             <View className="gap-2">
-              <TouchableOpacity className="bg-card rounded-xl p-4 shadow-sm border border-border">
+              <TouchableOpacity 
+                className="bg-card rounded-xl p-4 shadow-sm border border-border"
+                onPress={() => setFavoritesModalVisible(true)}
+              >
                 <View className="flex-row items-center">
                   <View className="w-10 h-10 bg-destructive/10 rounded-xl items-center justify-center mr-4">
                     <Text className="text-xl">❤️</Text>
                   </View>
                   <View className="flex-1">
                     <Text className="font-semibold text-foreground">Favorites</Text>
-                    <Text className="text-muted-foreground text-sm">5 saved providers</Text>
+                    <Text className="text-muted-foreground text-sm">
+                      {(favoritesData?.providers?.length || 0) + (favoritesData?.services?.length || 0)} saved items
+                    </Text>
                   </View>
                   <Text className="text-muted-foreground text-lg">›</Text>
                 </View>
@@ -373,6 +401,12 @@ export default function ProfileScreen() {
         onClose={() => setBookingHistoryModalVisible(false)}
         bookings={bookingsData}
         isLoading={bookingsLoading}
+      />
+
+      <FavoritesModal
+        visible={favoritesModalVisible}
+        onClose={() => setFavoritesModalVisible(false)}
+        userId={user?.id || ''}
       />
     </SafeAreaView>
   );

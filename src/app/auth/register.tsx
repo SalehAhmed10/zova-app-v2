@@ -48,17 +48,16 @@ export default function RegisterScreen() {
   const onSubmit = async (data: RegisterForm) => {
     try {
       const result = await signUp(data.email, data.password);
-      
+
       if (result.success) {
-        // Set the user role in app store and mark as authenticated
-        setAuthenticated(true, data.role);
-        
-        // Navigate based on selected role
-        if (data.role === 'customer') {
-          router.replace('/customer/' as any);
-        } else if (data.role === 'provider') {
-          router.replace('/provider/' as any);
-        }
+        // Navigate to OTP verification with user data
+        router.replace({
+          pathname: '/auth/otp-verification',
+          params: {
+            email: data.email,
+            role: data.role,
+          },
+        } as any);
       } else {
         setError('email', { message: result.error || 'Registration failed' });
       }
@@ -92,9 +91,7 @@ export default function RegisterScreen() {
         {/* Registration Form */}
         <Animated.View entering={SlideInDown.delay(400).springify()} className="px-2">
           <View className="w-full max-w-md mx-auto mb-6">
-            <Text variant="h3" className="text-center mb-8">
-              Sign Up
-            </Text>
+   
             
             <View className="gap-6">
               {/* Name Fields */}
@@ -344,7 +341,7 @@ export default function RegisterScreen() {
             <Button
               variant="ghost"
               size="sm"
-              onPress={() => router.push('/auth/login' as any)}
+              onPress={() => router.push('/auth' as any)}
             >
               <Text className="text-primary font-medium">Sign In</Text>
             </Button>

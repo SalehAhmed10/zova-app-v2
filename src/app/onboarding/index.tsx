@@ -39,7 +39,7 @@ export default function OnboardingScreen() {
       setCurrentStep(currentStep + 1);
     } else {
       completeOnboarding();
-      router.replace('/auth/login');
+      router.replace('/auth');
     }
   };
 
@@ -51,7 +51,7 @@ export default function OnboardingScreen() {
 
   const handleSkip = () => {
     completeOnboarding();
-    router.replace('/auth/login');
+    router.replace('/auth');
   };
 
   const currentStepData = ONBOARDING_STEPS[currentStep];

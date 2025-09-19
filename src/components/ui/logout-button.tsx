@@ -69,14 +69,15 @@ export function LogoutButton({
       }
       
       console.log('[Logout] Navigating to login...');
-      // Navigate directly to login to avoid double rendering through splash screen
-      router.replace('/auth/login');
+      // Don't navigate directly - let RootNavigator handle navigation based on state changes
+      // router.replace('/auth');
       
     } catch (error) {
       console.error('[Logout] Error during logout:', error);
-      // Still try to clear state and navigate even if something fails
+      // Still try to clear state even if something fails
       logout();
-      router.replace('/auth/login');
+      // Don't navigate here - let RootNavigator handle it
+      // router.replace('/auth');
     } finally {
       setIsLoading(false);
       console.log('[Logout] Logout process completed');

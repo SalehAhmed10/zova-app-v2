@@ -97,9 +97,11 @@ let hasInitialized = false;
 export const initializeApp = async () => {
   // Prevent multiple initializations
   if (isInitializing || hasInitialized) {
+    console.log('[AppStore] Already initialized or initializing');
     return true;
   }
   
+  console.log('[AppStore] Starting initialization...');
   try {
     isInitializing = true;
     const [onboardingComplete, userRole] = await AsyncStorage.multiGet([
@@ -107,19 +109,28 @@ export const initializeApp = async () => {
       'user_role'
     ]);
 
+    console.log('[AppStore] Retrieved from storage:', {
+      onboardingComplete: onboardingComplete[1],
+      userRole: userRole[1]
+    });
+
     const store = useAppStore.getState();
     
     store.setLoading(false);
+    console.log('[AppStore] Set loading to false');
     
     if (onboardingComplete[1] === 'true') {
       store.completeOnboarding();
+      console.log('[AppStore] Completed onboarding');
     }
     
     if (userRole[1]) {
       store.setAuthenticated(true, userRole[1] as 'customer' | 'provider');
+      console.log('[AppStore] Set authenticated with role:', userRole[1]);
     }
     
     hasInitialized = true;
+    console.log('[AppStore] Initialization completed successfully');
     return true;
   } catch (error) {
     console.error('[AppStore] Failed to initialize app:', error);
