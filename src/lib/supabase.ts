@@ -19,10 +19,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 // Database types (you can generate these with `supabase gen types typescript --project-id YOUR_PROJECT_ID`)
-export type Database = {
-  // Add your database types here
-  // You can generate this with: npx supabase gen types typescript --project-id YOUR_PROJECT_ID > types/supabase.ts
-};
+export type { Database } from '@/types/supabase';
 
 // Auth helpers
 export const auth = {
@@ -81,47 +78,42 @@ export const db = {
     },
   },
 
-  // Example: Posts table operations
-  posts: {
-    getAll: async () => {
+  // Provider schedules operations
+  providerSchedules: {
+    getSchedule: async (providerId: string) => {
       const { data, error } = await supabase
-        .from('posts')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .from('provider_schedules')
+        .select('schedule_data')
+        .eq('provider_id', providerId)
+        .single();
       return { data, error };
     },
 
-    create: async (post: { title: string; content: string; user_id: string }) => {
+    saveSchedule: async (providerId: string, scheduleData: any) => {
       const { data, error } = await supabase
-        .from('posts')
-        .insert([post])
+        .from('provider_schedules')
+        .upsert({
+          provider_id: providerId,
+          schedule_data: scheduleData,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'provider_id'
+        })
         .select()
         .single();
       return { data, error };
     },
-  },
-};
 
-// Storage helpers
-export const storage = {
-  uploadFile: async (bucket: string, path: string, file: any) => {
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .upload(path, file);
-    return { data, error };
-  },
-
-  getPublicUrl: (bucket: string, path: string) => {
-    const { data } = supabase.storage
-      .from(bucket)
-      .getPublicUrl(path);
-    return data.publicUrl;
-  },
-
-  deleteFile: async (bucket: string, paths: string[]) => {
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .remove(paths);
-    return { data, error };
-  },
+    createSchedule: async (providerId: string, scheduleData: any) => {
+      const { data, error } = await supabase
+        .from('provider_schedules')
+        .insert({
+          provider_id: providerId,
+          schedule_data: scheduleData
+        })
+        .select()
+        .single();
+      return { data, error };
+    }
+  }
 };

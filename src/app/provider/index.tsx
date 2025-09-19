@@ -2,6 +2,7 @@ import React from 'react';
 import { View, ScrollView, Platform, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -170,7 +171,7 @@ export default function ProviderDashboard() {
           <Text className="text-lg font-bold text-foreground mb-4">Quick Actions</Text>
           <View className="gap-3">
             <View className="flex-row gap-3">
-              <TouchableOpacity className="flex-1">
+              <TouchableOpacity className="flex-1" onPress={() => router.push('/provider/calendar')}>
                 <Card className='bg-card'>
                   <CardContent className=" p-4 items-center">
                     <Text className="text-xl mb-2">📅</Text>
@@ -184,7 +185,7 @@ export default function ProviderDashboard() {
                 </Card>
               </TouchableOpacity>
               
-              <TouchableOpacity className="flex-1">
+              <TouchableOpacity className="flex-1" onPress={() => router.push('/provider/services')}>
                 <Card className='bg-card'>
                   <CardContent className=" p-4 items-center">
                     <Text className="text-xl mb-2">➕</Text>
@@ -214,7 +215,7 @@ export default function ProviderDashboard() {
                 </Card>
               </TouchableOpacity>
               
-              <TouchableOpacity className="flex-1">
+              <TouchableOpacity className="flex-1" onPress={() => router.push('/provider/earnings')}>
                 <Card className='bg-card'>
                   <CardContent className=" p-4 items-center">
                     <Text className="text-xl mb-2">📊</Text>
@@ -315,7 +316,7 @@ export default function ProviderDashboard() {
           <Card>
             <CardContent className="p-4">
               <View className="gap-4">
-                <TouchableOpacity className="flex-row items-center">
+                <TouchableOpacity className="flex-row items-center" onPress={() => router.push('/provider/services')}>
                   <View className="w-10 h-10 bg-primary/10 rounded-full items-center justify-center mr-3">
                     <Text className="text-lg">✏️</Text>
                   </View>
@@ -326,7 +327,7 @@ export default function ProviderDashboard() {
                   <Text className="text-muted-foreground">→</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity className="flex-row items-center">
+                <TouchableOpacity className="flex-row items-center" onPress={() => router.push('/provider/services')}>
                   <View className="w-10 h-10 bg-accent/50 rounded-full items-center justify-center mr-3">
                     <Text className="text-lg">📋</Text>
                   </View>
@@ -337,7 +338,7 @@ export default function ProviderDashboard() {
                   <Text className="text-muted-foreground">→</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity className="flex-row items-center">
+                <TouchableOpacity className="flex-row items-center" onPress={() => router.push('/provider/calendar')}>
                   <View className="w-10 h-10 bg-secondary/20 rounded-full items-center justify-center mr-3">
                     <Text className="text-lg">🕒</Text>
                   </View>

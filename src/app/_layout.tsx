@@ -15,6 +15,26 @@ import { colorScheme } from 'nativewind';
 import { SessionProvider, useSession } from '@/lib/auth-context';
 import { SplashScreenController } from '@/lib/splash-controller';
 import { useThemeHydration } from '@/stores/theme';
+import { cssInterop } from 'nativewind';
+import * as Icons from '@expo/vector-icons';
+
+// Apply cssInterop to all Expo Vector Icons globally
+Object.keys(Icons).forEach((iconKey) => {
+  const IconComponent = Icons[iconKey];
+  if (IconComponent && typeof IconComponent === 'function') {
+    cssInterop(IconComponent, {
+      className: {
+        target: 'style',
+        nativeStyleToProp: {
+          height: true,
+          width: true,
+          size: true,
+          color: true,
+        },
+      },
+    });
+  }
+});
 
 const LIGHT_THEME: Theme = NAV_THEME.light;
 const DARK_THEME: Theme = NAV_THEME.dark;

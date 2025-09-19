@@ -105,17 +105,10 @@ export const useOnboardingStore = create<OnboardingState>()(
         completionTime: state.completionTime,
       }),
       onRehydrateStorage: () => {
-        console.log('[Onboarding] Rehydration started');
         return (state, error) => {
           if (error) {
-            console.log('[Onboarding] Rehydration error:', error);
+            console.error('[Onboarding] Rehydration error:', error);
           } else {
-            console.log('[Onboarding] Rehydration finished. State:', {
-              isCompleted: state?.isCompleted,
-              currentStep: state?.currentStep,
-              hasSkipped: state?.hasSkipped,
-              completionTime: state?.completionTime
-            });
             state?.setHasHydrated(true);
           }
         };
@@ -150,7 +143,6 @@ export const useOnboardingHydration = () => {
     } else if (!isReady) {
       // Shorter timeout - 500ms should be enough for hydration
       const timeout = setTimeout(() => {
-        console.log('[Onboarding] Hydration timeout, proceeding anyway');
         setIsReady(true);
       }, 500);
 

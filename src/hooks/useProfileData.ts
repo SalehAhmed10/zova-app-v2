@@ -104,7 +104,7 @@ export const useUserBookings = (userId?: string) => {
               )
             )
           ),
-          profiles!bookings_provider_id_fkey (
+          profiles!provider_id (
             first_name,
             last_name,
             business_name
@@ -117,6 +117,8 @@ export const useUserBookings = (userId?: string) => {
       if (error) throw error;
       
       // Transform the data to match our interface
+
+     
       return data.map((booking: any) => ({
         id: booking.id,
         booking_date: booking.booking_date,
@@ -309,10 +311,13 @@ export const useTrustedProviders = (limit: number = 5) => {
           city,
           is_verified,
           availability_status,
-          provider_services (
+          provider_services!left (
             title,
             base_price,
             price_type
+          ),
+          reviews!reviews_provider_id_fkey!left (
+            rating
           )
         `)
         .eq('role', 'provider')
@@ -323,25 +328,33 @@ export const useTrustedProviders = (limit: number = 5) => {
 
       if (error) throw error;
 
-      // Transform data to include featured service and mock ratings for now
-      const transformedData: TrustedProvider[] = data.map((provider: any) => ({
-        id: provider.id,
-        first_name: provider.first_name,
-        last_name: provider.last_name,
-        business_name: provider.business_name,
-        avatar_url: provider.avatar_url,
-        bio: provider.bio,
-        city: provider.city,
-        is_verified: provider.is_verified,
-        availability_status: provider.availability_status,
-        avg_rating: Math.round((Math.random() * 1.5 + 3.5) * 10) / 10, // Mock rating between 3.5-5.0
-        total_reviews: Math.floor(Math.random() * 50) + 10, // Mock reviews between 10-60
-        featured_service: provider.provider_services?.[0] ? {
-          title: provider.provider_services[0].title,
-          base_price: provider.provider_services[0].base_price,
-          price_type: provider.provider_services[0].price_type,
-        } : undefined,
-      }));
+      // Transform data to include featured service and calculate real ratings
+      const transformedData: TrustedProvider[] = data.map((provider: any) => {
+        // Calculate real rating from reviews
+        const reviews = provider.reviews || [];
+        const avgRating = reviews.length > 0
+          ? reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / reviews.length
+          : null;
+
+        return {
+          id: provider.id,
+          first_name: provider.first_name,
+          last_name: provider.last_name,
+          business_name: provider.business_name,
+          avatar_url: provider.avatar_url,
+          bio: provider.bio,
+          city: provider.city,
+          is_verified: provider.is_verified,
+          availability_status: provider.availability_status,
+          avg_rating: avgRating ? Math.round(avgRating * 10) / 10 : null, // Round to 1 decimal
+          total_reviews: reviews.length,
+          featured_service: provider.provider_services?.[0] ? {
+            title: provider.provider_services[0].title,
+            base_price: provider.provider_services[0].base_price,
+            price_type: provider.provider_services[0].price_type,
+          } : undefined,
+        };
+      });
 
       return transformedData;
     },

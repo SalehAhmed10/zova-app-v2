@@ -41,17 +41,13 @@ export const useAuth = () => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[Auth] Auth state changed:', event, session?.user ? 'user present' : 'no user');
-      
       setUser(session?.user ?? null);
       
       // Handle sign in events - fetch user profile and set role
       if (event === 'SIGNED_IN' && session?.user) {
-        console.log('[Auth] User signed in, fetching profile...');
         const profile = await getUserProfile(session.user.id);
         
         if (profile) {
-          console.log('[Auth] Profile found, role:', profile.role);
           setAuthenticated(true, profile.role as 'customer' | 'provider');
         } else {
           console.warn('[Auth] No profile found for user, user needs to complete registration');
@@ -59,7 +55,6 @@ export const useAuth = () => {
           setAuthenticated(false);
         }
       } else if (event === 'SIGNED_OUT') {
-        console.log('[Auth] User signed out');
         setAuthenticated(false);
       }
     });
