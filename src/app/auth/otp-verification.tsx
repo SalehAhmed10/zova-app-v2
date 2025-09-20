@@ -20,17 +20,28 @@ export default function OTPVerificationScreen() {
   const email = params.email as string;
   const role = params.role as 'customer' | 'provider';
 
+  console.log('[OTP] Screen loaded with params:', { email, role });
+
   const handleVerifyOTP = async () => {
     if (!otp || otp.length !== 6) {
+      console.log('[OTP] Invalid OTP length:', otp.length);
       Alert.alert('Error', 'Please enter all 6 digits');
       return;
     }
 
+    console.log('[OTP] Starting verification process');
+    console.log('[OTP] Verification data:', { email, otp: '***' + otp.slice(-2), role });
+
     setLoading(true);
     try {
-      const result = await verifyOTP(email, otp);
+      const result = await verifyOTP(email, otp, role);
+
+      console.log('[OTP] Verification result:', result);
 
       if (result.success) {
+        console.log('[OTP] Verification successful');
+        console.log('[OTP] Preparing navigation for role:', role);
+
         Alert.alert(
           'Success',
           'Email verified successfully!',
@@ -38,11 +49,14 @@ export default function OTPVerificationScreen() {
             {
               text: 'Continue',
               onPress: () => {
+                console.log('[OTP] User pressed Continue, navigating...');
                 setTimeout(() => {
                   if (role === 'customer') {
+                    console.log('[OTP] Navigating to customer dashboard');
                     router.replace('/customer/' as any);
                   } else if (role === 'provider') {
-                    router.replace('/provider/onboarding/business-info' as any);
+                    console.log('[OTP] Navigating to provider verification');
+                    router.replace('/provider-verification/' as any);
                   }
                 }, 1000);
               }
@@ -50,29 +64,38 @@ export default function OTPVerificationScreen() {
           ]
         );
       } else {
+        console.error('[OTP] Verification failed:', result.error);
         Alert.alert('Verification Failed', result.error || 'Invalid OTP. Please try again.');
       }
     } catch (error) {
+      console.error('[OTP] Unexpected error during verification:', error);
       Alert.alert('Error', 'An unexpected error occurred. Please try again.');
     } finally {
+      console.log('[OTP] Verification process completed, loading:', false);
       setLoading(false);
     }
   };
 
   const handleResendOTP = async () => {
+    console.log('[OTP] Resending OTP to:', email);
     setLoading(true);
     try {
       const result = await resendOTP(email);
+      console.log('[OTP] Resend result:', result);
       if (result.success) {
+        console.log('[OTP] OTP resent successfully');
         Alert.alert('Success', 'OTP has been resent to your email');
         // Reset OTP input
         setOtp('');
       } else {
+        console.error('[OTP] Resend failed:', result.error);
         Alert.alert('Error', result.error || 'Failed to resend OTP');
       }
     } catch (error) {
+      console.error('[OTP] Unexpected error during resend:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
+      console.log('[OTP] Resend process completed');
       setLoading(false);
     }
   };

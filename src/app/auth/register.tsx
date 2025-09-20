@@ -47,9 +47,23 @@ export default function RegisterScreen() {
 
   const onSubmit = async (data: RegisterForm) => {
     try {
+      console.log('[Register] Starting registration process');
+      console.log('[Register] User data:', {
+        email: data.email,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        role: data.role
+      });
+
       const result = await signUp(data.email, data.password);
 
       if (result.success) {
+        console.log('[Register] Registration successful, navigating to OTP verification');
+        console.log('[Register] Navigation params:', {
+          email: data.email,
+          role: data.role
+        });
+
         // Navigate to OTP verification with user data
         router.replace({
           pathname: '/auth/otp-verification',
@@ -59,9 +73,11 @@ export default function RegisterScreen() {
           },
         } as any);
       } else {
+        console.error('[Register] Registration failed:', result.error);
         setError('email', { message: result.error || 'Registration failed' });
       }
     } catch (error) {
+      console.error('[Register] Unexpected error:', error);
       Alert.alert(
         'Registration Error',
         'An unexpected error occurred. Please try again.',

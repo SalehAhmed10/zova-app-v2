@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/stores/app';
-import { getUserProfile } from '@/lib/profile';
+import { getUserProfile, createOrUpdateUserProfile } from '@/lib/profile';
 import type { User } from '@supabase/supabase-js';
 
 export const useAuth = () => {
@@ -45,6 +45,8 @@ export const useAuth = () => {
 
       // Handle sign in events - fetch user profile and set role
       if (event === 'SIGNED_IN' && session?.user) {
+        console.log('[Auth] User signed in:', session.user.id);
+        
         // Check if email is verified
         if (!session.user.email_confirmed_at) {
           console.log('[Auth] User signed in but email not verified');
@@ -52,10 +54,12 @@ export const useAuth = () => {
           return;
         }
 
+        console.log('[Auth] Email verified, fetching user profile');
         const profile = await getUserProfile(session.user.id);
 
         if (profile) {
-          console.log('[Auth] Profile found:', profile);
+          console.log('[Auth] Profile found, setting authenticated state');
+          console.log('[Auth] Profile data:', { id: profile.id, email: profile.email, role: profile.role });
           setAuthenticated(true, profile.role as 'customer' | 'provider');
         } else {
           console.warn('[Auth] No profile found for user, user needs to complete registration');
@@ -63,6 +67,7 @@ export const useAuth = () => {
           setAuthenticated(false);
         }
       } else if (event === 'SIGNED_OUT') {
+        console.log('[Auth] User signed out');
         setAuthenticated(false);
       }
     });
@@ -100,13 +105,19 @@ export const useAuth = () => {
 
   const signUp = async (email: string, password: string) => {
     try {
+      console.log('[Auth] Starting signup process for:', email);
       setLoading(true);
       const { error } = await supabase.auth.signUp({
         email,
         password,
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error('[Auth] Signup error:', error);
+        throw error;
+      }
+
+      console.log('[Auth] Signup successful, OTP sent to:', email);
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -115,18 +126,48 @@ export const useAuth = () => {
     }
   };
 
-  const verifyOTP = async (email: string, token: string) => {
+  const verifyOTP = async (email: string, token: string, role?: 'customer' | 'provider') => {
     try {
+      console.log('[Auth] Starting OTP verification');
+      console.log('[Auth] Verification params:', { email, role, token: token.replace(/./g, '*') });
+      
       setLoading(true);
-      const { error } = await supabase.auth.verifyOtp({
+      const { data, error } = await supabase.auth.verifyOtp({
         email,
         token,
         type: 'email',
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('[Auth] OTP verification failed:', error.message);
+        throw error;
+      }
+
+      // If verification succeeds and we have a role, create or update the user profile
+      if (data.user && role) {
+        console.log('[Auth] Creating user profile with role:', role);
+        const profile = await createOrUpdateUserProfile(data.user.id, data.user.email!, role);
+        
+        if (profile) {
+          console.log('[Auth] User profile created/updated successfully:', {
+            id: profile.id,
+            email: profile.email,
+            role: profile.role
+          });
+          // Set the authenticated state with the correct role
+          console.log('[Auth] Setting authenticated state with role:', role);
+          setAuthenticated(true, role);
+        } else {
+          console.error('[Auth] Failed to create/update user profile');
+        }
+      } else if (!role) {
+        console.warn('[Auth] No role provided, skipping profile creation');
+      }
+
+      console.log('[Auth] OTP verification process completed successfully');
       return { success: true };
     } catch (error: any) {
+      console.error('[Auth] OTP verification failed:', error.message);
       return { success: false, error: error.message };
     } finally {
       setLoading(false);
