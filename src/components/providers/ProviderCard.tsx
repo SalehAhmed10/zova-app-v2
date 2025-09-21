@@ -5,9 +5,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useStableCallback } from '@/lib/performance';
 
 // Shared Provider Card Component
-export const ProviderCard = ({
+export const ProviderCard = React.memo(({
   provider,
   showServices = true,
   compact = false
@@ -15,11 +16,16 @@ export const ProviderCard = ({
   provider: any;
   showServices?: boolean;
   compact?: boolean;
-}) => (
-  <TouchableOpacity
-    onPress={() => router.push(`/profiles/provider?providerId=${provider.id}`)}
-    className={`flex-row gap-3 p-4 bg-card border border-border/50 rounded-lg mb-3 ${compact ? 'py-3' : ''}`}
-  >
+}) => {
+  const handlePress = useStableCallback(() => {
+    router.push(`/profiles/provider?providerId=${provider.id}`);
+  }, [provider.id]);
+
+  return (
+    <TouchableOpacity
+      onPress={handlePress}
+      className={`flex-row gap-3 p-4 bg-card border border-border/50 rounded-lg mb-3 ${compact ? 'py-3' : ''}`}
+    >
     {/* Provider Avatar */}
     <Avatar className={compact ? "w-12 h-12" : "w-16 h-16"} alt='Provider Avatar'>
       {provider.avatar_url ? (
@@ -107,10 +113,13 @@ export const ProviderCard = ({
       <Ionicons name="chevron-forward" size={20} color="#6B7280" />
     </View>
   </TouchableOpacity>
-);
+  );
+});
+
+ProviderCard.displayName = 'ProviderCard';
 
 // Provider Rating Display Component
-export const ProviderRating = ({
+export const ProviderRating = React.memo(({
   rating,
   reviewCount,
   size = 'sm'
@@ -135,10 +144,12 @@ export const ProviderRating = ({
       )}
     </View>
   );
-};
+});
+
+ProviderRating.displayName = 'ProviderRating';
 
 // Provider Verification Badge Component
-export const ProviderVerificationBadge = ({ isVerified }: { isVerified: boolean }) => {
+export const ProviderVerificationBadge = React.memo(({ isVerified }: { isVerified: boolean }) => {
   if (!isVerified) return null;
 
   return (
@@ -147,4 +158,6 @@ export const ProviderVerificationBadge = ({ isVerified }: { isVerified: boolean 
       <Text className="text-xs text-green-600 font-medium">Verified</Text>
     </View>
   );
-};
+});
+
+ProviderVerificationBadge.displayName = 'ProviderVerificationBadge';

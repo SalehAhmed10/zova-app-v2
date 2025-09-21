@@ -8,7 +8,7 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { useProviderVerificationStore } from '@/stores/provider-verification';
+import { useProviderVerificationStore, useProviderVerificationSelectors } from '@/stores/provider-verification';
 import { supabase } from '@/lib/supabase';
 
 interface DocumentForm {
@@ -26,6 +26,8 @@ export default function DocumentVerificationScreen() {
     nextStep,
     providerId 
   } = useProviderVerificationStore();
+
+  const { canGoBack, previousStep } = useProviderVerificationSelectors();
 
   const {
     control,
@@ -332,17 +334,19 @@ export default function DocumentVerificationScreen() {
         </Button>
       </Animated.View>
 
-      {/* Back Button */}
-      <Animated.View entering={SlideInDown.delay(1400).springify()}>
-        <Button
-          variant="outline"
-          size="lg"
-          onPress={() => router.back()}
-          className="w-full"
-        >
-          <Text>Go Back</Text>
-        </Button>
-      </Animated.View>
+      {/* Back Button - only show if not first step */}
+      {canGoBack && (
+        <Animated.View entering={SlideInDown.delay(1400).springify()}>
+          <Button
+            variant="outline"
+            size="lg"
+            onPress={previousStep}
+            className="w-full"
+          >
+            <Text>Go Back</Text>
+          </Button>
+        </Animated.View>
+      )}
     </ScreenWrapper>
   );
 }

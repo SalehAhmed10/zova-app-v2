@@ -150,32 +150,42 @@ export function OnboardingFlow() {
   const currentStepData = onboardingSteps[currentIndex] || onboardingSteps[0];
   const isLastStep = currentIndex === onboardingSteps.length - 1;
 
-  // Fix: Move animated style outside of render and avoid reading shared value during render
+  // Fix: Use proper worklet pattern and avoid reading shared value during render
   const animatedStyle = useAnimatedStyle(() => {
     return {
       transform: [{ translateX: slideAnim.value }],
     };
   }, []);
 
-  React.useEffect(() => {
+  // Use worklet for animation updates
+  const updateSlideAnimation = React.useCallback(() => {
+    'worklet';
     slideAnim.value = withSpring(0, { damping: 25, stiffness: 120 });
-  }, [currentIndex, slideAnim]);
+  }, [slideAnim]);
 
-  const handleNext = () => {
+  React.useEffect(() => {
+    updateSlideAnimation();
+  }, [currentIndex, updateSlideAnimation]);
+
+  const handleNext = React.useCallback(() => {
     if (isLastStep) {
       complete();
       router.replace('/');
     } else {
-      // Use runOnJS for smoother animation without shared value access during render
-      slideAnim.value = withSpring(-40, { damping: 25, stiffness: 120 }, (finished) => {
+      // Use worklet for animation
+      const animateNext = () => {
         'worklet';
-        if (finished) {
-          runOnJS(setCurrentIndex)(Math.min(currentIndex + 1, onboardingSteps.length - 1));
-          runOnJS(nextStep)();
-        }
-      });
+        slideAnim.value = withSpring(-40, { damping: 25, stiffness: 120 }, (finished) => {
+          'worklet';
+          if (finished) {
+            runOnJS(setCurrentIndex)(Math.min(currentIndex + 1, onboardingSteps.length - 1));
+            runOnJS(nextStep)();
+          }
+        });
+      };
+      animateNext();
     }
-  };
+  }, [isLastStep, complete, currentIndex, nextStep, slideAnim]);
 
   const handleBack = () => {
     if (currentIndex > 0) {

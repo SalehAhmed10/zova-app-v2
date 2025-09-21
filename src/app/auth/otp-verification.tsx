@@ -23,12 +23,7 @@ export default function OTPVerificationScreen() {
   console.log('[OTP] Screen loaded with params:', { email, role });
 
   const handleVerifyOTP = async () => {
-    if (!otp || otp.length !== 6) {
-      console.log('[OTP] Invalid OTP length:', otp.length);
-      Alert.alert('Error', 'Please enter all 6 digits');
-      return;
-    }
-
+    // onFilled callback should guarantee all 6 digits are entered
     console.log('[OTP] Starting verification process');
     console.log('[OTP] Verification data:', { email, otp: '***' + otp.slice(-2), role });
 
@@ -127,6 +122,7 @@ export default function OTPVerificationScreen() {
         <OtpInput
           numberOfDigits={6}
           onTextChange={setOtp}
+          onFilled={handleVerifyOTP}
           focusColor="#22c55e"
           focusStickBlinkingDuration={500}
           theme={{

@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useAppStore } from '@/stores/app';
+import { useProviderVerificationStore } from '@/stores/provider-verification';
 import { THEME } from '@/lib/theme';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ export default function ProviderLayout() {
   const { isDarkColorScheme } = useColorScheme();
   const insets = useSafeAreaInsets();
   const { userRole, isAuthenticated } = useAppStore();
+  const { currentStep, _hasHydrated } = useProviderVerificationStore();
   const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -35,8 +37,26 @@ export default function ProviderLayout() {
           
           // If provider is not verified, redirect to verification flow
           if (!profile.is_verified || profile.verification_status !== 'approved') {
-            console.log('[Provider Layout] Provider not verified, redirecting to verification');
-            router.replace('/provider-verification/' as any);
+            // Wait for store to hydrate before redirecting
+            if (_hasHydrated) {
+              console.log('[Provider Layout] Provider not verified, redirecting to verification step', currentStep);
+              const stepRoutes = {
+                1: '/provider-verification/',
+                2: '/provider-verification/selfie',
+                3: '/provider-verification/business-info',
+                4: '/provider-verification/category',
+                5: '/provider-verification/services',
+                6: '/provider-verification/portfolio',
+                7: '/provider-verification/bio',
+                8: '/provider-verification/terms',
+                9: '/provider-verification/payment',
+              };
+              const targetRoute = stepRoutes[currentStep as keyof typeof stepRoutes];
+              console.log('[Provider Layout] Redirecting to route:', targetRoute);
+              router.replace(targetRoute as any);
+            } else {
+              console.log('[Provider Layout] Waiting for verification store to hydrate before redirecting...');
+            }
             return;
           }
         }
@@ -73,6 +93,27 @@ export default function ProviderLayout() {
     const timer = setTimeout(checkAccess, 100);
     return () => clearTimeout(timer);
   }, [userRole, isAuthenticated]);
+
+  // Redirect to correct verification step once store is hydrated
+  useEffect(() => {
+    if (_hasHydrated && verificationStatus && verificationStatus !== 'approved' && currentStep > 1) {
+      console.log('[Provider Layout] Store hydrated, redirecting to verification step', currentStep);
+      const stepRoutes = {
+        1: '/provider-verification/',
+        2: '/provider-verification/selfie',
+        3: '/provider-verification/business-info',
+        4: '/provider-verification/category',
+        5: '/provider-verification/services',
+        6: '/provider-verification/portfolio',
+        7: '/provider-verification/bio',
+        8: '/provider-verification/terms',
+        9: '/provider-verification/payment',
+      };
+      const targetRoute = stepRoutes[currentStep as keyof typeof stepRoutes];
+      console.log('[Provider Layout] Redirecting to route:', targetRoute);
+      router.replace(targetRoute as any);
+    }
+  }, [_hasHydrated, verificationStatus, currentStep]);
 
   // Show loading state while checking verification
   if (loading) {

@@ -16,6 +16,7 @@ interface ProviderVerificationState {
   steps: Record<number, VerificationStep>;
   providerId: string | null;
   verificationStatus: 'pending' | 'in_review' | 'approved' | 'rejected';
+  _hasHydrated: boolean; // Track hydration state
   
   // Step Data
   documentData: {
@@ -104,6 +105,7 @@ interface ProviderVerificationActions {
   // Status management
   setVerificationStatus: (status: ProviderVerificationState['verificationStatus']) => void;
   setProviderId: (id: string) => void;
+  setHasHydrated: (hasHydrated: boolean) => void;
   
   // Reset
   resetVerification: () => void;
@@ -190,6 +192,7 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
       steps: initialSteps,
       providerId: null,
       verificationStatus: 'pending',
+      _hasHydrated: false,
       
       documentData: {
         documentType: null,
@@ -363,6 +366,10 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
         set({ providerId: id });
       },
       
+      setHasHydrated: (hasHydrated) => {
+        set({ _hasHydrated: hasHydrated });
+      },
+      
       resetVerification: () => {
         set({
           currentStep: 1,
@@ -451,6 +458,39 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
         termsData: state.termsData,
         paymentData: state.paymentData,
       }),
+      onRehydrateStorage: () => {
+        return (state, error) => {
+          if (error) {
+            console.error('[Provider Verification] Rehydration error:', error);
+          } else {
+            state?.setHasHydrated(true);
+          }
+        };
+      },
     }
   )
 );
+
+// Selectors for computed values
+export const useProviderVerificationSelectors = () => {
+  const currentStep = useProviderVerificationStore((state) => state.currentStep);
+  const steps = useProviderVerificationStore((state) => state.steps);
+  const canProceedToNextStep = useProviderVerificationStore((state) => state.canProceedToNextStep);
+  const getCompletionPercentage = useProviderVerificationStore((state) => state.getCompletionPercentage);
+  const isStepCompleted = useProviderVerificationStore((state) => state.isStepCompleted);
+  const previousStep = useProviderVerificationStore((state) => state.previousStep);
+
+  return {
+    currentStep,
+    steps,
+    isFirstStep: currentStep === 1,
+    isLastStep: currentStep === 9,
+    canGoBack: currentStep > 1,
+    canGoNext: currentStep < 9,
+    canProceedToNextStep: canProceedToNextStep(),
+    completionPercentage: getCompletionPercentage(),
+    isStepCompleted,
+    previousStep,
+  };
+};
+

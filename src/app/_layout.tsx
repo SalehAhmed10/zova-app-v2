@@ -18,6 +18,7 @@ import { useThemeHydration } from '@/stores/theme';
 import { cssInterop } from 'nativewind';
 import * as Icons from '@expo/vector-icons';
 import { Text } from '@/components/ui/text';
+import { ErrorBoundary } from '@/components/ui/error-boundary';
 
 // Apply cssInterop to all Expo Vector Icons globally
 Object.keys(Icons).forEach((iconKey) => {
@@ -66,31 +67,41 @@ export default function RootLayout() {
   const isThemeHydrated = useThemeHydration();
 
   React.useEffect(() => {
+    console.log('[RootLayout] Theme state:', {
+      scheme,
+      isDarkColorScheme,
+      isThemeHydrated
+    });
+    
     // Set the initial color scheme for nativewind only after theme is hydrated
     if (isThemeHydrated) {
+      console.log('[RootLayout] Setting NativeWind color scheme to:', scheme);
       colorScheme.set(scheme);
     }
-  }, [scheme, isThemeHydrated]);
+  }, [scheme, isDarkColorScheme, isThemeHydrated]);
 
   // Wait for theme hydration before rendering
   if (!isThemeHydrated) {
+    console.log('[RootLayout] Waiting for theme hydration...');
     return null; // or a loading screen
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <QueryClientProvider client={queryClient}>
-          <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
-            <StatusBar style={isDarkColorScheme ? 'light' : 'dark'} />
-            <SessionProvider>
-              <RootNavigator />
-            </SessionProvider>
-            <PortalHost />
-          </ThemeProvider>
-        </QueryClientProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <ErrorBoundary level="app">
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <QueryClientProvider client={queryClient}>
+            <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
+              <StatusBar style={isDarkColorScheme ? 'light' : 'dark'} />
+              <SessionProvider>
+                <RootNavigator />
+              </SessionProvider>
+              <PortalHost />
+            </ThemeProvider>
+          </QueryClientProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }
 

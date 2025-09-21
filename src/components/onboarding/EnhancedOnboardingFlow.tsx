@@ -171,33 +171,37 @@ export function EnhancedOnboardingFlow() {
   const translateX = useSharedValue(0);
   const currentStepData = onboardingSteps[currentStep - 1];
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-  }));
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: translateX.value }],
+    };
+  }, []);
 
-  const progressStyle = useAnimatedStyle(() => ({
-    width: `${progress}%`,
-  }));
+  const progressStyle = useAnimatedStyle(() => {
+    return {
+      width: `${progress}%`,
+    };
+  }, [progress]);
 
-  const handleNext = () => {
+  const handleNext = React.useCallback(() => {
     if (isLastStep) {
       complete();
       router.replace('/');
     } else {
       nextStep();
     }
-  };
+  }, [isLastStep, complete, nextStep]);
 
-  const handlePrevious = () => {
+  const handlePrevious = React.useCallback(() => {
     if (canGoBack) {
       previousStep();
     }
-  };
+  }, [canGoBack, previousStep]);
 
-  const handleSkip = () => {
+  const handleSkip = React.useCallback(() => {
     complete();
     router.replace('/');
-  };
+  }, [complete]);
 
   // Gesture handling for swipe navigation
   const handleGestureEvent = ({ nativeEvent }: any) => {

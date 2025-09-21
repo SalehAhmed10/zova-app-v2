@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { DebugResetOnboarding } from '@/components/debug/DebugResetOnboarding';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppStore } from '@/stores/app';
 
@@ -363,19 +362,15 @@ export default function RegisterScreen() {
             </Button>
           </View>
         </Animated.View>
-
-        {/* Debug Reset Button */}
-        <DebugResetOnboarding />
-
         {/* Back Button */}
         <Animated.View entering={FadeIn.delay(800).springify()}>
           <Button
             variant="outline"
             size="lg"
-            onPress={() => router.back()}
+            onPress={() => router.replace('/auth')}
             className="w-full"
           >
-            <Text>Back</Text>
+            <Text>Back to Login</Text>
           </Button>
         </Animated.View>
     </ScreenWrapper>

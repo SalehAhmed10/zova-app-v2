@@ -3,7 +3,7 @@ import { View } from '@/components/ui/view';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import LottieView from 'lottie-react-native';
-import { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
 import Animated from 'react-native-reanimated';
 
 interface LottieExampleProps {
@@ -20,17 +20,27 @@ export function LottieExample({
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
-  }));
+  }), []);
 
-  const handlePlayPause = () => {
-    setIsPlaying(!isPlaying);
-    scale.value = withSpring(isPlaying ? 1 : 1.1);
-  };
+  // Handle scale animation when isPlaying changes
+  React.useEffect(() => {
+    scale.value = withSpring(isPlaying ? 1.1 : 1);
+  }, [isPlaying, scale]);
 
-  const handleReset = () => {
+  const handlePlayPause = React.useCallback(() => {
+    const newPlayingState = !isPlaying;
+    setIsPlaying(newPlayingState);
+    
+    // Update shared value without 'worklet' directive since this is a regular function
+    scale.value = withSpring(newPlayingState ? 1.1 : 1);
+  }, [isPlaying, scale]);
+
+  const handleReset = React.useCallback(() => {
     setIsPlaying(false);
+    
+    // Update shared value without 'worklet' directive since this is a regular function
     scale.value = withSpring(1);
-  };
+  }, [scale]);
 
   return (
     <View className="items-center p-6">
@@ -54,7 +64,6 @@ export function LottieExample({
             onAnimationFinish={() => {
               if (isPlaying) {
                 setIsPlaying(false);
-                scale.value = withSpring(1);
               }
             }}
           />

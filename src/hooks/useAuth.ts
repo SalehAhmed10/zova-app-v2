@@ -4,6 +4,9 @@ import { useAppStore } from '@/stores/app';
 import { getUserProfile, createOrUpdateUserProfile } from '@/lib/profile';
 import type { User } from '@supabase/supabase-js';
 
+// In-memory flag to prevent duplicate profile fetching during the same session
+let profileHandled = false;
+
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,6 +57,12 @@ export const useAuth = () => {
           return;
         }
 
+        // Check if we've already handled the profile for this session (e.g., from OTP verification)
+        if (profileHandled) {
+          console.log('[Auth] Profile already handled for this session, skipping fetch');
+          return;
+        }
+
         console.log('[Auth] Email verified, fetching user profile');
         const profile = await getUserProfile(session.user.id);
 
@@ -69,6 +78,8 @@ export const useAuth = () => {
       } else if (event === 'SIGNED_OUT') {
         console.log('[Auth] User signed out');
         setAuthenticated(false);
+        // Clear the profile handled flag
+        profileHandled = false;
       }
     });
 
@@ -157,6 +168,9 @@ export const useAuth = () => {
           // Set the authenticated state with the correct role
           console.log('[Auth] Setting authenticated state with role:', role);
           setAuthenticated(true, role);
+          
+          // Mark that we've handled the profile for this session to avoid duplicate fetching
+          profileHandled = true;
         } else {
           console.error('[Auth] Failed to create/update user profile');
         }

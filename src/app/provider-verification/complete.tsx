@@ -7,11 +7,13 @@ import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import { useProviderVerificationStore } from '@/stores/provider-verification';
 import { useAppStore } from '@/stores/app';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function VerificationCompleteScreen() {
   const { resetVerification, getCompletionPercentage } = useProviderVerificationStore();
   const { setAuthenticated } = useAppStore();
   const completionPercentage = getCompletionPercentage();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     // Update the user profile to mark verification as complete
@@ -39,101 +41,108 @@ export default function VerificationCompleteScreen() {
   };
 
   return (
-    <ScreenWrapper scrollable={false} contentContainerClassName="px-6 py-4 justify-center">
-      {/* Success Icon */}
-      <Animated.View 
-        entering={FadeIn.delay(200).springify()}
-        className="items-center mb-8"
-      >
-        <View className="w-24 h-24 bg-green-100 dark:bg-green-900/30 rounded-full justify-center items-center mb-6">
-          <Text className="text-4xl">✅</Text>
-        </View>
-        <Text className="text-3xl font-bold text-foreground mb-4 text-center">
-          Verification Complete!
-        </Text>
-        <Text className="text-base text-muted-foreground text-center">
-          Your application has been submitted successfully
-        </Text>
-      </Animated.View>
-
-      {/* Progress Summary */}
-      <Animated.View entering={SlideInDown.delay(400).springify()} className="mb-8">
-        <View className="p-6 bg-card rounded-lg border border-border">
-          <Text className="font-semibold text-foreground mb-4 text-center">
-            Application Summary
-          </Text>
-          
-          <View className="space-y-3">
-            <View className="flex-row justify-between items-center">
-              <Text className="text-muted-foreground">Completion</Text>
-              <Text className="font-semibold text-foreground">{completionPercentage}%</Text>
-            </View>
-            
-            <View className="h-2 bg-muted rounded-full overflow-hidden">
-              <View 
-                className="h-full bg-green-500 rounded-full"
-                style={{ width: `${completionPercentage}%` }}
-              />
-            </View>
-          </View>
-          
-          <View className="mt-4 space-y-2">
-            <View className="flex-row items-center">
-              <Text className="text-lg mr-2">✅</Text>
-              <Text className="text-sm text-muted-foreground">Identity verified</Text>
-            </View>
-            <View className="flex-row items-center">
-              <Text className="text-lg mr-2">✅</Text>
-              <Text className="text-sm text-muted-foreground">Business information provided</Text>
-            </View>
-            <View className="flex-row items-center">
-              <Text className="text-lg mr-2">✅</Text>
-              <Text className="text-sm text-muted-foreground">Services configured</Text>
-            </View>
-            <View className="flex-row items-center">
-              <Text className="text-lg mr-2">✅</Text>
-              <Text className="text-sm text-muted-foreground">Terms accepted</Text>
-            </View>
-          </View>
-        </View>
-      </Animated.View>
-
-      {/* What's Next */}
-      <Animated.View entering={SlideInDown.delay(600).springify()} className="mb-8">
-        <View className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-          <Text className="font-semibold text-blue-900 dark:text-blue-100 mb-3">
-            🕐 What's Next?
-          </Text>
-          <View className="space-y-2">
-            <Text className="text-blue-800 dark:text-blue-200 text-sm">
-              • Our team will review your application within 24-48 hours
-            </Text>
-            <Text className="text-blue-800 dark:text-blue-200 text-sm">
-              • You'll receive an email notification once approved
-            </Text>
-            <Text className="text-blue-800 dark:text-blue-200 text-sm">
-              • After approval, you can start receiving bookings
-            </Text>
-          </View>
-        </View>
-      </Animated.View>
-
-      {/* Actions */}
-      <Animated.View entering={SlideInDown.delay(800).springify()} className="space-y-4">
-        <Button
-          size="lg"
-          onPress={handleContinue}
-          className="w-full"
+    <View className="flex-1">
+      <ScreenWrapper scrollable={true} contentContainerClassName="px-5 pb-4" className="flex-1">
+        {/* Success Icon */}
+        <Animated.View
+          entering={FadeIn.delay(200).springify()}
+          className="items-center mb-6"
         >
-          <Text className="font-semibold text-primary-foreground">
-            Continue to Dashboard
+          <View className="w-24 h-24 bg-primary/10 rounded-full justify-center items-center mb-6">
+            <Text className="text-4xl">✅</Text>
+          </View>
+          <Text className="text-2xl font-bold text-foreground mb-2 text-center">
+            Verification Complete!
           </Text>
-        </Button>
-        
-        <Text className="text-xs text-muted-foreground text-center">
+          <Text className="text-sm text-muted-foreground text-center leading-5 px-4">
+            Your application has been submitted successfully
+          </Text>
+        </Animated.View>
+
+        {/* Progress Summary */}
+        <Animated.View entering={SlideInDown.delay(400).springify()} className="mb-6">
+          <View className="p-4 bg-card rounded-lg border border-border">
+            <Text className="font-semibold text-foreground mb-4 text-center">
+              Application Summary
+            </Text>
+
+            <View className="space-y-3">
+              <View className="flex-row justify-between items-center">
+                <Text className="text-muted-foreground">Completion</Text>
+                <Text className="font-semibold text-foreground">{completionPercentage}%</Text>
+              </View>
+
+              <View className="h-2 bg-muted rounded-full overflow-hidden">
+                <View
+                  className="h-full bg-primary rounded-full"
+                  style={{ width: `${completionPercentage}%` }}
+                />
+              </View>
+            </View>
+
+            <View className="mt-4 space-y-2">
+              <View className="flex-row items-center">
+                <Text className="text-lg mr-2">✅</Text>
+                <Text className="text-sm text-muted-foreground">Identity verified</Text>
+              </View>
+              <View className="flex-row items-center">
+                <Text className="text-lg mr-2">✅</Text>
+                <Text className="text-sm text-muted-foreground">Business information provided</Text>
+              </View>
+              <View className="flex-row items-center">
+                <Text className="text-lg mr-2">✅</Text>
+                <Text className="text-sm text-muted-foreground">Services configured</Text>
+              </View>
+              <View className="flex-row items-center">
+                <Text className="text-lg mr-2">✅</Text>
+                <Text className="text-sm text-muted-foreground">Terms accepted</Text>
+              </View>
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* What's Next */}
+        <Animated.View entering={SlideInDown.delay(600).springify()} className="mb-6">
+          <View className="p-4 bg-accent/50 rounded-lg border border-accent">
+            <Text className="font-semibold text-accent-foreground mb-3">
+              🕐 What's Next?
+            </Text>
+            <View className="space-y-2">
+              <Text className="text-accent-foreground text-sm">
+                • Our team will review your application within 24-48 hours
+              </Text>
+              <Text className="text-accent-foreground text-sm">
+                • You'll receive an email notification once approved
+              </Text>
+              <Text className="text-accent-foreground text-sm">
+                • After approval, you can start receiving bookings
+              </Text>
+            </View>
+          </View>
+        </Animated.View>
+      </ScreenWrapper>
+
+      {/* Fixed Bottom Button */}
+      <View
+        className="px-5 bg-background border-t border-border"
+        style={{ paddingBottom: Math.max(insets.bottom, 16) }}
+      >
+        <Animated.View entering={SlideInDown.delay(800).springify()} className="mb-2">
+          <Button
+            size="lg"
+            onPress={handleContinue}
+            className="w-full"
+          >
+            <Text className="font-semibold text-primary-foreground">
+              Continue to Dashboard
+            </Text>
+          </Button>
+        </Animated.View>
+
+        <Text className="text-xs text-muted-foreground text-center mb-2">
           You can access your dashboard while your verification is being reviewed
         </Text>
-      </Animated.View>
-    </ScreenWrapper>
+      </View>
+    </View>
   );
 }

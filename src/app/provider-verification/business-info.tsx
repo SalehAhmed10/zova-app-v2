@@ -7,7 +7,7 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { useProviderVerificationStore } from '@/stores/provider-verification';
+import { useProviderVerificationStore, useProviderVerificationSelectors } from '@/stores/provider-verification';
 
 interface BusinessInfoForm {
   businessName: string;
@@ -25,6 +25,8 @@ export default function BusinessInfoScreen() {
     nextStep,
     previousStep 
   } = useProviderVerificationStore();
+
+  const { canGoBack } = useProviderVerificationSelectors();
 
   const {
     control,
@@ -289,18 +291,17 @@ export default function BusinessInfoScreen() {
           </Text>
         </Button>
 
-        {/* Back Button */}
-        <Button
-          variant="outline"
-          size="lg"
-          onPress={() => {
-            previousStep();
-            router.back();
-          }}
-          className="w-full"
-        >
-          <Text>Back to Identity Verification</Text>
-        </Button>
+        {/* Back Button - only show if not first step */}
+        {canGoBack && (
+          <Button
+            variant="outline"
+            size="lg"
+            onPress={previousStep}
+            className="w-full"
+          >
+            <Text>Back to Identity Verification</Text>
+          </Button>
+        )}
       </Animated.View>
     </ScreenWrapper>
   );

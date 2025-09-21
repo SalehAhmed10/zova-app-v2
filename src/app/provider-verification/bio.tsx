@@ -145,21 +145,21 @@ export default function BusinessBioScreen() {
 
       {/* Tips */}
       <Animated.View entering={SlideInDown.delay(600).springify()} className="my-6">
-        <View className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-          <Text className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
+        <View className="p-4 bg-accent/50 rounded-lg border border-accent">
+          <Text className="font-semibold text-accent-foreground mb-2">
             💡 Writing Tips
           </Text>
           <View className="space-y-1">
-            <Text className="text-blue-800 dark:text-blue-200 text-sm">
+            <Text className="text-accent-foreground text-sm">
               • Be authentic and professional - customers want to trust you
             </Text>
-            <Text className="text-blue-800 dark:text-blue-200 text-sm">
+            <Text className="text-accent-foreground text-sm">
               • Highlight what makes your business unique
             </Text>
-            <Text className="text-blue-800 dark:text-blue-200 text-sm">
+            <Text className="text-accent-foreground text-sm">
               • Mention any certifications or special training
             </Text>
-            <Text className="text-blue-800 dark:text-blue-200 text-sm">
+            <Text className="text-accent-foreground text-sm">
               • Focus on customer benefits and quality service
             </Text>
           </View>

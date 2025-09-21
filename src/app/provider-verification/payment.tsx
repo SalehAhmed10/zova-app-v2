@@ -79,25 +79,25 @@ export default function PaymentSetupScreen() {
       {/* Current Status */}
       <Animated.View entering={SlideInDown.delay(300).springify()} className="mb-6">
         {paymentData.accountSetupComplete ? (
-          <View className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
-            <Text className="font-semibold text-green-900 dark:text-green-100 mb-2">
+          <View className="p-4 bg-accent rounded-lg border border-accent">
+            <Text className="font-semibold text-accent-foreground mb-2">
               ✅ Account Setup Complete
             </Text>
-            <Text className="text-green-800 dark:text-green-200 text-sm">
+            <Text className="text-accent-foreground text-sm">
               Your Stripe account is configured and ready to receive payments.
             </Text>
             {paymentData.stripeAccountId && (
-              <Text className="text-green-700 dark:text-green-300 text-xs mt-2">
+              <Text className="text-accent-foreground text-xs mt-2">
                 Account ID: {paymentData.stripeAccountId}
               </Text>
             )}
           </View>
         ) : (
-          <View className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-            <Text className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
+          <View className="p-4 bg-secondary rounded-lg border border-secondary">
+            <Text className="font-semibold text-secondary-foreground mb-2">
               🔗 Stripe Connect Required
             </Text>
-            <Text className="text-blue-800 dark:text-blue-200 text-sm">
+            <Text className="text-secondary-foreground text-sm">
               You'll need to connect your Stripe account to receive payments. This process is secure and takes just a few minutes.
             </Text>
           </View>
@@ -111,8 +111,8 @@ export default function PaymentSetupScreen() {
         </Text>
         <View className="space-y-3">
           <View className="flex-row items-start space-x-3">
-            <View className="w-6 h-6 bg-green-100 dark:bg-green-900 rounded-full items-center justify-center mt-0.5">
-              <Text className="text-green-600 dark:text-green-400 text-xs font-bold">✓</Text>
+            <View className="w-6 h-6 bg-accent rounded-full items-center justify-center mt-0.5">
+              <Text className="text-accent-foreground text-xs font-bold">✓</Text>
             </View>
             <View className="flex-1">
               <Text className="font-medium text-foreground">Fast & Secure Payments</Text>
@@ -123,8 +123,8 @@ export default function PaymentSetupScreen() {
           </View>
           
           <View className="flex-row items-start space-x-3">
-            <View className="w-6 h-6 bg-green-100 dark:bg-green-900 rounded-full items-center justify-center mt-0.5">
-              <Text className="text-green-600 dark:text-green-400 text-xs font-bold">✓</Text>
+            <View className="w-6 h-6 bg-accent rounded-full items-center justify-center mt-0.5">
+              <Text className="text-accent-foreground text-xs font-bold">✓</Text>
             </View>
             <View className="flex-1">
               <Text className="font-medium text-foreground">Automatic Transfers</Text>
@@ -135,8 +135,8 @@ export default function PaymentSetupScreen() {
           </View>
 
           <View className="flex-row items-start space-x-3">
-            <View className="w-6 h-6 bg-green-100 dark:bg-green-900 rounded-full items-center justify-center mt-0.5">
-              <Text className="text-green-600 dark:text-green-400 text-xs font-bold">✓</Text>
+            <View className="w-6 h-6 bg-accent rounded-full items-center justify-center mt-0.5">
+              <Text className="text-accent-foreground text-xs font-bold">✓</Text>
             </View>
             <View className="flex-1">
               <Text className="font-medium text-foreground">Global Support</Text>
@@ -147,8 +147,8 @@ export default function PaymentSetupScreen() {
           </View>
 
           <View className="flex-row items-start space-x-3">
-            <View className="w-6 h-6 bg-green-100 dark:bg-green-900 rounded-full items-center justify-center mt-0.5">
-              <Text className="text-green-600 dark:text-green-400 text-xs font-bold">✓</Text>
+            <View className="w-6 h-6 bg-accent rounded-full items-center justify-center mt-0.5">
+              <Text className="text-accent-foreground text-xs font-bold">✓</Text>
             </View>
             <View className="flex-1">
               <Text className="font-medium text-foreground">Detailed Analytics</Text>
@@ -191,21 +191,21 @@ export default function PaymentSetupScreen() {
 
       {/* Important Notice */}
       <Animated.View entering={SlideInDown.delay(700).springify()} className="mb-6">
-        <View className="p-4 bg-yellow-50 dark:bg-yellow-950/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-          <Text className="font-semibold text-yellow-900 dark:text-yellow-100 mb-2">
+        <View className="p-4 bg-muted rounded-lg border border-muted">
+          <Text className="font-semibold text-muted-foreground mb-2">
             ⚠️ Important Information
           </Text>
           <View className="space-y-1">
-            <Text className="text-yellow-800 dark:text-yellow-200 text-sm">
+            <Text className="text-muted-foreground text-sm">
               • Standard Stripe processing fees apply (2.9% + $0.30 per transaction)
             </Text>
-            <Text className="text-yellow-800 dark:text-yellow-200 text-sm">
+            <Text className="text-muted-foreground text-sm">
               • You'll need a valid government ID and bank account
             </Text>
-            <Text className="text-yellow-800 dark:text-yellow-200 text-sm">
+            <Text className="text-muted-foreground text-sm">
               • Account verification typically takes 1-2 business days
             </Text>
-            <Text className="text-yellow-800 dark:text-yellow-200 text-sm">
+            <Text className="text-muted-foreground text-sm">
               • You can modify your account settings anytime
             </Text>
           </View>

@@ -6,7 +6,6 @@ import { Text } from '@/components/ui/text';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { DebugResetOnboarding } from '@/components/debug/DebugResetOnboarding';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppStore } from '@/stores/app';
 
@@ -155,18 +154,15 @@ export default function LoginScreen() {
         </View>
       </Animated.View>
 
-      {/* Debug Reset Button */}
-      <DebugResetOnboarding />
-
       {/* Back Button */}
       <Animated.View entering={FadeIn.delay(800).springify()}>
         <Button
           variant="outline"
           size="lg"
-          onPress={() => router.back()}
+          onPress={() => router.replace('/onboarding')}
           className="w-full"
         >
-          <Text>Back</Text>
+          <Text>Back to Onboarding</Text>
         </Button>
       </Animated.View>
     </ScreenWrapper>

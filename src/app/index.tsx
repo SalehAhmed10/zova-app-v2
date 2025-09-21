@@ -4,7 +4,9 @@ import { View } from 'react-native';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
-  withSpring
+  useDerivedValue,
+  withSpring,
+  runOnJS
 } from 'react-native-reanimated';
 import { Text } from '@/components/ui/text';
 import { useAppStore, initializeApp } from '@/stores/app';
@@ -13,13 +15,17 @@ export default function SplashScreen() {
   const [initialized, setInitialized] = useState(false);
   const [hasStartedInit, setHasStartedInit] = useState(false);
   const { isLoading, isOnboardingComplete, isAuthenticated, userRole } = useAppStore();
+  
   const fadeAnim = useSharedValue(0);
   const scaleAnim = useSharedValue(0.8);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: fadeAnim.value,
-    transform: [{ scale: scaleAnim.value }],
-  }), []);
+  // Use derived values to avoid reading shared values during render
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: fadeAnim.value,
+      transform: [{ scale: scaleAnim.value }],
+    };
+  }, []);
 
   const navigateToScreen = useCallback(() => {
     // Navigate based on authentication state

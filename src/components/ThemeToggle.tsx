@@ -2,10 +2,17 @@ import React from 'react';
 import { View } from '@/components/ui/view';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
-import { useThemeStore } from '@/stores/theme';
+import { useResolvedTheme, useThemePreference, useSetTheme } from '@/stores/theme';
+import { useStableCallback } from '@/lib/performance';
 
-export function ThemeToggle() {
-  const { resolvedTheme, preference, setTheme } = useThemeStore();
+export const ThemeToggle = React.memo(() => {
+  const resolvedTheme = useResolvedTheme();
+  const preference = useThemePreference();
+  const setTheme = useSetTheme();
+
+  const handleLightPress = useStableCallback(() => setTheme('light'), [setTheme]);
+  const handleDarkPress = useStableCallback(() => setTheme('dark'), [setTheme]);
+  const handleSystemPress = useStableCallback(() => setTheme('system'), [setTheme]);
 
   return (
     <View className="p-4 bg-card rounded-lg border">
@@ -18,7 +25,7 @@ export function ThemeToggle() {
         <Button
           variant={preference === 'light' ? 'default' : 'outline'}
           size="sm"
-          onPress={() => setTheme('light')}
+          onPress={handleLightPress}
         >
           <Text>Light</Text>
         </Button>
@@ -26,7 +33,7 @@ export function ThemeToggle() {
         <Button
           variant={preference === 'dark' ? 'default' : 'outline'}
           size="sm"
-          onPress={() => setTheme('dark')}
+          onPress={handleDarkPress}
         >
           <Text>Dark</Text>
         </Button>
@@ -34,11 +41,13 @@ export function ThemeToggle() {
         <Button
           variant={preference === 'system' ? 'default' : 'outline'}
           size="sm"
-          onPress={() => setTheme('system')}
+          onPress={handleSystemPress}
         >
           <Text>System</Text>
         </Button>
       </View>
     </View>
   );
-}
+});
+
+ThemeToggle.displayName = 'ThemeToggle';

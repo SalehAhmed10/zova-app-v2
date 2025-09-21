@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { useAppStore } from '@/stores/app';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -33,15 +33,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     logout();
   };
 
+  // Memoize the context value to prevent unnecessary re-renders
+  const contextValue = useMemo(() => ({
+    session: isAuthenticated,
+    isLoading,
+    signIn,
+    signOut,
+  }), [isAuthenticated, isLoading]);
+
   return (
-    <SessionContext.Provider
-      value={{
-        session: isAuthenticated,
-        isLoading,
-        signIn,
-        signOut,
-      }}
-    >
+    <SessionContext.Provider value={contextValue}>
       {children}
     </SessionContext.Provider>
   );
