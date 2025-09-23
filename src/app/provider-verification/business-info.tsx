@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
@@ -7,6 +7,7 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
+import { supabase } from '@/lib/supabase';
 import { useProviderVerificationStore, useProviderVerificationSelectors } from '@/stores/provider-verification';
 
 interface BusinessInfoForm {
@@ -18,12 +19,15 @@ interface BusinessInfoForm {
 }
 
 export default function BusinessInfoScreen() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const { 
     businessData, 
     updateBusinessData, 
     completeStep, 
     nextStep,
-    previousStep 
+    previousStep,
+    providerId
   } = useProviderVerificationStore();
 
   const { canGoBack } = useProviderVerificationSelectors();
@@ -44,7 +48,12 @@ export default function BusinessInfoScreen() {
   });
 
   const onSubmit = async (data: BusinessInfoForm) => {
+    setIsSubmitting(true);
+    setSubmitError(null);
+    
     try {
+      console.log('[Business Info] Starting submission with data:', data);
+      
       // Update verification store
       updateBusinessData({
         businessName: data.businessName,
@@ -55,15 +64,79 @@ export default function BusinessInfoScreen() {
         countryCode: '+44', // Default to UK
       });
 
-      // TODO: Save to database
-      // await saveBusinessInfoToDatabase(providerId, data);
+      // First check if profile exists
+      console.log('[Business Info] Checking if profile exists for provider:', providerId);
+      const { data: existingProfile, error: checkError } = await supabase
+        .from('profiles')
+        .select('id, business_name')
+        .eq('id', providerId)
+        .single();
+
+      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "not found"
+        console.error('[Business Info] Error checking profile existence:', checkError);
+        throw new Error('Failed to check profile existence');
+      }
+
+      if (!existingProfile) {
+        console.error('[Business Info] Profile not found for provider:', providerId);
+        throw new Error('Provider profile not found. Please try logging out and back in.');
+      }
+
+      console.log('[Business Info] Profile found:', existingProfile);
+
+      // Save to database - update profile with business info (with timeout)
+      console.log('[Business Info] Saving to database for provider:', providerId);
+      console.log('[Business Info] Data to save:', {
+        business_name: data.businessName,
+        phone_number: data.phoneNumber,
+        address: data.address,
+        city: data.city,
+        postal_code: data.postalCode,
+        country_code: '+44',
+      });
+      
+      // Add timeout to prevent hanging
+      const dbPromise = supabase
+        .from('profiles')
+        .update({
+          business_name: data.businessName,
+          phone_number: data.phoneNumber,
+          address: data.address,
+          city: data.city,
+          postal_code: data.postalCode,
+          country_code: '+44',
+        })
+        .eq('id', providerId)
+        .select();
+
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Database operation timed out')), 10000); // 10 second timeout
+      });
+
+      const { data: dbResult, error: dbError } = await Promise.race([dbPromise, timeoutPromise]) as any;
+
+      console.log('[Business Info] Database response:', { data: dbResult, error: dbError });
+
+      console.log('[Business Info] Database response:', { data: dbResult, error: dbError });
+
+      if (dbError) {
+        console.error('[Business Info] Database error:', dbError);
+        throw new Error('Failed to save business information');
+      }
+
+      console.log('[Business Info] Database update successful');
 
       // Mark step as completed and move to next
       completeStep(3, data);
+      console.log('[Business Info] Step 3 completed, calling nextStep()');
       nextStep();
-      router.push('/provider-verification/category' as any);
+      
+      console.log('[Business Info] Submission completed successfully');
     } catch (error) {
-      console.error('Error saving business info:', error);
+      console.error('[Business Info] Error saving business info:', error);
+      setSubmitError(error instanceof Error ? error.message : 'An unexpected error occurred');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -279,15 +352,27 @@ export default function BusinessInfoScreen() {
           </Text>
         </View>
 
+        {/* Error Display */}
+        {submitError && (
+          <View className="p-4 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800">
+            <Text className="font-semibold text-red-900 dark:text-red-100 mb-2">
+              ❌ Error
+            </Text>
+            <Text className="text-red-800 dark:text-red-200 text-sm">
+              {submitError}
+            </Text>
+          </View>
+        )}
+
         {/* Continue Button */}
         <Button
           size="lg"
           onPress={handleSubmit(onSubmit)}
-          disabled={!isValid}
+          disabled={!isValid || isSubmitting}
           className="w-full mt-6"
         >
           <Text className="font-semibold text-primary-foreground">
-            Continue to Category Selection
+            {isSubmitting ? 'Saving...' : 'Continue to Category Selection'}
           </Text>
         </Button>
 

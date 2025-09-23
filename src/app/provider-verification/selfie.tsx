@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Alert, Image } from 'react-native';
 import { router } from 'expo-router';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
@@ -6,19 +6,105 @@ import * as ImagePicker from 'expo-image-picker';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { useProviderVerificationStore } from '@/stores/provider-verification';
+import { supabase } from '@/lib/supabase';
+import { uploadSelfieVerification, validateFileSize, getSignedUrl, checkFileExists } from '@/lib/storage';
+import { useProviderVerificationStore, useProviderVerificationSelectors } from '@/stores/provider-verification';
 
 export default function SelfieVerificationScreen() {
   const [loading, setLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [imageLoadError, setImageLoadError] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   
   const { 
     selfieData, 
     updateSelfieData, 
     completeStep, 
     nextStep,
-    previousStep 
+    previousStep,
+    providerId
   } = useProviderVerificationStore();
+
+  const { canGoBack } = useProviderVerificationSelectors();
+
+  // Check for existing selfie data on mount
+  useEffect(() => {
+    const loadExistingSelfie = async () => {
+      if (selfieData.selfieUrl) {
+        console.log('Existing selfie found:', selfieData.selfieUrl);
+
+        // Check if the file actually exists
+        const fileExists = await checkFileExists(selfieData.selfieUrl);
+
+        if (fileExists) {
+          // Check if URL is already signed
+          const isSignedUrl = selfieData.selfieUrl.includes('/storage/v1/object/sign/');
+
+          if (isSignedUrl) {
+            // URL is already signed, use it directly
+            console.log('Using existing signed URL for selfie:', selfieData.selfieUrl);
+            setSelectedImage(selfieData.selfieUrl);
+            setImageLoadError(false);
+          } else {
+            // URL is public, get a signed URL for secure access
+            try {
+              const signedUrl = await getSignedUrl(selfieData.selfieUrl);
+              console.log('Got signed URL for selfie:', signedUrl);
+
+              // Update the store with the signed URL
+              updateSelfieData({
+                ...selfieData,
+                selfieUrl: signedUrl
+              });
+
+              setSelectedImage(signedUrl);
+              setImageLoadError(false);
+            } catch (error) {
+              console.error('Error getting signed URL:', error);
+              setImageLoadError(true);
+            }
+          }
+        } else {
+          console.log('Selfie file not found in storage');
+          setImageLoadError(true);
+        }
+      }
+    };
+
+    loadExistingSelfie();
+  }, [selfieData.selfieUrl, updateSelfieData]);
+
+  const handleImageError = (error: any) => {
+    console.error('Selfie image load error:', error);
+    console.error('Failed URL:', selectedImage || selfieData.selfieUrl);
+    setImageLoadError(true);
+  };
+
+  const handleRetryImage = async () => {
+    if (!selfieData.selfieUrl || retryCount >= 2) return;
+
+    setIsRetrying(true);
+    setRetryCount(prev => prev + 1);
+
+    try {
+      // Try to get a fresh signed URL
+      const freshSignedUrl = await getSignedUrl(selfieData.selfieUrl);
+      
+      // Update the store with fresh URL
+      updateSelfieData({
+        ...selfieData,
+        selfieUrl: freshSignedUrl
+      });
+      
+      // Reset error state to trigger reload
+      setImageLoadError(false);
+    } catch (error) {
+      console.error('Failed to retry selfie image load:', error);
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   const takeSelfie = async () => {
     try {
@@ -39,7 +125,16 @@ export default function SelfieVerificationScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setSelectedImage(result.assets[0].uri);
+        const asset = result.assets[0];
+        console.log('Camera result:', asset);
+        
+        // Validate file type from asset info
+        if (asset.mimeType && !['image/jpeg', 'image/jpg', 'image/png'].includes(asset.mimeType)) {
+          Alert.alert('Invalid File Type', 'Please take a photo in JPG or PNG format.');
+          return;
+        }
+        
+        setSelectedImage(asset.uri);
       }
     } catch (error) {
       console.error('Error taking selfie:', error);
@@ -48,43 +143,85 @@ export default function SelfieVerificationScreen() {
   };
 
   const uploadSelfie = async (uri: string) => {
-    // TODO: Implement Supabase storage upload
-    // For now, return the local URI
-    return uri;
+    if (!providerId) {
+      throw new Error('Provider ID not found');
+    }
+
+    // Validate file size
+    const isValidSize = await validateFileSize(uri);
+    if (!isValidSize) {
+      throw new Error('File size too large. Please upload a file smaller than 10MB.');
+    }
+
+    // Upload to Supabase Storage
+    const result = await uploadSelfieVerification(uri, providerId);
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to upload selfie');
+    }
+
+    return result.url!;
   };
 
   const handleSubmit = async () => {
-    if (!selectedImage) {
+    if (!selectedImage && !selfieData.selfieUrl) {
       Alert.alert('Selfie Required', 'Please take a selfie before continuing.');
       return;
     }
 
     setLoading(true);
     try {
-      // Upload selfie to storage
-      const selfieUrl = await uploadSelfie(selectedImage);
+      let signedUrl: string;
+
+      // Check if we have a new local image that needs uploading
+      const isNewLocalImage = selectedImage && selectedImage.startsWith('file://');
+
+      if (isNewLocalImage) {
+        // Upload new selfie to storage
+        const selfieUrl = await uploadSelfie(selectedImage);
+        
+        // Get a signed URL for the uploaded image
+        signedUrl = await getSignedUrl(selfieUrl);
+        
+        // Update verification store
+        updateSelfieData({
+          selfieUrl: signedUrl,
+          verificationStatus: 'pending',
+        });
+
+        // Save to database - update profile with selfie URL
+        const { error: dbError } = await supabase
+          .from('profiles')
+          .update({
+            selfie_verification_url: signedUrl,
+          })
+          .eq('id', providerId);
+
+        if (dbError) {
+          console.error('Database error:', dbError);
+          throw new Error('Failed to save selfie information');
+        }
+
+        // Clear local image and show uploaded image
+        setSelectedImage(null);
+      } else {
+        // Already have an uploaded selfie, just use the existing one
+        signedUrl = selfieData.selfieUrl;
+      }
       
-      // Update verification store
-      updateSelfieData({
-        selfieUrl,
-        verificationStatus: 'pending',
-      });
-
-      // TODO: Save to database
-      // await saveSelfieToDatabase(providerId, selfieUrl);
-
       // Mark step as completed and move to next
-      completeStep(2, { selfieUrl });
+      completeStep(2, { selfieUrl: signedUrl });
       
       Alert.alert(
-        'Selfie Uploaded',
-        'Your selfie has been uploaded successfully and is pending verification.',
+        isNewLocalImage ? 'Selfie Uploaded' : 'Selfie Verified',
+        isNewLocalImage 
+          ? 'Your selfie has been uploaded successfully and is pending verification.' 
+          : 'Your existing selfie verification is confirmed.',
         [
           {
             text: 'Continue',
             onPress: () => {
               nextStep();
-              router.push('/provider-verification/business-info' as any);
             },
           },
         ]
@@ -98,7 +235,11 @@ export default function SelfieVerificationScreen() {
   };
 
   return (
-    <ScreenWrapper scrollable={true} contentContainerClassName="px-6 py-4">
+    <ScreenWrapper 
+      scrollable={true} 
+      contentContainerClassName="px-6 py-4"
+      edges={['top', 'bottom']}
+    >
       {/* Header */}
       <Animated.View 
         entering={FadeIn.delay(200).springify()}
@@ -121,21 +262,79 @@ export default function SelfieVerificationScreen() {
           Live Selfie
         </Text>
         
-        {selectedImage ? (
+        {(selectedImage || selfieData.selfieUrl) ? (
           <View className="items-center mb-4">
-            <Image 
-              source={{ uri: selectedImage }} 
-              className="w-64 h-64 rounded-full bg-muted border-4 border-primary"
-              resizeMode="cover"
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              onPress={() => setSelectedImage(null)}
-              className="mt-4"
-            >
-              <Text>Retake Selfie</Text>
-            </Button>
+            <View className="relative">
+              {!imageLoadError ? (
+                <Image 
+                  source={{ uri: selectedImage || selfieData.selfieUrl }}
+                  className="w-64 h-64 rounded-full border-4 border-primary"
+                  resizeMode="cover"
+                  onLoadStart={() => console.log('Image loading started:', selectedImage || selfieData.selfieUrl)}
+                  onLoad={() => {
+                    console.log('Image loaded successfully');
+                    setImageLoadError(false);
+                  }}
+                  onError={handleImageError}
+                />
+              ) : (
+                <View className="w-64 h-64 rounded-full bg-muted border-4 border-primary items-center justify-center">
+                  <Text className="text-6xl mb-2">🤳</Text>
+                  <Text className="text-muted-foreground text-center px-4 text-sm">
+                    Selfie uploaded but preview unavailable
+                  </Text>
+                  {!selectedImage && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onPress={handleRetryImage}
+                      disabled={isRetrying}
+                      className="mt-2"
+                    >
+                      <Text className="text-xs">
+                        {isRetrying ? 'Retrying...' : 'Retry Load'}
+                      </Text>
+                    </Button>
+                  )}
+                </View>
+              )}
+              {/* Loading indicator */}
+              {loading && (
+                <View className="absolute inset-0 bg-black/50 rounded-full items-center justify-center">
+                  <Text className="text-white">Uploading...</Text>
+                </View>
+              )}
+            </View>
+            {selectedImage && !selfieData.selfieUrl && (
+              <Button
+                variant="outline"
+                size="sm"
+                onPress={() => setSelectedImage(null)}
+                className="mt-4"
+              >
+                <Text>Retake Selfie</Text>
+              </Button>
+            )}
+            {selfieData.selfieUrl && (
+              <View className="mt-4 items-center space-y-2">
+                <Text className="text-green-600 dark:text-green-400 text-sm font-medium">
+                  ✓ Selfie uploaded successfully
+                </Text>
+                <Text className="text-muted-foreground text-xs">
+                  Pending verification review
+                </Text>
+                {!selectedImage && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onPress={takeSelfie}
+                    className="mt-2"
+                  >
+                    <Text>Retake Selfie</Text>
+                  </Button>
+                )}
+              </View>
+            )}
           </View>
         ) : (
           <View className="border-2 border-dashed border-border rounded-lg p-8 items-center bg-muted/20">
@@ -203,29 +402,31 @@ export default function SelfieVerificationScreen() {
         <Button
           size="lg"
           onPress={handleSubmit}
-          disabled={!selectedImage || loading}
+          disabled={(!selectedImage && !selfieData.selfieUrl) || loading}
           className="w-full"
         >
           <Text className="font-semibold text-primary-foreground">
-            {loading ? 'Uploading...' : 'Continue to Business Information'}
+            {loading ? 'Uploading...' : selfieData.selfieUrl ? 'Continue to Business Information' : 'Upload Selfie'}
           </Text>
         </Button>
       </Animated.View>
 
       {/* Back Button */}
-      <Animated.View entering={SlideInDown.delay(1200).springify()}>
-        <Button
-          variant="outline"
-          size="lg"
-          onPress={() => {
-            previousStep();
-            router.back();
-          }}
-          className="w-full"
-        >
-          <Text>Back to Document Upload</Text>
-        </Button>
-      </Animated.View>
+      {canGoBack && (
+        <Animated.View entering={SlideInDown.delay(1200).springify()}>
+          <Button
+            variant="outline"
+            size="lg"
+            onPress={() => {
+              previousStep();
+              router.push('/provider-verification/' as any);
+            }}
+            className="w-full"
+          >
+            <Text>Back to Document Upload</Text>
+          </Button>
+        </Animated.View>
+      )}
     </ScreenWrapper>
   );
 }

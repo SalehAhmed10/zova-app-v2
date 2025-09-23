@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
@@ -8,6 +8,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppStore } from '@/stores/app';
 
@@ -44,6 +54,15 @@ export default function RegisterScreen() {
 
   const password = watch('password');
 
+  // Dialog state for existing user alert
+  const [showExistingUserDialog, setShowExistingUserDialog] = useState(false);
+  const [showRoleSwitchDialog, setShowRoleSwitchDialog] = useState(false);
+  const [roleSwitchData, setRoleSwitchData] = useState<{
+    currentRole: 'customer' | 'provider';
+    requestedRole: 'customer' | 'provider';
+    profileId: string;
+  } | null>(null);
+
   const onSubmit = async (data: RegisterForm) => {
     try {
       console.log('[Register] Starting registration process');
@@ -54,7 +73,7 @@ export default function RegisterScreen() {
         role: data.role
       });
 
-      const result = await signUp(data.email, data.password);
+      const result = await signUp(data.email, data.password, data.role);
 
       if (result.success) {
         console.log('[Register] Registration successful, navigating to OTP verification');
@@ -73,6 +92,23 @@ export default function RegisterScreen() {
         } as any);
       } else {
         console.error('[Register] Registration failed:', result.error);
+        
+        // Handle role switching case
+        if (result.roleSwitch) {
+          console.log('[Register] Role switch offered:', result.roleSwitch);
+          setRoleSwitchData(result.roleSwitch);
+          setShowRoleSwitchDialog(true);
+          return;
+        }
+        
+        // Handle existing user case
+        if (result.userExists) {
+          console.log('[Register] User already exists, showing dialog');
+          setShowExistingUserDialog(true);
+          return;
+        }
+        
+        // Handle other errors
         setError('email', { message: result.error || 'Registration failed' });
       }
     } catch (error) {
@@ -373,6 +409,107 @@ export default function RegisterScreen() {
             <Text>Back to Login</Text>
           </Button>
         </Animated.View>
+
+        {/* Existing User Alert Dialog */}
+        <AlertDialog open={showExistingUserDialog} onOpenChange={setShowExistingUserDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Account Already Exists</AlertDialogTitle>
+              <AlertDialogDescription>
+                An account with this email already exists. Would you like to log in instead, or reset your password?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onPress={() => setShowExistingUserDialog(false)}>
+                <Text>Cancel</Text>
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onPress={() => {
+                  console.log('[Register] User chose to log in instead');
+                  setShowExistingUserDialog(false);
+                  router.replace('/auth' as any);
+                }}
+              >
+                <Text>Log In</Text>
+              </AlertDialogAction>
+              <AlertDialogAction
+                onPress={() => {
+                  console.log('[Register] User chose to reset password');
+                  setShowExistingUserDialog(false);
+                  // TODO: Implement password reset flow
+                  Alert.alert('Coming Soon', 'Password reset functionality will be available soon.');
+                }}
+              >
+                <Text>Reset Password</Text>
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Role Switch Dialog */}
+        <AlertDialog open={showRoleSwitchDialog} onOpenChange={setShowRoleSwitchDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Switch Account Role</AlertDialogTitle>
+              <AlertDialogDescription>
+                An account with this email already exists as a {roleSwitchData?.currentRole}.
+                Would you like to switch to {roleSwitchData?.requestedRole} role instead?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onPress={() => {
+                setShowRoleSwitchDialog(false);
+                setRoleSwitchData(null);
+              }}>
+                <Text>Cancel</Text>
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onPress={async () => {
+                  if (!roleSwitchData) return;
+
+                  console.log('[Register] User chose to switch role');
+                  setShowRoleSwitchDialog(false);
+
+                  try {
+                    // Import the switchUserRole function
+                    const { switchUserRole } = useAuth() as any;
+
+                    const result = await switchUserRole(roleSwitchData.profileId, roleSwitchData.requestedRole);
+
+                    if (result.success) {
+                      Alert.alert(
+                        'Role Switched Successfully',
+                        `Your account has been switched to ${roleSwitchData.requestedRole} role.`,
+                        [
+                          {
+                            text: 'Continue',
+                            onPress: () => {
+                              // Navigate to the appropriate dashboard based on new role
+                              if (roleSwitchData.requestedRole === 'customer') {
+                                router.replace('/customer' as any);
+                              } else {
+                                router.replace('/provider' as any);
+                              }
+                            }
+                          }
+                        ]
+                      );
+                    } else {
+                      Alert.alert('Error', 'Failed to switch role. Please try again.');
+                    }
+                  } catch (error) {
+                    console.error('[Register] Role switch error:', error);
+                    Alert.alert('Error', 'Failed to switch role. Please try again.');
+                  }
+
+                  setRoleSwitchData(null);
+                }}
+              >
+                <Text>Switch Role</Text>
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
     </ScreenWrapper>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Tabs, router } from 'expo-router';
-import { View } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/lib/useColorScheme';
@@ -19,8 +19,18 @@ export default function ProviderLayout() {
   const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [sessionKey, setSessionKey] = useState(Date.now()); // Force re-run on mount
+
+  // Reset verification status when authentication changes
+  useEffect(() => {
+    setVerificationStatus(null);
+    setLoading(true);
+  }, [isAuthenticated]);
+
   // Check provider verification status
   useEffect(() => {
+    let channel: any = null;
+
     const checkVerificationStatus = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -34,10 +44,17 @@ export default function ProviderLayout() {
 
         if (profile) {
           setVerificationStatus(profile.verification_status);
-          
-          // If provider is not verified, redirect to verification flow
-          if (!profile.is_verified || profile.verification_status !== 'approved') {
-            // Wait for store to hydrate before redirecting
+
+          // Only allow approved providers to access dashboard
+          if (profile.verification_status !== 'approved') {
+            // If verification is pending or in_review, show status screen (don't redirect)
+            if (profile.verification_status === 'pending' || profile.verification_status === 'in_review') {
+              console.log('[Provider Layout] Provider verification status:', profile.verification_status, '- showing status screen');
+              setLoading(false);
+              return;
+            }
+
+            // For rejected or null status, redirect to verification flow
             if (_hasHydrated) {
               console.log('[Provider Layout] Provider not verified, redirecting to verification step', currentStep);
               const stepRoutes = {
@@ -67,6 +84,41 @@ export default function ProviderLayout() {
       }
     };
 
+    // Set up real-time subscription for verification status changes
+    const setupRealtimeSubscription = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      console.log('[Provider Layout] Setting up real-time subscription for user:', user.id);
+
+      channel = supabase
+        .channel(`profile-verification-updates-${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'profiles',
+            filter: `id=eq.${user.id}`,
+          },
+          (payload) => {
+            console.log('[Provider Layout] Real-time update received:', payload);
+            const newStatus = payload.new.verification_status;
+            if (newStatus !== verificationStatus) {
+              console.log('[Provider Layout] Verification status changed from', verificationStatus, 'to', newStatus);
+              setVerificationStatus(newStatus);
+              // Force re-render by updating session key
+              setSessionKey(Date.now());
+            }
+          }
+        )
+        .subscribe((status) => {
+          console.log('[Provider Layout] Subscription status:', status);
+        });
+
+      return channel;
+    };
+
     // Role-based access control - use a timeout to ensure navigation is ready
     const checkAccess = () => {
       if (!isAuthenticated) {
@@ -87,16 +139,25 @@ export default function ProviderLayout() {
 
       // Check verification status if authenticated as provider
       checkVerificationStatus();
+
+      // Set up real-time subscription
+      setupRealtimeSubscription();
     };
 
     // Small delay to ensure navigation system is ready
     const timer = setTimeout(checkAccess, 100);
-    return () => clearTimeout(timer);
-  }, [userRole, isAuthenticated]);
 
-  // Redirect to correct verification step once store is hydrated
+    // Cleanup function
+    return () => {
+      clearTimeout(timer);
+      if (channel) {
+        console.log('[Provider Layout] Cleaning up real-time subscription');
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [userRole, isAuthenticated, _hasHydrated, sessionKey]);  // Redirect to correct verification step once store is hydrated (only for rejected/null status)
   useEffect(() => {
-    if (_hasHydrated && verificationStatus && verificationStatus !== 'approved' && currentStep > 1) {
+    if (_hasHydrated && verificationStatus && (verificationStatus === 'rejected' || verificationStatus === null) && currentStep > 1) {
       console.log('[Provider Layout] Store hydrated, redirecting to verification step', currentStep);
       const stepRoutes = {
         1: '/provider-verification/',
@@ -124,26 +185,119 @@ export default function ProviderLayout() {
     );
   }
 
-  // If verification is pending or rejected, show status screen
-  if (verificationStatus && verificationStatus !== 'approved') {
+  // Show status screen for pending/in_review providers
+  if (verificationStatus && (verificationStatus === 'pending' || verificationStatus === 'in_review')) {
     return (
-      <View className="flex-1 justify-center items-center px-6 bg-background">
-        <View className="items-center space-y-4">
-          <Text className="text-2xl">⏳</Text>
-          <Text className="text-xl font-semibold text-center">
-            Verification {verificationStatus === 'pending' ? 'Pending' : 'Required'}
-          </Text>
-          <Text className="text-muted-foreground text-center">
-            {verificationStatus === 'pending' 
-              ? 'Your account is being reviewed. You\'ll be notified once approved.'
-              : 'Please complete the verification process to access your provider dashboard.'
-            }
-          </Text>
-          {verificationStatus !== 'pending' && (
-            <Button onPress={() => router.push('/provider-verification/' as any)}>
-              <Text className="text-primary-foreground">Complete Verification</Text>
-            </Button>
-          )}
+      <View className="flex-1 bg-background">
+        {/* Header */}
+        <View className="pt-12 pb-6 px-6 bg-card border-b border-border">
+          <View className="items-center">
+            <View className="w-20 h-20 bg-primary/10 rounded-full justify-center items-center mb-4">
+              <Text className="text-4xl">
+                {verificationStatus === 'pending' ? '⏳' : '📋'}
+              </Text>
+            </View>
+            <Text className="text-2xl font-bold text-foreground mb-2">
+              Verification {verificationStatus === 'pending' ? 'Submitted' : 'Under Review'}
+            </Text>
+            <View className="px-3 py-1 bg-primary/10 rounded-full">
+              <Text className="text-sm font-medium text-primary">
+                {verificationStatus === 'pending' ? 'Pending Admin Review' : 'In Progress'}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Scrollable Content */}
+        <ScrollView 
+          className="flex-1 px-6 py-8" 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 120 }} // Account for bottom actions
+        >
+          <View className="mb-6">
+            {/* Status Description */}
+            <View className="bg-card rounded-xl p-6 border border-border mb-6">
+              <Text className="text-base text-foreground mb-3 font-medium">
+                What's happening next?
+              </Text>
+              <Text className="text-muted-foreground leading-6">
+                {verificationStatus === 'pending'
+                  ? 'Your verification documents have been submitted successfully. Our team will review them within 1-2 business days. You\'ll receive a notification once your account is approved.'
+                  : 'Your verification is currently being reviewed by our team. This process typically takes 1-2 business days. We\'ll notify you of the outcome.'
+                }
+              </Text>
+            </View>
+
+            {/* What you can do */}
+            <View className="bg-card rounded-xl p-6 border border-border mb-6">
+              <Text className="text-base text-foreground mb-3 font-medium">
+                What happens next?
+              </Text>
+              <View>
+                <View className="flex-row items-center mb-2">
+                  <Text className="text-primary mr-2">📧</Text>
+                  <Text className="text-muted-foreground">You'll receive an email notification once reviewed</Text>
+                </View>
+                <View className="flex-row items-center mb-2">
+                  <Text className="text-primary mr-2">⚡</Text>
+                  <Text className="text-muted-foreground">Approval typically takes 1-2 business days</Text>
+                </View>
+                <View className="flex-row items-center">
+                  <Text className="text-primary mr-2">🎯</Text>
+                  <Text className="text-muted-foreground">Once approved, you'll get full provider dashboard access</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Timeline */}
+            <View className="bg-card rounded-xl p-6 border border-border">
+              <Text className="text-base text-foreground mb-4 font-medium">
+                Verification Process
+              </Text>
+              <View>
+                <View className="flex-row items-center mb-3">
+                  <View className="w-6 h-6 bg-green-500 rounded-full justify-center items-center mr-3">
+                    <Text className="text-white text-xs">✓</Text>
+                  </View>
+                  <Text className="text-muted-foreground">Documents submitted</Text>
+                </View>
+                <View className="flex-row items-center mb-3">
+                  <View className={`w-6 h-6 rounded-full justify-center items-center mr-3 ${
+                    verificationStatus === 'in_review' ? 'bg-primary' : 'bg-muted'
+                  }`}>
+                    <Text className={`text-xs ${
+                      verificationStatus === 'in_review' ? 'text-primary-foreground' : 'text-muted-foreground'
+                    }`}>
+                      {verificationStatus === 'in_review' ? '○' : '○'}
+                    </Text>
+                  </View>
+                  <Text className={`${
+                    verificationStatus === 'in_review' ? 'text-foreground' : 'text-muted-foreground'
+                  }`}>
+                    Admin review in progress
+                  </Text>
+                </View>
+                <View className="flex-row items-center">
+                  <View className="w-6 h-6 bg-muted rounded-full justify-center items-center mr-3">
+                    <Text className="text-muted-foreground text-xs">○</Text>
+                  </View>
+                  <Text className="text-muted-foreground">Account approval</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+
+        {/* Actions */}
+        <View className="px-6 pb-14 pt-4 bg-background border-t border-border">
+          <Button
+            onPress={() => router.replace('/auth')}
+            variant="outline"
+            className="w-full"
+            size="lg"
+          >
+            <Text>Sign Out</Text>
+          </Button>
         </View>
       </View>
     );

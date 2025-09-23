@@ -5,8 +5,10 @@ import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import { useProviderVerificationStore } from '@/stores/provider-verification';
+import { supabase } from '@/lib/supabase';
 
 export default function BusinessTermsScreen() {
   const [formData, setFormData] = useState({
@@ -20,7 +22,6 @@ export default function BusinessTermsScreen() {
     termsData,
     updateTermsData,
     completeStep,
-    nextStep,
     previousStep 
   } = useProviderVerificationStore();
 
@@ -71,18 +72,81 @@ export default function BusinessTermsScreen() {
 
     setLoading(true);
     try {
-      // Update verification store
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('User not authenticated');
+      }
+
+      // Prepare data for database
       const data = {
         depositPercentage: parseFloat(formData.depositPercentage),
         cancellationFeePercentage: parseFloat(formData.cancellationFeePercentage),
         cancellationPolicy: formData.cancellationPolicy.trim(),
       };
-      
+
+      // Save to database
+      const { error: dbError } = await supabase
+        .from('profiles')
+        .update({
+          deposit_percentage: data.depositPercentage,
+          cancellation_fee_percentage: data.cancellationFeePercentage,
+          cancellation_policy: data.cancellationPolicy,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id);
+
+      if (dbError) {
+        console.error('Database error:', dbError);
+        // Check if it's a schema issue
+        if (dbError.message?.includes('column') && dbError.message?.includes('does not exist')) {
+          console.warn('Terms fields not found in profiles table schema - please add them');
+          Alert.alert('Database Schema Issue', 'Terms fields need to be added to the database schema. Data saved locally only.');
+        } else {
+          Alert.alert('Save Failed', 'Failed to save terms to database. Data saved locally.');
+        }
+      }
+
+      // Update verification store
       updateTermsData(data);
       completeStep(8, data);
       
-      nextStep();
-      router.push('/provider-verification/payment' as any);
+      // Complete verification instead of going to next step
+      setLoading(true);
+      try {
+        // Get current user
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) {
+          throw new Error('User not authenticated');
+        }
+
+        // Update verification status in database
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({
+            verification_status: 'pending',
+            is_verified: false, // Will be set to true when admin approves
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', user.id);
+
+        if (updateError) {
+          console.error('Error updating verification status:', updateError);
+          Alert.alert('Error', 'Failed to complete verification. Please try again.');
+          return;
+        }
+
+        console.log('[Terms] Successfully updated verification status to pending');
+        console.log('[Terms] Navigating to complete screen');
+
+        // Navigate to complete screen directly
+        router.push('/provider-verification/complete');
+      } catch (error) {
+        console.error('Error completing verification:', error);
+        Alert.alert('Error', 'Failed to complete verification. Please try again.');
+      } finally {
+        setLoading(false);
+      }
     } catch (error) {
       console.error('Error saving terms:', error);
       Alert.alert('Save Failed', 'Failed to save your terms. Please try again.');
@@ -110,9 +174,9 @@ export default function BusinessTermsScreen() {
       </Animated.View>
 
       {/* Form */}
-      <Animated.View entering={SlideInDown.delay(400).springify()} className="space-y-6">
+      <Animated.View entering={SlideInDown.delay(400).springify()}>
         {/* Deposit Percentage */}
-        <View>
+        <View className="mb-6">
           <Text className="text-sm font-medium text-foreground mb-2">
             Deposit Percentage *
           </Text>
@@ -127,6 +191,7 @@ export default function BusinessTermsScreen() {
               }}
               keyboardType="decimal-pad"
               maxLength={5}
+              className="placeholder:text-muted-foreground/30"
             />
             <View className="absolute right-3 top-0 bottom-0 justify-center">
               <Text className="text-muted-foreground">%</Text>
@@ -138,7 +203,7 @@ export default function BusinessTermsScreen() {
         </View>
 
         {/* Cancellation Fee Percentage */}
-        <View>
+        <View className="mb-6">
           <Text className="text-sm font-medium text-foreground mb-2">
             Cancellation Fee Percentage *
           </Text>
@@ -153,6 +218,7 @@ export default function BusinessTermsScreen() {
               }}
               keyboardType="decimal-pad"
               maxLength={5}
+              className="placeholder:text-muted-foreground/30"
             />
             <View className="absolute right-3 top-0 bottom-0 justify-center">
               <Text className="text-muted-foreground">%</Text>
@@ -168,14 +234,13 @@ export default function BusinessTermsScreen() {
           <Text className="text-sm font-medium text-foreground mb-2">
             Cancellation Policy *
           </Text>
-          <Input
+          <Textarea
             placeholder="Describe your cancellation policy, including notice requirements and any exceptions..."
             value={formData.cancellationPolicy}
             onChangeText={(text) => setFormData(prev => ({ ...prev, cancellationPolicy: text }))}
-            multiline
-            numberOfLines={5}
             maxLength={500}
-            className="min-h-[100px] text-top"
+            className="min-h-[100px]"
+            placeholderClassName="text-muted-foreground/30"
           />
           <Text className="text-xs text-muted-foreground mt-1">
             {formData.cancellationPolicy.length}/500 characters (minimum 50)
@@ -201,14 +266,14 @@ export default function BusinessTermsScreen() {
           <Text className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
             📋 Policy Guidelines
           </Text>
-          <View className="space-y-1">
-            <Text className="text-blue-800 dark:text-blue-200 text-sm">
+          <View>
+            <Text className="text-blue-800 dark:text-blue-200 text-sm mb-1">
               • Be clear about notice requirements (e.g., 24 hours, 48 hours)
             </Text>
-            <Text className="text-blue-800 dark:text-blue-200 text-sm">
+            <Text className="text-blue-800 dark:text-blue-200 text-sm mb-1">
               • Consider exceptions for emergencies or special circumstances
             </Text>
-            <Text className="text-blue-800 dark:text-blue-200 text-sm">
+            <Text className="text-blue-800 dark:text-blue-200 text-sm mb-1">
               • Keep fees reasonable and industry-appropriate
             </Text>
             <Text className="text-blue-800 dark:text-blue-200 text-sm">
@@ -227,7 +292,7 @@ export default function BusinessTermsScreen() {
           className="w-full"
         >
           <Text className="font-semibold text-primary-foreground">
-            {loading ? 'Saving...' : 'Continue to Payment Setup'}
+            {loading ? 'Completing...' : 'Complete Verification'}
           </Text>
         </Button>
       </Animated.View>

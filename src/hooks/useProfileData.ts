@@ -222,11 +222,11 @@ export const useNotificationSettings = (userId?: string) => {
 // Mutation to update profile
 export const useUpdateProfile = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (updates: Partial<ProfileData> & { id: string }) => {
-      const { id, ...profileUpdates } = updates;
-      
+      const { id, role, ...profileUpdates } = updates; // Exclude role from updates
+
       const { data, error } = await supabase
         .from('profiles')
         .update({

@@ -5,8 +5,10 @@ import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import { useProviderVerificationStore } from '@/stores/provider-verification';
+import { supabase } from '@/lib/supabase';
 
 export default function BusinessBioScreen() {
   const [formData, setFormData] = useState({
@@ -28,7 +30,7 @@ export default function BusinessBioScreen() {
     if (bioData) {
       setFormData({
         businessDescription: bioData.businessDescription || '',
-        yearsOfExperience: bioData.yearsOfExperience?.toString() || '',
+        yearsOfExperience: bioData.yearsOfExperience !== null ? bioData.yearsOfExperience.toString() : '',
       });
     }
   }, [bioData]);
@@ -63,17 +65,38 @@ export default function BusinessBioScreen() {
 
     setLoading(true);
     try {
-      // Update verification store
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('User not authenticated');
+      }
+
+      // Prepare data for database
       const data = {
         businessDescription: formData.businessDescription.trim(),
         yearsOfExperience: parseInt(formData.yearsOfExperience),
       };
-      
+
+      // Save to database
+      const { error: dbError } = await supabase
+        .from('profiles')
+        .update({
+          business_description: data.businessDescription,
+          years_of_experience: data.yearsOfExperience,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id);
+
+      if (dbError) {
+        console.error('Database error:', dbError);
+        throw new Error('Failed to save to database');
+      }
+
+      // Update verification store
       updateBioData(data);
       completeStep(7, data);
       
       nextStep();
-      router.push('/provider-verification/terms' as any);
     } catch (error) {
       console.error('Error saving bio:', error);
       Alert.alert('Save Failed', 'Failed to save your information. Please try again.');
@@ -101,20 +124,19 @@ export default function BusinessBioScreen() {
       </Animated.View>
 
       {/* Form */}
-      <Animated.View entering={SlideInDown.delay(400).springify()} className="space-y-6">
+      <Animated.View entering={SlideInDown.delay(400).springify()}>
         {/* Business Description */}
-        <View>
+        <View className="mb-6">
           <Text className="text-sm font-medium text-foreground mb-2">
             Business Description *
           </Text>
-          <Input
+          <Textarea
             placeholder="Tell customers about your business, your approach to service, and what makes you unique..."
             value={formData.businessDescription}
             onChangeText={(text) => setFormData(prev => ({ ...prev, businessDescription: text }))}
-            multiline
             numberOfLines={6}
             maxLength={bioData.maxDescriptionLength}
-            className="min-h-[120px] text-top"
+            className="min-h-[120px] placeholder:text-muted-foreground"
           />
           <Text className="text-xs text-muted-foreground mt-1">
             {formData.businessDescription.length}/{bioData.maxDescriptionLength} characters (minimum 50)
@@ -127,7 +149,7 @@ export default function BusinessBioScreen() {
             Years of Experience *
           </Text>
           <Input
-            placeholder="Enter your years of professional experience"
+            placeholder="Years of experience"
             value={formData.yearsOfExperience}
             onChangeText={(text) => {
               // Only allow numbers
@@ -136,6 +158,7 @@ export default function BusinessBioScreen() {
             }}
             keyboardType="numeric"
             maxLength={2}
+            className="placeholder:text-muted-foreground"
           />
           <Text className="text-xs text-muted-foreground mt-1">
             Enter a number from 0 to 50
@@ -149,14 +172,14 @@ export default function BusinessBioScreen() {
           <Text className="font-semibold text-accent-foreground mb-2">
             💡 Writing Tips
           </Text>
-          <View className="space-y-1">
-            <Text className="text-accent-foreground text-sm">
+          <View>
+            <Text className="text-accent-foreground text-sm mb-1">
               • Be authentic and professional - customers want to trust you
             </Text>
-            <Text className="text-accent-foreground text-sm">
+            <Text className="text-accent-foreground text-sm mb-1">
               • Highlight what makes your business unique
             </Text>
-            <Text className="text-accent-foreground text-sm">
+            <Text className="text-accent-foreground text-sm mb-1">
               • Mention any certifications or special training
             </Text>
             <Text className="text-accent-foreground text-sm">

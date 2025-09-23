@@ -108,7 +108,8 @@ export default function CategorySelectionScreen() {
     updateCategoryData,
     completeStep,
     nextStep,
-    previousStep
+    previousStep,
+    providerId
   } = useProviderVerificationStore();
 
   const { canGoBack } = useProviderVerificationSelectors();
@@ -165,9 +166,6 @@ export default function CategorySelectionScreen() {
     if (!selectedCategory) return;
 
     try {
-      // TODO: Save to database
-      // await saveCategoryToDatabase(providerId, selectedCategory);
-
       // Mark step as completed and move to next
       const selectedCategoryData = categories.find(cat => cat.id === selectedCategory);
       completeStep(4, {
@@ -176,7 +174,6 @@ export default function CategorySelectionScreen() {
       });
 
       nextStep();
-      router.push('/provider-verification/services' as any);
     } catch (error) {
       console.error('Error saving category:', error);
     }
@@ -295,10 +292,13 @@ export default function CategorySelectionScreen() {
       {/* Fixed Bottom Buttons */}
       <View
         className="px-5 bg-background border-t border-border"
-        style={{ paddingBottom: Math.max(insets.bottom, 16) }}
+        style={{
+          paddingBottom: Math.max(insets.bottom + 30, 36), // Add extra padding for navigation bar
+          paddingTop: 16
+        }}
       >
         {/* Continue Button */}
-        <Animated.View entering={SlideInDown.delay(550).springify()} className="mb-2">
+        <Animated.View entering={SlideInDown.delay(550).springify()} className="mb-3">
           <Button
             size="lg"
             onPress={handleSubmit}

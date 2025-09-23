@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, FlatList, Pressable } from 'react-native';
+import { View, FlatList, Pressable, TextInput } from 'react-native';
 import { router } from 'expo-router';
-import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
+import { Ionicons } from '@expo/vector-icons';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import { useProviderVerificationStore } from '@/stores/provider-verification';
 import { supabase } from '@/lib/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { useAuth } from '@/hooks/useAuth';
 
 interface ServiceSubcategory {
   id: string;
@@ -49,22 +50,34 @@ export default function ServicesSelectionScreen() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const insets = useSafeAreaInsets();
-  
-  const { 
+  // Safe area insets with fallback
+  let insets = { top: 0, bottom: 0, left: 0, right: 0 };
+  try {
+    insets = useSafeAreaInsets();
+  } catch (error) {
+    console.warn('useSafeAreaInsets not available:', error);
+  }
+
+  const { isDarkColorScheme } = useColorScheme();
+  const { user } = useAuth();
+
+  // Theme-aware colors
+  const mutedForegroundColor = isDarkColorScheme ? 'hsl(0, 0%, 53.3333%)' : 'hsl(220, 8.9362%, 46.0784%)';
+
+  const {
     categoryData,
     servicesData,
-    updateServicesData, 
-    completeStep, 
+    updateServicesData,
+    completeStep,
     nextStep,
-    previousStep 
+    previousStep
   } = useProviderVerificationStore();
 
   // Filter services based on search query - optimized with early returns
   const filteredServices = useMemo(() => {
     const query = debouncedSearchQuery.trim().toLowerCase();
     if (!query) return services;
-    
+
     return services.filter(service => {
       const name = service.name.toLowerCase();
       const description = service.description?.toLowerCase() || '';
@@ -113,8 +126,63 @@ export default function ServicesSelectionScreen() {
     });
   };
 
+  const saveServicesToDatabase = async (providerId: string, selectedServiceIds: string[]) => {
+    if (!providerId || selectedServiceIds.length === 0) return;
+
+    try {
+      // First, delete any existing services for this provider
+      await supabase
+        .from('provider_services')
+        .delete()
+        .eq('provider_id', providerId);
+
+      // Get the service subcategory details for the selected services
+      const { data: subcategories, error: fetchError } = await supabase
+        .from('service_subcategories')
+        .select('id, name, description')
+        .in('id', selectedServiceIds);
+
+      if (fetchError) throw fetchError;
+
+      // Create provider services with default values
+      const servicesToInsert = subcategories?.map(subcategory => ({
+        provider_id: providerId,
+        subcategory_id: subcategory.id,
+        title: subcategory.name,
+        description: subcategory.description || `${subcategory.name} service`,
+        base_price: 15.00, // Minimum price as per database constraint
+        duration_minutes: 60, // Default 1 hour
+        is_home_service: false,
+        is_remote_service: false,
+        is_active: true,
+        price_type: 'fixed' as const,
+        deposit_percentage: 20,
+        cancellation_fee_percentage: 0,
+        requires_deposit: true,
+        allows_sos_booking: false,
+        custom_deposit_percentage: 20,
+        custom_cancellation_fee_percentage: 0,
+        house_call_available: false,
+        house_call_extra_fee: 0,
+      })) || [];
+
+      if (servicesToInsert.length > 0) {
+        const { error: insertError } = await supabase
+          .from('provider_services')
+          .insert(servicesToInsert);
+
+        if (insertError) throw insertError;
+      }
+
+      console.log(`Successfully saved ${servicesToInsert.length} services for provider ${providerId}`);
+    } catch (error) {
+      console.error('Error saving services to database:', error);
+      throw error;
+    }
+  };
+
   const handleSubmit = async () => {
-    if (selectedServices.length === 0) return;
+    if (selectedServices.length === 0 || !user) return;
 
     try {
       updateServicesData({
@@ -122,15 +190,13 @@ export default function ServicesSelectionScreen() {
         serviceDetails: {},
       });
 
-      // TODO: Save to database
-      // await saveServicesToDatabase(providerId, selectedServices);
+      // Save to database
+      await saveServicesToDatabase(user.id, selectedServices);
 
       // Mark step as completed and move to next
       completeStep(5, { selectedServices });
-      
+
       nextStep();
-      // For now, skip to complete screen (we'll add other steps later)
-      router.push('/provider-verification/complete' as any);
     } catch (error) {
       console.error('Error saving services:', error);
     }
@@ -138,21 +204,19 @@ export default function ServicesSelectionScreen() {
 
   const renderServiceItem = useCallback(({ item }: { item: ServiceSubcategory }) => {
     const isSelected = selectedServices.includes(item.id);
-    
+
     return (
       <Pressable
         onPress={() => handleServiceToggle(item.id)}
-        className={`p-4 rounded-lg border-2 mb-3 ${
-          isSelected
+        className={`p-4 rounded-lg border-2 mb-3 ${isSelected
             ? 'border-primary bg-primary/10'
             : 'border-border bg-card'
-        }`}
+          }`}
       >
         <View className="flex-row items-center">
           <View className="flex-1">
-            <Text className={`font-semibold ${
-              isSelected ? 'text-primary' : 'text-foreground'
-            }`}>
+            <Text className={`font-semibold ${isSelected ? 'text-primary' : 'text-foreground'
+              }`}>
               {item.name}
             </Text>
             {item.description && (
@@ -166,11 +230,10 @@ export default function ServicesSelectionScreen() {
               </Text>
             )}
           </View>
-          <View className={`w-6 h-6 rounded-full border-2 items-center justify-center ${
-            isSelected 
-              ? 'border-primary bg-primary' 
+          <View className={`w-6 h-6 rounded-full border-2 items-center justify-center ${isSelected
+              ? 'border-primary bg-primary'
               : 'border-border'
-          }`}>
+            }`}>
             {isSelected && (
               <Text className="text-white text-xs font-bold">✓</Text>
             )}
@@ -180,94 +243,75 @@ export default function ServicesSelectionScreen() {
     );
   }, [selectedServices]);
 
+  if (loading) {
+    return (
+      <ScreenWrapper scrollable={false}>
+        <View className="flex-1 px-4 py-6">
+          <View className="mb-6">
+            <Text className="text-2xl font-bold text-foreground mb-2">
+              Select Your Services
+            </Text>
+            <Text className="text-muted-foreground">
+              Choose the services you provide within {categoryData.categoryName}
+            </Text>
+          </View>
+
+          <View className="flex-1">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <ServiceSkeleton key={index} />
+            ))}
+          </View>
+        </View>
+      </ScreenWrapper>
+    );
+  }
+
   return (
-    <View className="flex-1">
-      <ScreenWrapper contentContainerClassName="px-5 pb-4" className="flex-1">
-        {/* Header */}
-        <Animated.View
-          entering={FadeIn.delay(200).springify()}
-          className="items-center mb-1"
-        >
-          <View className="w-10 h-10 bg-primary/10 rounded-xl justify-center items-center mb-1">
-            <Text className="text-lg">⚡</Text>
-          </View>
-          <Text className="text-base font-bold text-foreground mb-0.5">
-            Service Selection
+    <ScreenWrapper scrollable={false}>
+      <View className="flex-1">
+        <View className="mb-6">
+          <Text className="text-2xl font-bold text-foreground mb-2">
+            Select Your Services
           </Text>
-          <Text className="text-xs text-muted-foreground text-center leading-4 px-4">
-            Choose the specific services you offer in{' '}
-            <Text className="font-semibold">{categoryData.categoryName}</Text>
+          <Text className="text-muted-foreground">
+            Choose the services you provide within {categoryData.categoryName}
           </Text>
-        </Animated.View>
 
-        {/* Info Note */}
-        <Animated.View entering={SlideInDown.delay(250).springify()} className="mb-2">
-          <View className="p-2 bg-gradient-to-r from-primary/5 to-primary/10 rounded-lg border border-primary/20">
-            <Text className="text-xs text-muted-foreground leading-4">
-              💡 Select all services you provide. You can add pricing and availability after verification.
-            </Text>
-          </View>
-        </Animated.View>
-
-        {/* Search Input */}
-        <Animated.View entering={SlideInDown.delay(350).springify()} className="mb-3">
-          <View className="relative">
-            <Input
-              placeholder="Search services..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              className="pl-10"
-            />
-            <View className="absolute left-3 top-1/2 -translate-y-1/2">
-              <Text className="text-muted-foreground">🔍</Text>
+          {/* Search Bar */}
+          <View className="mt-4">
+            <View className="flex-row items-center bg-muted rounded-lg px-4 py-3">
+              <Ionicons name="search" size={20} color={mutedForegroundColor} />
+              <TextInput
+                placeholder="Search services..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                className="flex-1 ml-3 text-foreground"
+                placeholderTextColor={mutedForegroundColor}
+              />
             </View>
           </View>
-          {searchQuery && (
-            <Text className="text-xs text-muted-foreground mt-1">
-              {searchQuery !== debouncedSearchQuery ? (
-                'Searching...'
-              ) : (
-                `${filteredServices.length} of ${services.length} services`
-              )}
-            </Text>
-          )}
-        </Animated.View>
+        </View>
 
-        {/* Services List */}
-        <Animated.View entering={SlideInDown.delay(450).springify()} className="flex-1">
-          {loading ? (
-            <View className="py-2">
-              {Array.from({ length: 6 }).map((_, index) => (
-                <ServiceSkeleton key={index} />
-              ))}
-            </View>
-          ) : services.length === 0 ? (
-            <View className="flex-1 justify-center items-center py-8">
-              <View className="w-16 h-16 bg-muted/50 rounded-2xl justify-center items-center mb-4">
-                <Text className="text-2xl">⚡</Text>
-              </View>
-              <Text className="text-muted-foreground font-medium mb-1">No services available</Text>
-              <Text className="text-muted-foreground text-sm text-center">
-                No services found for this category
+        <View className="flex-1">
+          {services.length === 0 ? (
+            <View className="flex-1 items-center justify-center">
+              <Ionicons name="construct-outline" size={64} color={mutedForegroundColor} />
+              <Text className="text-lg text-muted-foreground mt-4 text-center">
+                No services available for this category yet.
+              </Text>
+              <Text className="text-sm text-muted-foreground mt-2 text-center">
+                Please contact support if you believe this is an error.
               </Text>
             </View>
           ) : filteredServices.length === 0 ? (
-            <View className="flex-1 justify-center items-center py-8">
-              <View className="w-16 h-16 bg-muted/50 rounded-2xl justify-center items-center mb-4">
-                <Text className="text-2xl">🔍</Text>
-              </View>
-              <Text className="text-muted-foreground font-medium mb-1">No services found</Text>
-              <Text className="text-muted-foreground text-sm text-center mb-3">
-                Try adjusting your search terms
+            <View className="flex-1 items-center justify-center">
+              <Ionicons name="search-outline" size={64} color={mutedForegroundColor} />
+              <Text className="text-lg text-muted-foreground mt-4 text-center">
+                No services match your search.
               </Text>
-              <Button
-                variant="outline"
-                size="sm"
-                onPress={() => setSearchQuery('')}
-                className="px-4"
-              >
-                <Text>Clear search</Text>
-              </Button>
+              <Text className="text-sm text-muted-foreground mt-2 text-center">
+                Try a different search term.
+              </Text>
             </View>
           ) : (
             <FlatList
@@ -275,61 +319,38 @@ export default function ServicesSelectionScreen() {
               renderItem={renderServiceItem}
               keyExtractor={(item) => item.id}
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 16 }}
+              contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 60, 80) }}
+              ListHeaderComponent={
+                <Text className="text-sm text-muted-foreground mb-4">
+                  {filteredServices.length} of {services.length} services
+                </Text>
+              }
             />
           )}
-        </Animated.View>
-      </ScreenWrapper>
+        </View>
+      </View>
 
       {/* Fixed Bottom Buttons */}
-      <View
-        className="px-5 bg-background border-t border-border"
-        style={{ paddingBottom: Math.max(insets.bottom, 16) }}
-      >
-        {/* Selection Summary */}
-        <Animated.View entering={SlideInDown.delay(550).springify()} className="mb-3">
-          <View className="p-3 bg-muted/50 rounded-lg border border-border">
-            <Text className="font-semibold text-foreground mb-1">
-              Selected Services: {selectedServices.length}
-            </Text>
-            <Text className="text-muted-foreground text-xs">
-              {selectedServices.length > 0 
-                ? `You can add more services and set pricing after your account is approved.`
-                : 'Select at least one service to continue.'
-              }
-            </Text>
-          </View>
-        </Animated.View>
 
-        {/* Continue Button */}
-        <Animated.View entering={SlideInDown.delay(650).springify()} className="mb-2">
-          <Button
-            size="lg"
-            onPress={handleSubmit}
-            disabled={selectedServices.length === 0}
-            className="w-full"
-          >
-            <Text className="font-semibold text-primary-foreground">
-              Complete Verification
-            </Text>
-          </Button>
-        </Animated.View>
-
-        {/* Back Button */}
-        <Animated.View entering={SlideInDown.delay(750).springify()}>
-          <Button
-            variant="outline"
-            size="lg"
-            onPress={() => {
-              previousStep();
-              router.back();
-            }}
-            className="w-full"
-          >
-            <Text>Back to Category Selection</Text>
-          </Button>
-        </Animated.View>
+      <View className="flex-row gap-3 items-center pt-5 ">
+        <Button
+          variant="outline"
+          onPress={previousStep}
+          className="flex-1"
+        >
+          <Text className="font-semibold">Back to Category</Text>
+        </Button>
+        <Button
+          onPress={handleSubmit}
+          disabled={selectedServices.length === 0}
+          className="flex-1"
+        >
+          <Text className="font-semibold text-primary-foreground">
+            Continue ({selectedServices.length})
+          </Text>
+        </Button>
       </View>
-    </View>
+
+    </ScreenWrapper>
   );
 }

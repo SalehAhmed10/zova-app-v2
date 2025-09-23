@@ -1,5 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+
+// Conditionally import AsyncStorage only for native platforms
+let AsyncStorage: any = null;
+if (Platform.OS !== 'web') {
+  AsyncStorage = require('@react-native-async-storage/async-storage').default;
+}
 
 // You'll need to get these from your Supabase project settings
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
@@ -114,6 +121,83 @@ export const db = {
         .select()
         .single();
       return { data, error };
+    }
+  }
+};
+
+// Storage helpers
+export const storage = {
+  // Upload file to Supabase storage
+  uploadFile: async (bucket: string, filePath: string, file: File | Blob, options?: { contentType?: string }) => {
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .upload(filePath, file, {
+        contentType: options?.contentType,
+        upsert: false
+      });
+    return { data, error };
+  },
+
+  // Get public URL for a file
+  getPublicUrl: (bucket: string, filePath: string) => {
+    const { data } = supabase.storage
+      .from(bucket)
+      .getPublicUrl(filePath);
+    return data.publicUrl;
+  },
+
+  // Delete file from storage
+  deleteFile: async (bucket: string, filePath: string) => {
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .remove([filePath]);
+    return { data, error };
+  },
+
+  // Upload portfolio image
+  uploadPortfolioImage: async (userId: string, imageUri: string, index: number) => {
+    try {
+      // For Expo/React Native, we need to use expo-file-system
+      const fileInfo = await FileSystem.getInfoAsync(imageUri);
+      if (!fileInfo.exists) {
+        throw new Error('Image file does not exist');
+      }
+
+      // Read file as base64
+      const base64 = await FileSystem.readAsStringAsync(imageUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Create unique filename
+      const fileExt = imageUri.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileName = `${userId}/portfolio/${Date.now()}_${index}.${fileExt}`;
+
+      // Convert base64 to Uint8Array for upload
+      const binaryString = atob(base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      // Upload to Supabase storage using Uint8Array
+      const { data, error } = await supabase.storage
+        .from('verification-images')
+        .upload(fileName, bytes, {
+          contentType: `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`,
+          upsert: false
+        });
+
+      if (error) throw error;
+
+      // Get public URL
+      const publicUrl = supabase.storage
+        .from('verification-images')
+        .getPublicUrl(fileName).data.publicUrl;
+
+      return { publicUrl, fileName };
+    } catch (error) {
+      console.error('Error uploading portfolio image:', error);
+      throw error;
     }
   }
 };

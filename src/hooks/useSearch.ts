@@ -108,6 +108,7 @@ export const useProviderSearch = (filters: SearchFilters = {}) => {
         `)
         .eq('role', 'provider')
         .eq('is_business_visible', true)
+        .eq('is_verified', true)  // Only show verified providers to customers
         .order('first_name', { ascending: true }); // Add default ordering for consistency
 
       // Apply search query filter - simplified approach
@@ -183,6 +184,7 @@ export const useProviderSearch = (filters: SearchFilters = {}) => {
           `)
           .eq('role', 'provider')
           .eq('is_business_visible', true)
+          .eq('is_verified', true)  // Only show services from verified providers
           .ilike('provider_services.title', `%${query}%`)
           .limit(50);
 

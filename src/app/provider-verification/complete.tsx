@@ -10,6 +10,7 @@ import { useAppStore } from '@/stores/app';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function VerificationCompleteScreen() {
+  console.log('[Complete Screen] Rendered');
   const { resetVerification, getCompletionPercentage } = useProviderVerificationStore();
   const { setAuthenticated } = useAppStore();
   const completionPercentage = getCompletionPercentage();
@@ -35,9 +36,9 @@ export default function VerificationCompleteScreen() {
   };
 
   const handleContinue = () => {
-    // Clear verification store and navigate to provider dashboard
-    resetVerification();
-    router.replace('/provider/' as any);
+    // Don't reset verification store - keep it for status tracking
+    // resetVerification(); // Commented out - we want to keep the verification state
+    router.replace('/provider' as any);
   };
 
   return (
@@ -52,10 +53,10 @@ export default function VerificationCompleteScreen() {
             <Text className="text-4xl">✅</Text>
           </View>
           <Text className="text-2xl font-bold text-foreground mb-2 text-center">
-            Verification Complete!
+            Verification Submitted!
           </Text>
           <Text className="text-sm text-muted-foreground text-center leading-5 px-4">
-            Your application has been submitted successfully
+            Your application has been submitted and is pending review. You will be notified once approved.
           </Text>
         </Animated.View>
 
@@ -63,7 +64,7 @@ export default function VerificationCompleteScreen() {
         <Animated.View entering={SlideInDown.delay(400).springify()} className="mb-6">
           <View className="p-4 bg-card rounded-lg border border-border">
             <Text className="font-semibold text-foreground mb-4 text-center">
-              Application Summary
+              Application Submitted for Review
             </Text>
 
             <View className="space-y-3">
@@ -115,7 +116,10 @@ export default function VerificationCompleteScreen() {
                 • You'll receive an email notification once approved
               </Text>
               <Text className="text-accent-foreground text-sm">
-                • After approval, you can start receiving bookings
+                • After approval, you'll gain access to your provider dashboard
+              </Text>
+              <Text className="text-accent-foreground text-sm">
+                • Once approved, you can start receiving bookings
               </Text>
             </View>
           </View>
@@ -134,13 +138,13 @@ export default function VerificationCompleteScreen() {
             className="w-full"
           >
             <Text className="font-semibold text-primary-foreground">
-              Continue to Dashboard
+              View Verification Status
             </Text>
           </Button>
         </Animated.View>
 
         <Text className="text-xs text-muted-foreground text-center mb-2">
-          You can access your dashboard while your verification is being reviewed
+          Your verification is being reviewed. You'll be notified once approved.
         </Text>
       </View>
     </View>

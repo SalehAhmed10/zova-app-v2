@@ -7,6 +7,7 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import { useProviderVerificationStore } from '@/stores/provider-verification';
+import { storage, supabase } from '@/lib/supabase';
 
 export default function PortfolioUploadScreen() {
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
@@ -29,8 +30,7 @@ export default function PortfolioUploadScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
+        allowsEditing: false, // Disabled because allowsMultipleSelection is enabled
         aspect: [16, 10],
         quality: 0.8,
         allowsMultipleSelection: true,
@@ -65,21 +65,51 @@ export default function PortfolioUploadScreen() {
 
     setLoading(true);
     try {
-      // Update verification store
-      const portfolioImages = selectedImages.map((url, index) => ({
-        id: `temp_${index}`,
-        url,
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        Alert.alert('Error', 'User not authenticated');
+        return;
+      }
+
+      // Upload images to Supabase storage
+      const uploadPromises = selectedImages.map((imageUri, index) =>
+        storage.uploadPortfolioImage(user.id, imageUri, index)
+      );
+
+      const uploadResults = await Promise.all(uploadPromises);
+
+      // Create portfolio images array with uploaded URLs
+      const portfolioImages = uploadResults.map((result, index) => ({
+        id: result.fileName,
+        url: result.publicUrl,
         sortOrder: index,
       }));
 
+      // Save portfolio images to database
+      const portfolioImageRecords = portfolioImages.map(image => ({
+        provider_id: user.id,
+        image_url: image.url,
+        alt_text: `Portfolio image ${image.sortOrder + 1}`,
+        sort_order: image.sortOrder,
+        verification_status: 'pending',
+        is_featured: image.sortOrder === 0, // First image is featured
+      }));
+
+      const { error: dbError } = await supabase
+        .from('provider_portfolio_images')
+        .insert(portfolioImageRecords);
+
+      if (dbError) throw dbError;
+
+      // Update verification store
       updatePortfolioData({ images: portfolioImages });
       completeStep(6, { images: portfolioImages });
       
       nextStep();
-      router.push('/provider-verification/bio' as any);
     } catch (error) {
       console.error('Error saving portfolio:', error);
-      Alert.alert('Save Failed', 'Failed to save portfolio. Please try again.');
+      Alert.alert('Save Failed', 'Failed to upload portfolio images. Please try again.');
     } finally {
       setLoading(false);
     }

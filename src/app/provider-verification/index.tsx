@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Alert, Image } from 'react-native';
 import { router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
@@ -8,26 +8,411 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { useProviderVerificationStore, useProviderVerificationSelectors } from '@/stores/provider-verification';
+import { useProviderVerificationStore, useProviderVerificationSelectors, useProviderVerificationHydration } from '@/stores/provider-verification';
 import { supabase } from '@/lib/supabase';
+import { uploadVerificationDocument, validateFileSize, validateFileType, checkFileExists, getSignedUrl } from '@/lib/storage';
+import { testStorageBuckets } from '@/utils/storage-test';
 
 interface DocumentForm {
   documentType: 'passport' | 'driving_license' | 'id_card';
 }
 
-export default function DocumentVerificationScreen() {
+interface DocumentUploadContentProps {
+  fetchingExisting: boolean;
+  existingDocument: {
+    document_type: string;
+    document_url: string;
+    verification_status: string;
+    created_at: string;
+  } | null;
+  selectedImage: string | null;
+  onReplaceDocument: () => void;
+  onRemoveImage: () => void;
+  onTakePhoto: () => void;
+  onPickImage: () => void;
+  onContinue: () => void;
+  continueDisabled: boolean;
+  continueLoading: boolean;
+  continueText: string;
+  onUpdateExistingDocument?: (document: {
+    document_type: string;
+    document_url: string;
+    verification_status: string;
+    created_at: string;
+  }) => void;
+  handleSubmit?: (onSubmit: (data: any) => void) => () => void;
+  onSubmit?: (data: any) => void;
+}
+
+const DocumentUploadContent: React.FC<DocumentUploadContentProps> = ({
+  fetchingExisting,
+  existingDocument,
+  selectedImage,
+  onReplaceDocument,
+  onRemoveImage,
+  onTakePhoto,
+  onPickImage,
+  onContinue,
+  continueDisabled,
+  continueLoading,
+  continueText,
+  onUpdateExistingDocument,
+  handleSubmit,
+  onSubmit,
+}) => {
+  console.log('DocumentUploadContent render:', {
+    fetchingExisting,
+    hasExistingDocument: !!existingDocument,
+    verificationStatus: existingDocument?.verification_status,
+    selectedImage: !!selectedImage,
+    continueDisabled,
+    continueText
+  });
+  const [imageLoadError, setImageLoadError] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const containerHeight = 200;
+  const handleImageError = (error: any) => {
+    console.error('Existing document image load error:', error);
+    console.error('Failed URL:', existingDocument?.document_url);
+    setImageLoadError(true);
+  };
+
+  const handleRetryImage = async () => {
+    if (!existingDocument || retryCount >= 2) return;
+
+    setIsRetrying(true);
+    setRetryCount(prev => prev + 1);
+
+    try {
+      // Try to get a fresh signed URL
+      const freshSignedUrl = await getSignedUrl(existingDocument.document_url);
+      
+      // Update the document with fresh URL
+      if (onUpdateExistingDocument) {
+        onUpdateExistingDocument({
+          ...existingDocument,
+          document_url: freshSignedUrl
+        });
+      }
+      
+      // Reset error state to trigger reload
+      setImageLoadError(false);
+    } catch (error) {
+      console.error('Failed to retry image load:', error);
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+  
+  if (fetchingExisting) {
+    return (
+      <View className="border-2 border-dashed border-border rounded-lg p-8 items-center bg-muted/20" style={{ minHeight: containerHeight }}>
+        <Text className="text-muted-foreground">Loading existing documents...</Text>
+      </View>
+    );
+  }
+
+  if (existingDocument) {
+    return (
+      <View style={{ minHeight: containerHeight }}>
+        <View className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800 mb-4">
+          <View className="flex-row items-center mb-2">
+            <Text className="text-green-600 dark:text-green-400 text-sm font-medium">
+              ✓ Document Already Uploaded
+            </Text>
+          </View>
+          <Text className="text-green-700 dark:text-green-300 text-sm">
+            Your {existingDocument.document_type.replace('_', ' ').toUpperCase()} is {existingDocument.verification_status}
+          </Text>
+        </View>
+
+        <View className="w-full h-48 rounded-lg bg-muted mb-4 overflow-hidden border-2 border-border">
+          {!imageLoadError ? (
+            <Image
+              source={{ uri: existingDocument.document_url }}
+              className="w-full h-full"
+              resizeMode="cover"
+              onError={(error) => {
+                console.error('Existing document image load error:', error);
+                console.error('Failed URL:', existingDocument.document_url);
+                setImageLoadError(true);
+              }}
+              onLoad={() => {
+                console.log('Existing document image loaded successfully:', existingDocument.document_url);
+                setImageLoadError(false);
+              }}
+              onLoadStart={() => {
+                console.log('Existing document image load started:', existingDocument.document_url);
+              }}
+            />
+          ) : (
+            <View className="w-full h-full items-center justify-center bg-muted">
+              <Text className="text-4xl mb-2">📄</Text>
+              <Text className="text-muted-foreground text-center px-4">
+                Document uploaded but preview unavailable
+              </Text>
+              <Text className="text-xs text-muted-foreground mt-2">
+                {existingDocument.document_type.replace('_', ' ').toUpperCase()}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <View className="flex-row gap-2 mb-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onPress={() => {
+              Alert.alert(
+                'Replace Document',
+                'Are you sure you want to upload a new document? This will replace your existing one.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Replace',
+                    style: 'destructive',
+                    onPress: onReplaceDocument,
+                  },
+                ]
+              );
+            }}
+            className="flex-1"
+          >
+            <Text className="text-sm font-medium">Replace</Text>
+          </Button>
+
+          {existingDocument.verification_status === 'pending' && (
+            <Button
+              variant="default"
+              size="sm"
+              onPress={() => {
+                Alert.alert(
+                  'Document Status',
+                  'Your document is currently under review by our admin team. You will be notified once the verification is complete.'
+                );
+              }}
+              className="flex-1"
+            >
+              <Text className="text-sm font-medium">Check Status</Text>
+            </Button>
+          )}
+        </View>
+
+        {/* Continue Button */}
+        <Button
+          size="lg"
+          onPress={() => {
+            console.log('Continue button pressed in DocumentUploadContent');
+            console.log('existingDocument:', !!existingDocument);
+            console.log('selectedImage:', !!selectedImage);
+            
+            // If we have an existing document and no new selection, call onContinue directly
+            if (existingDocument && !selectedImage) {
+              console.log('Calling onContinue directly for existing document');
+              onContinue();
+            } else if (handleSubmit && onSubmit) {
+              console.log('Calling handleSubmit(onSubmit) for new upload');
+              handleSubmit(onSubmit)();
+            } else {
+              console.log('Fallback: calling onContinue');
+              onContinue();
+            }
+          }}
+          disabled={continueDisabled}
+          className="w-full"
+        >
+          <Text className="font-semibold">
+            {continueLoading ? 'Processing...' : continueText}
+          </Text>
+        </Button>
+      </View>
+    );
+  }
+
+  if (selectedImage) {
+    console.log('Rendering selected image:', selectedImage);
+    return (
+      <View style={{ minHeight: containerHeight }}>
+        <View className="w-full h-48 rounded-lg bg-muted mb-4 overflow-hidden border-2 border-border">
+          <Image
+            source={{ uri: selectedImage }}
+            className="w-full h-full"
+            resizeMode="cover"
+            onError={(error) => {
+              console.error('Image load error:', error);
+              console.error('Failed URI:', selectedImage);
+            }}
+            onLoad={() => {
+              console.log('Image loaded successfully:', selectedImage);
+            }}
+            onLoadStart={() => {
+              console.log('Image load started:', selectedImage);
+            }}
+          />
+        </View>
+   
+        <View className="flex-row gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onPress={onRemoveImage}
+            className="flex-1"
+          >
+            <Text>Remove Image</Text>
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onPress={onContinue}
+            disabled={continueDisabled || continueLoading}
+            className="flex-1"
+          >
+            <Text className="text-sm font-medium">
+              {continueLoading ? 'Uploading...' : continueText}
+            </Text>
+          </Button>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View className="border-2 border-dashed border-border rounded-lg p-8 items-center bg-muted/20" style={{ minHeight: containerHeight }}>
+      <Text className="text-4xl mb-2">📄</Text>
+      <Text className="text-foreground font-medium mb-2">
+        Upload Your Document
+      </Text>
+      <Text className="text-muted-foreground text-center mb-4">
+        Take a clear photo or select from gallery
+      </Text>
+
+      <View className="flex-row">
+        <Button
+          variant="outline"
+          size="sm"
+          onPress={onTakePhoto}
+          className="flex-1 mr-2"
+        >
+          <Text>Take Photo</Text>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onPress={onPickImage}
+          className="flex-1"
+        >
+          <Text>Gallery</Text>
+        </Button>
+      </View>
+    </View>
+  );
+};export default function DocumentVerificationScreen() {
   const [loading, setLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [existingDocument, setExistingDocument] = useState<{
+    document_type: string;
+    document_url: string;
+    verification_status: string;
+    created_at: string;
+  } | null>(null);
+  const [fetchingExisting, setFetchingExisting] = useState(true);
   
   const { 
     documentData, 
     updateDocumentData, 
     completeStep, 
     nextStep,
-    providerId 
+    providerId,
+    currentStep
   } = useProviderVerificationStore();
 
   const { canGoBack, previousStep } = useProviderVerificationSelectors();
+  const isHydrated = useProviderVerificationHydration();
+
+  // Don't render until hydrated
+  if (!isHydrated) {
+    return (
+      <ScreenWrapper>
+        <View className="flex-1 items-center justify-center">
+          <Text>Loading...</Text>
+        </View>
+      </ScreenWrapper>
+    );
+  }
+
+  // Fetch existing verification documents
+  useEffect(() => {
+    const fetchExistingDocument = async () => {
+      if (!providerId || !isHydrated) return;
+
+      try {
+        setFetchingExisting(true);
+        const { data, error } = await supabase
+          .from('provider_verification_documents')
+          .select('document_type, document_url, verification_status, created_at')
+          .eq('provider_id', providerId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+          console.error('Error fetching existing document:', error);
+          return;
+        }
+
+        if (data) {
+          // Check if the file actually exists in storage
+          const fileExists = await checkFileExists(data.document_url);
+          
+          if (fileExists) {
+            try {
+              // Get a signed URL for the document
+              const signedUrl = await getSignedUrl(data.document_url);
+              setExistingDocument({
+                ...data,
+                document_url: signedUrl
+              });
+              // Update store with existing data
+              updateDocumentData({
+                documentType: data.document_type as any,
+                documentUrl: signedUrl,
+                verificationStatus: data.verification_status as any,
+              });
+            } catch (signedUrlError) {
+              console.error('Failed to get signed URL for document:', signedUrlError);
+              // Still set the document but with original URL as fallback
+              setExistingDocument(data);
+              updateDocumentData({
+                documentType: data.document_type as any,
+                documentUrl: data.document_url,
+                verificationStatus: data.verification_status as any,
+              });
+            }
+          } else {
+            // File doesn't exist in storage, clean up the database record
+            console.log('Document file not found in storage, cleaning up database record');
+            const { error: deleteError } = await supabase
+              .from('provider_verification_documents')
+              .delete()
+              .eq('provider_id', providerId)
+              .eq('document_url', data.document_url);
+
+            if (deleteError) {
+              console.error('Error cleaning up orphaned document record:', deleteError);
+            }
+            // Don't set existingDocument, so it shows upload interface
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching existing document:', error);
+      } finally {
+        setFetchingExisting(false);
+      }
+    };
+
+    fetchExistingDocument();
+  }, [providerId, isHydrated, updateDocumentData]);
 
   const {
     control,
@@ -42,6 +427,15 @@ export default function DocumentVerificationScreen() {
   });
 
   const documentType = watch('documentType');
+
+  console.log('DocumentVerificationScreen render:', {
+    currentStep,
+    existingDocument: !!existingDocument,
+    selectedImage: !!selectedImage,
+    isValid,
+    loading,
+    fetchingExisting
+  });
 
   const getDocumentTypeInfo = (type: string) => {
     const info = {
@@ -75,7 +469,6 @@ export default function DocumentVerificationScreen() {
 
       // Pick image
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [16, 10],
         quality: 0.8,
@@ -83,6 +476,8 @@ export default function DocumentVerificationScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
+        console.log('Image selected from gallery:', result.assets[0]);
+        console.log('Image URI:', result.assets[0].uri);
         setSelectedImage(result.assets[0].uri);
       }
     } catch (error) {
@@ -109,6 +504,8 @@ export default function DocumentVerificationScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
+        console.log('Photo taken:', result.assets[0]);
+        console.log('Photo URI:', result.assets[0].uri);
         setSelectedImage(result.assets[0].uri);
       }
     } catch (error) {
@@ -117,22 +514,80 @@ export default function DocumentVerificationScreen() {
     }
   };
 
-  const uploadDocument = async (uri: string) => {
-    // TODO: Implement Supabase storage upload
-    // For now, return the local URI
-    return uri;
+  const uploadDocument = async (uri: string, documentType: string) => {
+    if (!providerId) {
+      throw new Error('Provider ID not found. Please try logging in again.');
+    }
+
+    // Validate file type
+    if (!validateFileType(uri)) {
+      throw new Error('Invalid file type. Please upload a JPG, PNG, or PDF file.');
+    }
+
+    // Validate file size
+    const isValidSize = await validateFileSize(uri);
+    if (!isValidSize) {
+      throw new Error('File size too large. Please upload a file smaller than 10MB.');
+    }
+
+    // Upload to Supabase Storage
+    const result = await uploadVerificationDocument(
+      uri,
+      documentType as 'passport' | 'driving_license' | 'id_card',
+      providerId
+    );
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to upload document');
+    }
+
+    return result.url!;
   };
 
   const onSubmit = async (data: DocumentForm) => {
-    if (!selectedImage) {
+    console.log('onSubmit called with data:', data);
+    console.log('existingDocument:', existingDocument);
+    console.log('selectedImage:', selectedImage);
+    
+    // Check if we have an image to upload (either new selection or existing)
+    if (!selectedImage && !existingDocument) {
+      console.log('No document available, showing alert');
       Alert.alert('Document Required', 'Please upload your document before continuing.');
+      return;
+    }
+
+    // If we have an existing document and no new selection, just proceed
+    if (existingDocument && !selectedImage) {
+      console.log('Using existing document, updating profile and completing step');
+      
+      // Update profile verification status if needed
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          verification_status: 'pending',
+          is_verified: false,
+        })
+        .eq('id', providerId);
+
+      if (profileError) {
+        console.error('Profile update error:', profileError);
+      }
+
+      // Mark step as completed and move to next
+      completeStep(1, { 
+        documentType: existingDocument.document_type, 
+        documentUrl: existingDocument.document_url 
+      });
+      
+      console.log('Step 1 completed, proceeding to next step');
+      nextStep();
       return;
     }
 
     setLoading(true);
     try {
       // Upload document to storage
-      const documentUrl = await uploadDocument(selectedImage);
+      const documentUrl = await uploadDocument(selectedImage!, data.documentType);
       
       // Update verification store
       updateDocumentData({
@@ -141,11 +596,72 @@ export default function DocumentVerificationScreen() {
         verificationStatus: 'pending',
       });
 
-      // TODO: Save to database
-      // await saveDocumentToDatabase(providerId, data.documentType, documentUrl);
+      // Save to database (delete existing, then insert new)
+      // First delete any existing document for this provider
+      const { error: deleteError } = await supabase
+        .from('provider_verification_documents')
+        .delete()
+        .eq('provider_id', providerId);
+
+      if (deleteError) {
+        console.error('Delete existing document error:', deleteError);
+        // Continue with insert even if delete fails
+      }
+
+      // Then insert the new document
+      const { error: dbError } = await supabase
+        .from('provider_verification_documents')
+        .insert({
+          provider_id: providerId,
+          document_type: data.documentType,
+          document_url: documentUrl,
+          verification_status: 'pending',
+        });
+
+      if (dbError) {
+        console.error('Database error:', dbError);
+        throw new Error('Failed to save document information');
+      }
+
+      // Update profile verification status
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          verification_status: 'pending',
+          is_verified: false,
+        })
+        .eq('id', providerId);
+
+      if (profileError) {
+        console.error('Profile update error:', profileError);
+        // Don't throw here as document was saved successfully
+      }
 
       // Mark step as completed and move to next
       completeStep(1, { documentType: data.documentType, documentUrl });
+      
+      // Refetch existing document to update UI
+      const { data: refetchData, error: refetchError } = await supabase
+        .from('provider_verification_documents')
+        .select('document_type, document_url, verification_status, created_at')
+        .eq('provider_id', providerId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (!refetchError && refetchData) {
+        // Get a signed URL for the newly uploaded document
+        const signedUrl = await getSignedUrl(refetchData.document_url);
+        setExistingDocument({
+          ...refetchData,
+          document_url: signedUrl
+        });
+        updateDocumentData({
+          documentType: refetchData.document_type as any,
+          documentUrl: signedUrl,
+          verificationStatus: refetchData.verification_status as any,
+        });
+      }
       
       Alert.alert(
         'Document Uploaded',
@@ -155,7 +671,6 @@ export default function DocumentVerificationScreen() {
             text: 'Continue',
             onPress: () => {
               nextStep();
-              router.push('/provider-verification/selfie' as any);
             },
           },
         ]
@@ -173,9 +688,9 @@ export default function DocumentVerificationScreen() {
   return (
     <ScreenWrapper scrollable={true} contentContainerClassName="px-6 py-4">
       {/* Header */}
-      <Animated.View 
+      <Animated.View
         entering={FadeIn.delay(200).springify()}
-        className="items-center mb-8"
+        className="items-center mb-12"
       >
         <View className="w-16 h-16 bg-primary rounded-2xl justify-center items-center mb-4">
           <Text className="text-2xl">{currentDocumentInfo?.icon}</Text>
@@ -189,7 +704,7 @@ export default function DocumentVerificationScreen() {
       </Animated.View>
 
       {/* Document Type Selection */}
-      <Animated.View entering={SlideInDown.delay(400).springify()} className="mb-6">
+      <Animated.View entering={SlideInDown.delay(600).springify()} className="mb-8">
         <Text className="text-sm font-medium text-foreground mb-3">
           Document Type
         </Text>
@@ -231,7 +746,7 @@ export default function DocumentVerificationScreen() {
       </Animated.View>
 
       {/* Document Info */}
-      <Animated.View entering={SlideInDown.delay(600).springify()} className="mb-6">
+      <Animated.View entering={SlideInDown.delay(800).springify()} className="mb-8">
         <View className="p-4 bg-muted/50 rounded-lg border border-border">
           <View className="flex-row items-center mb-2">
             <Text className="text-lg mr-2">{currentDocumentInfo?.icon}</Text>
@@ -246,97 +761,64 @@ export default function DocumentVerificationScreen() {
       </Animated.View>
 
       {/* Document Upload */}
-      <Animated.View entering={SlideInDown.delay(800).springify()} className="mb-6">
+      <Animated.View entering={SlideInDown.delay(1000).springify()}>
         <Text className="text-sm font-medium text-foreground mb-3">
           Document Image
         </Text>
-        
-        {selectedImage ? (
-          <View className="mb-4">
-            <Image 
-              source={{ uri: selectedImage }} 
-              className="w-full h-48 rounded-lg bg-muted"
-              resizeMode="cover"
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              onPress={() => setSelectedImage(null)}
-              className="mt-2"
-            >
-              <Text>Remove Image</Text>
-            </Button>
-          </View>
-        ) : (
-          <View className="border-2 border-dashed border-border rounded-lg p-8 items-center bg-muted/20">
-            <Text className="text-4xl mb-2">📄</Text>
-            <Text className="text-foreground font-medium mb-2">
-              Upload Your Document
-            </Text>
-            <Text className="text-muted-foreground text-center mb-4">
-              Take a clear photo or select from gallery
-            </Text>
+
+        <DocumentUploadContent
+          fetchingExisting={fetchingExisting}
+          existingDocument={existingDocument}
+          selectedImage={selectedImage}
+          onReplaceDocument={() => {
+            console.log('Replacing document');
+            setExistingDocument(null);
+            setSelectedImage(null);
+          }}
+          onRemoveImage={() => {
+            console.log('Removing selected image');
+            setSelectedImage(null);
+          }}
+          onTakePhoto={takePhoto}
+          onPickImage={pickImage}
+          onContinue={() => {
+            console.log('Continue button pressed, checking conditions');
+            console.log('existingDocument:', !!existingDocument);
+            console.log('selectedImage:', !!selectedImage);
+            console.log('isValid:', isValid);
             
-            <View className="flex-row gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onPress={takePhoto}
-              >
-                <Text>Take Photo</Text>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onPress={pickImage}
-              >
-                <Text>Choose from Gallery</Text>
-              </Button>
-            </View>
-          </View>
-        )}
-      </Animated.View>
-
-      {/* Guidelines */}
-      <Animated.View entering={SlideInDown.delay(1000).springify()} className="mb-6">
-        <View className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-          <Text className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
-            📋 Document Guidelines
-          </Text>
-          <View className="space-y-1">
-            <Text className="text-blue-800 dark:text-blue-200 text-sm">
-              • Document must be clear and readable
-            </Text>
-            <Text className="text-blue-800 dark:text-blue-200 text-sm">
-              • All corners should be visible
-            </Text>
-            <Text className="text-blue-800 dark:text-blue-200 text-sm">
-              • No glare or shadows
-            </Text>
-            <Text className="text-blue-800 dark:text-blue-200 text-sm">
-              • Document must be valid and not expired
-            </Text>
-          </View>
-        </View>
-      </Animated.View>
-
-      {/* Continue Button */}
-      <Animated.View entering={SlideInDown.delay(1200).springify()} className="mb-4">
-        <Button
-          size="lg"
-          onPress={handleSubmit(onSubmit)}
-          disabled={!isValid || !selectedImage || loading}
-          className="w-full"
-        >
-          <Text className="font-semibold text-primary-foreground">
-            {loading ? 'Uploading...' : 'Continue to Identity Verification'}
-          </Text>
-        </Button>
+            // If we have an existing document and no new selection, skip form validation
+            if (existingDocument && !selectedImage) {
+              console.log('Using existing document, calling onSubmit directly');
+              onSubmit({ documentType: existingDocument.document_type as any });
+            } else {
+              console.log('Using form validation, calling handleSubmit');
+              handleSubmit(onSubmit)();
+            }
+          }}
+          continueDisabled={(() => {
+            const disabled = (!isValid || (!selectedImage && !existingDocument) || loading || fetchingExisting);
+            console.log('Continue button state:', {
+              isValid,
+              selectedImage: !!selectedImage,
+              existingDocument: !!existingDocument,
+              loading,
+              fetchingExisting,
+              disabled
+            });
+            return disabled;
+          })()}
+          continueLoading={loading}
+          continueText={existingDocument && !selectedImage ? 'Use Existing' : 'Continue to Identity'}
+          onUpdateExistingDocument={setExistingDocument}
+          handleSubmit={handleSubmit}
+          onSubmit={onSubmit}
+        />
       </Animated.View>
 
       {/* Back Button - only show if not first step */}
       {canGoBack && (
-        <Animated.View entering={SlideInDown.delay(1400).springify()}>
+        <Animated.View entering={SlideInDown.delay(1400).springify()} className="mt-6">
           <Button
             variant="outline"
             size="lg"

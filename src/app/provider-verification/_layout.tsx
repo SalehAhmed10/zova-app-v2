@@ -1,13 +1,62 @@
-import React from 'react';
-import { Stack } from 'expo-router';
+import React, { useEffect } from 'react';
+import { Stack, useRouter, usePathname } from 'expo-router';
 import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text } from '@/components/ui/text';
-import { useProviderVerificationStore } from '@/stores/provider-verification';
+import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/provider-verification';
+import { useAuth } from '@/hooks/useAuth';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 
 export default function ProviderVerificationLayout() {
-  const { currentStep } = useProviderVerificationStore();
+  const { currentStep, setProviderId } = useProviderVerificationStore();
+  const { user } = useAuth();
+  const isHydrated = useProviderVerificationHydration();
+  const router = useRouter();
+  const pathname = usePathname();
+  
+  // Initialize provider ID when user is available and store is hydrated
+  useEffect(() => {
+    if (user?.id && isHydrated) {
+      const currentProviderId = useProviderVerificationStore.getState().providerId;
+      if (!currentProviderId || currentProviderId !== user.id) {
+        setProviderId(user.id);
+      }
+    }
+  }, [user?.id, isHydrated, setProviderId]);
+
+  // Navigate to correct screen based on currentStep
+  useEffect(() => {
+    if (!isHydrated) return;
+
+    const getRouteForStep = (step: number) => {
+      const routes = {
+        1: '/provider-verification/',
+        2: '/provider-verification/selfie',
+        3: '/provider-verification/business-info',
+        4: '/provider-verification/category',
+        5: '/provider-verification/services',
+        6: '/provider-verification/portfolio',
+        7: '/provider-verification/bio',
+        8: '/provider-verification/terms',
+      };
+      return routes[step as keyof typeof routes] || '/provider-verification/';
+    };
+
+    const targetRoute = getRouteForStep(currentStep);
+    const normalizedPathname = pathname.replace(/\/$/, ''); // Remove trailing slash
+    const normalizedTarget = targetRoute.replace(/\/$/, ''); // Remove trailing slash
+    
+    // Don't redirect if we're on the complete screen
+    if (normalizedPathname === '/provider-verification/complete') {
+      return;
+    }
+    
+    // Only navigate if we're not already on the correct route
+    if (normalizedPathname !== normalizedTarget) {
+      console.log(`[Provider Layout] Navigating from ${normalizedPathname} to ${normalizedTarget} for step ${currentStep}`);
+      router.replace(targetRoute as any);
+    }
+  }, [currentStep, isHydrated, pathname, router]);
   
   const getStepTitle = (step: number) => {
     const titles = {
@@ -19,7 +68,6 @@ export default function ProviderVerificationLayout() {
       6: 'Portfolio Upload',
       7: 'Business Bio',
       8: 'Terms & Conditions',
-      9: 'Payment Setup'
     };
     return titles[step as keyof typeof titles] || 'Verification';
   };
@@ -34,7 +82,7 @@ export default function ProviderVerificationLayout() {
               {getStepTitle(currentStep)}
             </Text>
             <Text className="text-sm text-muted-foreground">
-              Step {currentStep} of 9
+              Step {currentStep} of 8
             </Text>
           </View>
 
@@ -42,7 +90,7 @@ export default function ProviderVerificationLayout() {
           <View className="h-2 bg-muted rounded-full overflow-hidden">
             <View
               className="h-full bg-primary rounded-full transition-all duration-300"
-              style={{ width: `${(currentStep / 9) * 100}%` }}
+              style={{ width: `${(currentStep / 8) * 100}%` }}
             />
           </View>
         </View>
@@ -66,7 +114,6 @@ export default function ProviderVerificationLayout() {
             <Stack.Screen name="portfolio" />
             <Stack.Screen name="bio" />
             <Stack.Screen name="terms" />
-            <Stack.Screen name="payment" />
             <Stack.Screen name="complete" />
           </Stack>
         </View>

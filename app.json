@@ -32,7 +32,14 @@
           "defaultChannel": "default"
         }
       ],
-      "expo-build-properties"
+      "expo-build-properties",
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.zova.serviceapp",
+          "enableGooglePay": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
@@ -50,7 +57,8 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.zova.serviceapp.dev"
     },
     "android": {
       "adaptiveIcon": {

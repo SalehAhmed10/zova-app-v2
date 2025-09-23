@@ -5,6 +5,64 @@ import { Slot } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as React from 'react';
 import { Platform, LogBox, View } from 'react-native';
+
+// Ignore warnings immediately after imports
+LogBox.ignoreLogs([
+  // SafeAreaView warnings
+  'SafeAreaView has been deprecated',
+  'SafeAreaView has been deprecated and will be removed in a future release',
+  'Please use \'react-native-safe-area-context\' instead',
+  'SafeAreaView has been deprecated and will be removed in a future release. Please use \'react-native-safe-area-context\' instead',
+  /SafeAreaView.*deprecated/i,
+  // Reanimated warnings - disabled via babel config
+  /\[Reanimated\]/,
+  'Writing to `value` during component render',
+  'Reading from `value` during component render',
+  /.*Reanimated.*value.*during.*render.*/i,
+  /.*You shouldn't access.*value.*property.*during.*render.*/i,
+  /Reanimated.*value.*render/i,
+  /shared value.*render/i,
+  // Additional Reanimated patterns
+  /Reanimated.*render/i,
+  /value.*render/i,
+  // Expo Image Picker deprecation
+  /\[expo-image-picker\].*MediaTypeOptions.*deprecated/i,
+]);
+
+// Disable Reanimated strict mode globally
+if (__DEV__) {
+  // This will suppress Reanimated warnings in development
+  console.warn = (function(originalWarn) {
+    return function(...args) {
+      if (args[0] && typeof args[0] === 'string' && 
+          (args[0].includes('[Reanimated]') || 
+           args[0].includes('Writing to `value`') || 
+           args[0].includes('Reading from `value`'))) {
+        return; // Suppress Reanimated warnings
+      }
+      originalWarn.apply(console, args);
+    };
+  })(console.warn);
+}
+
+// Ignore warnings immediately after imports
+LogBox.ignoreLogs([
+  // SafeAreaView warnings
+  'SafeAreaView has been deprecated',
+  'SafeAreaView has been deprecated and will be removed in a future release',
+  'Please use \'react-native-safe-area-context\' instead',
+  'SafeAreaView has been deprecated and will be removed in a future release. Please use \'react-native-safe-area-context\' instead',
+  /SafeAreaView.*deprecated/i,
+  // Reanimated warnings
+  /\[Reanimated\]/,
+  'Writing to `value` during component render',
+  'Reading from `value` during component render',
+  /.*Reanimated.*value.*during.*render.*/i,
+  /.*You shouldn't access.*value.*property.*during.*render.*/i,
+  /Reanimated.*value.*render/i,
+  /shared value.*render/i,
+]);
+
 import { NAV_THEME } from '@/lib/theme';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { PortalHost } from '@rn-primitives/portal';
@@ -19,6 +77,7 @@ import { cssInterop } from 'nativewind';
 import * as Icons from '@expo/vector-icons';
 import { Text } from '@/components/ui/text';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
+import { StripeProvider } from '@/providers/StripeProvider';
 
 // Apply cssInterop to all Expo Vector Icons globally
 Object.keys(Icons).forEach((iconKey) => {
@@ -40,17 +99,6 @@ Object.keys(Icons).forEach((iconKey) => {
 
 const LIGHT_THEME: Theme = NAV_THEME.light;
 const DARK_THEME: Theme = NAV_THEME.dark;
-
-// Ignore SafeAreaView deprecation warning from third-party libraries
-LogBox.ignoreLogs([
-  'SafeAreaView has been deprecated',
-  'SafeAreaView has been deprecated and will be removed in a future release',
-  'Please use \'react-native-safe-area-context\' instead',
-  /SafeAreaView.*deprecated/i,
-  // Temporarily ignore Reanimated warnings while we fix core functionality
-  /.*Reanimated.*value.*during.*render.*/i,
-  /.*You shouldn't access.*value.*property.*during.*render.*/i,
-]);
 
 // Create a client
 const queryClient = new QueryClient({
@@ -90,15 +138,17 @@ export default function RootLayout() {
     <ErrorBoundary level="app">
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
-          <QueryClientProvider client={queryClient}>
-            <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
-              <StatusBar style={isDarkColorScheme ? 'light' : 'dark'} />
-              <SessionProvider>
-                <RootNavigator />
-              </SessionProvider>
-              <PortalHost />
-            </ThemeProvider>
-          </QueryClientProvider>
+          <StripeProvider>
+            <QueryClientProvider client={queryClient}>
+              <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
+                <StatusBar style={isDarkColorScheme ? 'light' : 'dark'} />
+                <SessionProvider>
+                  <RootNavigator />
+                </SessionProvider>
+                <PortalHost />
+              </ThemeProvider>
+            </QueryClientProvider>
+          </StripeProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>

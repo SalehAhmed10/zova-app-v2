@@ -73,11 +73,6 @@ interface ProviderVerificationState {
     houseCallExtraFee: number;
     termsAccepted: boolean;
   };
-  
-  paymentData: {
-    stripeAccountId: string | null;
-    accountSetupComplete: boolean;
-  };
 }
 
 interface ProviderVerificationActions {
@@ -100,7 +95,6 @@ interface ProviderVerificationActions {
   updatePortfolioData: (data: Partial<ProviderVerificationState['portfolioData']>) => void;
   updateBioData: (data: Partial<ProviderVerificationState['bioData']>) => void;
   updateTermsData: (data: Partial<ProviderVerificationState['termsData']>) => void;
-  updatePaymentData: (data: Partial<ProviderVerificationState['paymentData']>) => void;
   
   // Status management
   setVerificationStatus: (status: ProviderVerificationState['verificationStatus']) => void;
@@ -175,13 +169,6 @@ const initialSteps: Record<number, VerificationStep> = {
     isCompleted: false,
     isRequired: true,
   },
-  9: {
-    stepNumber: 9,
-    title: 'Payment Setup',
-    description: 'Configure payment details',
-    isCompleted: false,
-    isRequired: true,
-  },
 };
 
 export const useProviderVerificationStore = create<ProviderVerificationStore>()(
@@ -244,21 +231,16 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
         termsAccepted: false,
       },
       
-      paymentData: {
-        stripeAccountId: null,
-        accountSetupComplete: false,
-      },
-      
       // Actions
       setCurrentStep: (step) => {
-        if (step >= 1 && step <= 9) {
+        if (step >= 1 && step <= 8) {
           set({ currentStep: step });
         }
       },
       
       nextStep: () => {
         const { currentStep } = get();
-        if (currentStep < 9) {
+        if (currentStep < 8) {
           set({ currentStep: currentStep + 1 });
         }
       },
@@ -271,7 +253,7 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
       },
       
       goToStep: (step) => {
-        if (step >= 1 && step <= 9) {
+        if (step >= 1 && step <= 8) {
           set({ currentStep: step });
         }
       },
@@ -352,12 +334,6 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
         }));
       },
       
-      updatePaymentData: (data) => {
-        set(state => ({
-          paymentData: { ...state.paymentData, ...data }
-        }));
-      },
-      
       setVerificationStatus: (status) => {
         set({ verificationStatus: status });
       },
@@ -417,10 +393,6 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
             houseCallExtraFee: 0,
             termsAccepted: false,
           },
-          paymentData: {
-            stripeAccountId: null,
-            accountSetupComplete: false,
-          },
         });
       },
       
@@ -432,7 +404,7 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
       getCompletionPercentage: () => {
         const { steps } = get();
         const completedSteps = Object.values(steps).filter(step => step.isCompleted).length;
-        return Math.round((completedSteps / 9) * 100);
+        return Math.round((completedSteps / 8) * 100);
       },
       
       isStepCompleted: (stepNumber) => {
@@ -443,6 +415,20 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
     {
       name: 'provider-verification-storage',
       storage: createJSONStorage(() => AsyncStorage),
+      version: 1,
+      migrate: (persistedState: any, version: number) => {
+        if (version === 0) {
+          // Migration from version 0: Reset currentStep if it's 9 (removed payment step)
+          if (persistedState.currentStep === 9) {
+            persistedState.currentStep = 8;
+          }
+          // Remove paymentData if it exists
+          if (persistedState.paymentData) {
+            delete persistedState.paymentData;
+          }
+        }
+        return persistedState;
+      },
       partialize: (state) => ({
         currentStep: state.currentStep,
         steps: state.steps,
@@ -456,14 +442,18 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
         portfolioData: state.portfolioData,
         bioData: state.bioData,
         termsData: state.termsData,
-        paymentData: state.paymentData,
       }),
       onRehydrateStorage: () => {
         return (state, error) => {
           if (error) {
             console.error('[Provider Verification] Rehydration error:', error);
-          } else {
-            state?.setHasHydrated(true);
+          } else if (state) {
+            // Migration: Reset currentStep if it's 9 (removed payment step)
+            if (state.currentStep === 9) {
+              console.log('[Provider Verification] Migrating currentStep from 9 to 8');
+              state.currentStep = 8;
+            }
+            state.setHasHydrated(true);
           }
         };
       },
@@ -484,13 +474,19 @@ export const useProviderVerificationSelectors = () => {
     currentStep,
     steps,
     isFirstStep: currentStep === 1,
-    isLastStep: currentStep === 9,
+    isLastStep: currentStep === 8,
     canGoBack: currentStep > 1,
-    canGoNext: currentStep < 9,
+    canGoNext: currentStep < 8,
     canProceedToNextStep: canProceedToNextStep(),
     completionPercentage: getCompletionPercentage(),
     isStepCompleted,
     previousStep,
   };
+};
+
+// Hydration hook
+export const useProviderVerificationHydration = () => {
+  const _hasHydrated = useProviderVerificationStore((state) => state._hasHydrated);
+  return _hasHydrated;
 };
 

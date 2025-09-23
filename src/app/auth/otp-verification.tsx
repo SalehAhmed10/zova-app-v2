@@ -60,7 +60,36 @@ export default function OTPVerificationScreen() {
         );
       } else {
         console.error('[OTP] Verification failed:', result.error);
-        Alert.alert('Verification Failed', result.error || 'Invalid OTP. Please try again.');
+        
+        // Handle specific error codes with appropriate actions
+        if (result.code === 'OTP_EXPIRED') {
+          Alert.alert(
+            'Code Expired',
+            result.error,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { 
+                text: 'Send New Code', 
+                onPress: handleResendOTP 
+              }
+            ]
+          );
+        } else if (result.code === 'NETWORK_ERROR') {
+          Alert.alert(
+            'Connection Error',
+            result.error,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { 
+                text: 'Try Again', 
+                onPress: () => handleVerifyOTP() 
+              }
+            ]
+          );
+        } else {
+          // Generic error handling
+          Alert.alert('Verification Failed', result.error || 'Invalid OTP. Please try again.');
+        }
       }
     } catch (error) {
       console.error('[OTP] Unexpected error during verification:', error);
@@ -122,7 +151,6 @@ export default function OTPVerificationScreen() {
         <OtpInput
           numberOfDigits={6}
           onTextChange={setOtp}
-          onFilled={handleVerifyOTP}
           focusColor="#22c55e"
           focusStickBlinkingDuration={500}
           theme={{

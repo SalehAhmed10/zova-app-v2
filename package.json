@@ -5,6 +5,7 @@
   "scripts": {
     "start": "expo start",
     "dev": "npx expo start --dev-client",
+    "android:clean": "npx expo run:android --no-build-cache",
     "tunnel": "npx expo start --tunnel",
     "start:clear": "expo start --clear",
     "android": "expo run:android",
@@ -23,6 +24,7 @@
     "@rn-primitives/slot": "^1.2.0",
     "@rn-primitives/tabs": "^1.2.0",
     "@shopify/flash-list": "2.0.2",
+    "@stripe/stripe-react-native": "0.50.3",
     "@supabase/supabase-js": "^2.57.4",
     "@tanstack/react-query": "^5.87.4",
     "class-variance-authority": "^0.7.1",
