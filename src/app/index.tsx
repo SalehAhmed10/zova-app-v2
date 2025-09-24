@@ -10,6 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Text } from '@/components/ui/text';
 import { useAppStore, initializeApp } from '@/stores/app';
+import { supabase } from '@/lib/supabase';
 
 export default function SplashScreen() {
   const [initialized, setInitialized] = useState(false);
@@ -27,7 +28,7 @@ export default function SplashScreen() {
     };
   }, []);
 
-  const navigateToScreen = useCallback(() => {
+  const navigateToScreen = useCallback(async () => {
     // Navigate based on authentication state
     if (!isOnboardingComplete) {
       console.log('[Splash] → Onboarding');
@@ -41,8 +42,33 @@ export default function SplashScreen() {
         console.log('[Splash] → Customer');
         router.replace('/customer');
       } else if (userRole === 'provider') {
-        console.log('[Splash] → Provider');
-        router.replace('/provider');
+        // For providers, check verification status before navigating
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('verification_status')
+              .eq('id', user.id)
+              .single();
+
+            if (profile?.verification_status === 'approved') {
+              console.log('[Splash] → Provider (verified)');
+              router.replace('/provider');
+            } else {
+              console.log('[Splash] → Provider Verification Status (not approved)');
+              router.replace('/provider-verification/verification-status');
+            }
+          } else {
+            console.log('[Splash] → Auth (no user)');
+            router.replace('/auth');
+          }
+        } catch (error) {
+          console.error('[Splash] Error checking verification:', error);
+          // On error, go to verification status to be safe
+          console.log('[Splash] → Provider Verification Status (error)');
+          router.replace('/provider-verification/verification-status');
+        }
       } else {
         console.log('[Splash] → Auth (no role)');
         router.replace('/auth');
@@ -88,7 +114,7 @@ export default function SplashScreen() {
     const timeout = setTimeout(() => {
       console.warn('[Splash] Initialization timeout, forcing completion');
       setInitialized(true);
-    }, 5000); // 5 second timeout
+    }, 10000); // Increased timeout to 10 seconds
 
     init();
 
@@ -113,8 +139,8 @@ export default function SplashScreen() {
     });
 
     // Navigate after splash animation completes
-    const timer = setTimeout(() => {
-      navigateToScreen();
+    const timer = setTimeout(async () => {
+      await navigateToScreen();
     }, 2000); // Show splash for 2 seconds
 
     return () => {
@@ -139,7 +165,7 @@ export default function SplashScreen() {
 
           {/* Loading Animation */}
           <View className="items-center space-y-4">
-            <View className="flex-row space-x-2">
+            <View className="flex-row gap-2">
               <View className="w-3 h-3 bg-primary rounded-full animate-pulse" />
               <View className="w-3 h-3 bg-primary rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
               <View className="w-3 h-3 bg-primary rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />

@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.4"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       booking_deposits: {
@@ -52,13 +77,6 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "booking_deposits_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: true
-            referencedRelation: "booking_details_view"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "booking_deposits_booking_id_fkey"
             columns: ["booking_id"]
@@ -166,24 +184,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "bookings_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "provider_search_view"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "bookings_provider_id_fkey"
             columns: ["provider_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bookings_provider_id_fkey"
-            columns: ["provider_id"]
-            isOneToOne: false
-            referencedRelation: "provider_search_view"
             referencedColumns: ["id"]
           },
           {
@@ -225,13 +229,6 @@ export type Database = {
             foreignKeyName: "conversations_booking_id_fkey"
             columns: ["booking_id"]
             isOneToOne: false
-            referencedRelation: "booking_details_view"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "conversations_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: false
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
@@ -243,24 +240,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "conversations_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "provider_search_view"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "conversations_provider_id_fkey"
             columns: ["provider_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "conversations_provider_id_fkey"
-            columns: ["provider_id"]
-            isOneToOne: false
-            referencedRelation: "provider_search_view"
             referencedColumns: ["id"]
           },
         ]
@@ -302,13 +285,6 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "customer_payment_methods_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "provider_search_view"
             referencedColumns: ["id"]
           },
         ]
@@ -374,13 +350,6 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "messages_sender_id_fkey"
-            columns: ["sender_id"]
-            isOneToOne: false
-            referencedRelation: "provider_search_view"
-            referencedColumns: ["id"]
-          },
         ]
       }
       notification_settings: {
@@ -420,13 +389,6 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: true
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "notification_settings_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "provider_search_view"
             referencedColumns: ["id"]
           },
         ]
@@ -473,14 +435,40 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "notifications_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "provider_search_view"
-            referencedColumns: ["id"]
-          },
         ]
+      }
+      payment_analytics_events: {
+        Row: {
+          context: string | null
+          created_at: string | null
+          event_type: string
+          id: string
+          metadata: Json | null
+          session_id: string | null
+          timestamp: string
+          user_id: string
+        }
+        Insert: {
+          context?: string | null
+          created_at?: string | null
+          event_type: string
+          id?: string
+          metadata?: Json | null
+          session_id?: string | null
+          timestamp?: string
+          user_id: string
+        }
+        Update: {
+          context?: string | null
+          created_at?: string | null
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          session_id?: string | null
+          timestamp?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       payment_intents: {
         Row: {
@@ -523,13 +511,6 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "payment_intents_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: false
-            referencedRelation: "booking_details_view"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "payment_intents_booking_id_fkey"
             columns: ["booking_id"]
@@ -578,13 +559,6 @@ export type Database = {
             foreignKeyName: "payments_booking_id_fkey"
             columns: ["booking_id"]
             isOneToOne: false
-            referencedRelation: "booking_details_view"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payments_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: false
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
@@ -626,13 +600,6 @@ export type Database = {
             foreignKeyName: "payouts_booking_id_fkey"
             columns: ["booking_id"]
             isOneToOne: false
-            referencedRelation: "booking_details_view"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payouts_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: false
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
@@ -641,13 +608,6 @@ export type Database = {
             columns: ["provider_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payouts_provider_id_fkey"
-            columns: ["provider_id"]
-            isOneToOne: false
-            referencedRelation: "provider_search_view"
             referencedColumns: ["id"]
           },
         ]
@@ -663,11 +623,14 @@ export type Database = {
           bio: string | null
           business_description: string | null
           business_name: string | null
+          cancellation_fee_percentage: number | null
+          cancellation_policy: string | null
           city: string | null
           coordinates: unknown | null
           country: string | null
           country_code: string | null
           created_at: string | null
+          deposit_percentage: number | null
           document_url: string | null
           email: string
           first_name: string
@@ -685,7 +648,11 @@ export type Database = {
           service_radius: number | null
           sos_expires_at: string | null
           stripe_account_id: string | null
+          stripe_account_status: string | null
+          stripe_capability_status: string | null
+          stripe_charges_enabled: boolean | null
           stripe_customer_id: string | null
+          stripe_details_submitted: boolean | null
           stripe_subscription_id: string | null
           subscription_current_period_end: string | null
           subscription_expires_at: string | null
@@ -710,11 +677,14 @@ export type Database = {
           bio?: string | null
           business_description?: string | null
           business_name?: string | null
+          cancellation_fee_percentage?: number | null
+          cancellation_policy?: string | null
           city?: string | null
           coordinates?: unknown | null
           country?: string | null
           country_code?: string | null
           created_at?: string | null
+          deposit_percentage?: number | null
           document_url?: string | null
           email: string
           first_name?: string
@@ -732,7 +702,11 @@ export type Database = {
           service_radius?: number | null
           sos_expires_at?: string | null
           stripe_account_id?: string | null
+          stripe_account_status?: string | null
+          stripe_capability_status?: string | null
+          stripe_charges_enabled?: boolean | null
           stripe_customer_id?: string | null
+          stripe_details_submitted?: boolean | null
           stripe_subscription_id?: string | null
           subscription_current_period_end?: string | null
           subscription_expires_at?: string | null
@@ -757,11 +731,14 @@ export type Database = {
           bio?: string | null
           business_description?: string | null
           business_name?: string | null
+          cancellation_fee_percentage?: number | null
+          cancellation_policy?: string | null
           city?: string | null
           coordinates?: unknown | null
           country?: string | null
           country_code?: string | null
           created_at?: string | null
+          deposit_percentage?: number | null
           document_url?: string | null
           email?: string
           first_name?: string
@@ -779,7 +756,11 @@ export type Database = {
           service_radius?: number | null
           sos_expires_at?: string | null
           stripe_account_id?: string | null
+          stripe_account_status?: string | null
+          stripe_capability_status?: string | null
+          stripe_charges_enabled?: boolean | null
           stripe_customer_id?: string | null
+          stripe_details_submitted?: boolean | null
           stripe_subscription_id?: string | null
           subscription_current_period_end?: string | null
           subscription_expires_at?: string | null
@@ -835,13 +816,6 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "provider_availability_provider_id_fkey"
-            columns: ["provider_id"]
-            isOneToOne: false
-            referencedRelation: "provider_search_view"
-            referencedColumns: ["id"]
-          },
         ]
       }
       provider_blackouts: {
@@ -877,11 +851,107 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      provider_business_terms: {
+        Row: {
+          cancellation_fee_percentage: number | null
+          cancellation_policy: string | null
+          created_at: string | null
+          deposit_percentage: number | null
+          house_call_available: boolean | null
+          house_call_extra_fee: number | null
+          id: string
+          provider_id: string
+          terms_accepted: boolean | null
+          terms_accepted_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          cancellation_fee_percentage?: number | null
+          cancellation_policy?: string | null
+          created_at?: string | null
+          deposit_percentage?: number | null
+          house_call_available?: boolean | null
+          house_call_extra_fee?: number | null
+          id?: string
+          provider_id: string
+          terms_accepted?: boolean | null
+          terms_accepted_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          cancellation_fee_percentage?: number | null
+          cancellation_policy?: string | null
+          created_at?: string | null
+          deposit_percentage?: number | null
+          house_call_available?: boolean | null
+          house_call_extra_fee?: number | null
+          id?: string
+          provider_id?: string
+          terms_accepted?: boolean | null
+          terms_accepted_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
           {
-            foreignKeyName: "provider_blackouts_provider_id_fkey"
+            foreignKeyName: "provider_business_terms_provider_id_fkey"
             columns: ["provider_id"]
-            isOneToOne: false
-            referencedRelation: "provider_search_view"
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      provider_onboarding_progress: {
+        Row: {
+          approved_at: string | null
+          completed_at: string | null
+          created_at: string | null
+          current_step: number | null
+          id: string
+          provider_id: string
+          rejected_at: string | null
+          rejection_reason: string | null
+          started_at: string | null
+          steps_completed: Json | null
+          updated_at: string | null
+          verification_status: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_step?: number | null
+          id?: string
+          provider_id: string
+          rejected_at?: string | null
+          rejection_reason?: string | null
+          started_at?: string | null
+          steps_completed?: Json | null
+          updated_at?: string | null
+          verification_status?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_step?: number | null
+          id?: string
+          provider_id?: string
+          rejected_at?: string | null
+          rejection_reason?: string | null
+          started_at?: string | null
+          steps_completed?: Json | null
+          updated_at?: string | null
+          verification_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_onboarding_progress_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -934,13 +1004,6 @@ export type Database = {
             foreignKeyName: "provider_payouts_booking_id_fkey"
             columns: ["booking_id"]
             isOneToOne: false
-            referencedRelation: "booking_details_view"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "provider_payouts_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: false
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
@@ -951,11 +1014,51 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      provider_portfolio_images: {
+        Row: {
+          alt_text: string | null
+          created_at: string | null
+          id: string
+          image_url: string
+          is_featured: boolean | null
+          provider_id: string
+          rejection_reason: string | null
+          sort_order: number | null
+          updated_at: string | null
+          verification_status: string | null
+        }
+        Insert: {
+          alt_text?: string | null
+          created_at?: string | null
+          id?: string
+          image_url: string
+          is_featured?: boolean | null
+          provider_id: string
+          rejection_reason?: string | null
+          sort_order?: number | null
+          updated_at?: string | null
+          verification_status?: string | null
+        }
+        Update: {
+          alt_text?: string | null
+          created_at?: string | null
+          id?: string
+          image_url?: string
+          is_featured?: boolean | null
+          provider_id?: string
+          rejection_reason?: string | null
+          sort_order?: number | null
+          updated_at?: string | null
+          verification_status?: string | null
+        }
+        Relationships: [
           {
-            foreignKeyName: "provider_payouts_provider_id_fkey"
+            foreignKeyName: "provider_portfolio_images_provider_id_fkey"
             columns: ["provider_id"]
             isOneToOne: false
-            referencedRelation: "provider_search_view"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -983,6 +1086,45 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      provider_selected_categories: {
+        Row: {
+          category_id: string
+          created_at: string | null
+          id: string
+          is_primary: boolean | null
+          provider_id: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string | null
+          id?: string
+          is_primary?: boolean | null
+          provider_id: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string | null
+          id?: string
+          is_primary?: boolean | null
+          provider_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_selected_categories_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "service_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_selected_categories_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       provider_service_images: {
         Row: {
@@ -1119,17 +1261,64 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "provider_services_provider_id_fkey"
-            columns: ["provider_id"]
-            isOneToOne: false
-            referencedRelation: "provider_search_view"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "provider_services_subcategory_id_fkey"
             columns: ["subcategory_id"]
             isOneToOne: false
             referencedRelation: "service_subcategories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      provider_verification_documents: {
+        Row: {
+          created_at: string | null
+          document_type: string
+          document_url: string
+          id: string
+          provider_id: string
+          rejection_reason: string | null
+          updated_at: string | null
+          verification_status: string | null
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          document_type: string
+          document_url: string
+          id?: string
+          provider_id: string
+          rejection_reason?: string | null
+          updated_at?: string | null
+          verification_status?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          document_type?: string
+          document_url?: string
+          id?: string
+          provider_id?: string
+          rejection_reason?: string | null
+          updated_at?: string | null
+          verification_status?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_verification_documents_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_verification_documents_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1176,13 +1365,6 @@ export type Database = {
             foreignKeyName: "reviews_booking_id_fkey"
             columns: ["booking_id"]
             isOneToOne: false
-            referencedRelation: "booking_details_view"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "reviews_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: false
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
@@ -1194,27 +1376,58 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "reviews_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "provider_search_view"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "reviews_provider_id_fkey"
             columns: ["provider_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "reviews_provider_id_fkey"
-            columns: ["provider_id"]
-            isOneToOne: false
-            referencedRelation: "provider_search_view"
-            referencedColumns: ["id"]
-          },
         ]
+      }
+      scheduled_emails: {
+        Row: {
+          cancelled_at: string | null
+          created_at: string | null
+          html_body: string
+          id: string
+          provider_id: string
+          recipient_email: string
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+          subject: string
+          template_id: string
+          text_body: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          created_at?: string | null
+          html_body: string
+          id?: string
+          provider_id: string
+          recipient_email: string
+          scheduled_for: string
+          sent_at?: string | null
+          status?: string
+          subject: string
+          template_id: string
+          text_body: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          created_at?: string | null
+          html_body?: string
+          id?: string
+          provider_id?: string
+          recipient_email?: string
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          template_id?: string
+          text_body?: string
+        }
+        Relationships: []
       }
       service_categories: {
         Row: {
@@ -1397,13 +1610,6 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "user_addresses_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "provider_search_view"
-            referencedColumns: ["id"]
-          },
         ]
       }
       user_favorites: {
@@ -1439,88 +1645,21 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "user_favorites_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "provider_search_view"
-            referencedColumns: ["id"]
-          },
         ]
       }
     }
     Views: {
-      booking_details_view: {
+      email_campaign_stats: {
         Row: {
-          base_amount: number | null
-          booking_date: string | null
-          created_at: string | null
-          customer_email: string | null
-          customer_first_name: string | null
-          customer_id: string | null
-          customer_last_name: string | null
-          customer_notes: string | null
-          customer_phone: string | null
-          duration_minutes: number | null
-          end_time: string | null
-          id: string | null
-          payment_status: Database["public"]["Enums"]["payment_status"] | null
-          platform_fee: number | null
-          price_type: Database["public"]["Enums"]["price_type"] | null
-          provider_email: string | null
-          provider_first_name: string | null
-          provider_id: string | null
-          provider_last_name: string | null
-          provider_notes: string | null
-          provider_phone: string | null
-          service_address: string | null
-          service_coordinates: unknown | null
-          service_description: string | null
-          service_id: string | null
-          service_title: string | null
-          start_time: string | null
-          status: Database["public"]["Enums"]["booking_status"] | null
-          stripe_payment_intent_id: string | null
-          total_amount: number | null
-          updated_at: string | null
+          cancelled_count: number | null
+          delivery_rate: number | null
+          failed_count: number | null
+          scheduled_count: number | null
+          sent_count: number | null
+          template_id: string | null
+          total_emails: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "bookings_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bookings_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "provider_search_view"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bookings_provider_id_fkey"
-            columns: ["provider_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bookings_provider_id_fkey"
-            columns: ["provider_id"]
-            isOneToOne: false
-            referencedRelation: "provider_search_view"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bookings_service_id_fkey"
-            columns: ["service_id"]
-            isOneToOne: false
-            referencedRelation: "provider_services"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       geography_columns: {
         Row: {
@@ -1564,24 +1703,15 @@ export type Database = {
         }
         Relationships: []
       }
-      provider_search_view: {
+      payment_conversion_metrics: {
         Row: {
-          address: string | null
-          avatar_url: string | null
-          average_rating: number | null
-          bio: string | null
-          city: string | null
-          coordinates: unknown | null
-          first_name: string | null
-          id: string | null
-          is_verified: boolean | null
-          last_name: string | null
-          max_price: number | null
-          min_price: number | null
-          phone: string | null
-          service_radius: number | null
-          total_reviews: number | null
-          total_services: number | null
+          nudge_conversion_rate: number | null
+          payment_completion_rate: number | null
+          payment_setup_completed: number | null
+          payment_setup_started: number | null
+          total_providers: number | null
+          verification_completed: number | null
+          verification_to_payment_rate: number | null
         }
         Relationships: []
       }
@@ -1782,6 +1912,14 @@ export type Database = {
       }
       calculate_deposit_amount: {
         Args: { base_amount: number; service_id: string }
+        Returns: number
+      }
+      calculate_platform_fee: {
+        Args: { base_amount: number }
+        Returns: number
+      }
+      calculate_provider_payout: {
+        Args: { base_amount: number }
         Returns: number
       }
       calculate_provider_rating: {
@@ -3573,6 +3711,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       booking_status: [

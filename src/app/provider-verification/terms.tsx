@@ -22,6 +22,7 @@ export default function BusinessTermsScreen() {
     termsData,
     updateTermsData,
     completeStep,
+    completeStepAndNext,
     previousStep 
   } = useProviderVerificationStore();
 
@@ -109,44 +110,9 @@ export default function BusinessTermsScreen() {
 
       // Update verification store
       updateTermsData(data);
-      completeStep(8, data);
+      completeStepAndNext(8, data);
       
-      // Complete verification instead of going to next step
-      setLoading(true);
-      try {
-        // Get current user
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError || !user) {
-          throw new Error('User not authenticated');
-        }
-
-        // Update verification status in database
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({
-            verification_status: 'pending',
-            is_verified: false, // Will be set to true when admin approves
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', user.id);
-
-        if (updateError) {
-          console.error('Error updating verification status:', updateError);
-          Alert.alert('Error', 'Failed to complete verification. Please try again.');
-          return;
-        }
-
-        console.log('[Terms] Successfully updated verification status to pending');
-        console.log('[Terms] Navigating to complete screen');
-
-        // Navigate to complete screen directly
-        router.push('/provider-verification/complete');
-      } catch (error) {
-        console.error('Error completing verification:', error);
-        Alert.alert('Error', 'Failed to complete verification. Please try again.');
-      } finally {
-        setLoading(false);
-      }
+      // Navigation will be handled by the provider layout
     } catch (error) {
       console.error('Error saving terms:', error);
       Alert.alert('Save Failed', 'Failed to save your terms. Please try again.');
@@ -292,7 +258,7 @@ export default function BusinessTermsScreen() {
           className="w-full"
         >
           <Text className="font-semibold text-primary-foreground">
-            {loading ? 'Completing...' : 'Complete Verification'}
+            {loading ? 'Saving...' : 'Continue to Payment Setup'}
           </Text>
         </Button>
       </Animated.View>
@@ -302,10 +268,7 @@ export default function BusinessTermsScreen() {
         <Button
           variant="outline"
           size="lg"
-          onPress={() => {
-            previousStep();
-            router.back();
-          }}
+          onPress={previousStep}
           className="w-full"
         >
           <Text>Back to Business Bio</Text>

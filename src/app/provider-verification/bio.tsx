@@ -21,6 +21,7 @@ export default function BusinessBioScreen() {
     bioData,
     updateBioData,
     completeStep,
+    completeStepAndNext,
     nextStep,
     previousStep 
   } = useProviderVerificationStore();
@@ -94,9 +95,7 @@ export default function BusinessBioScreen() {
 
       // Update verification store
       updateBioData(data);
-      completeStep(7, data);
-      
-      nextStep();
+      completeStepAndNext(7, data);
     } catch (error) {
       console.error('Error saving bio:', error);
       Alert.alert('Save Failed', 'Failed to save your information. Please try again.');
@@ -208,10 +207,7 @@ export default function BusinessBioScreen() {
         <Button
           variant="outline"
           size="lg"
-          onPress={() => {
-            previousStep();
-            router.back();
-          }}
+          onPress={previousStep}
           className="w-full"
         >
           <Text>Back to Portfolio</Text>

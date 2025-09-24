@@ -23,99 +23,7 @@ import {
 import { PersonalInfoModal } from '@/components/profile/PersonalInfoModal';
 import { NotificationSettingsModal } from '@/components/profile/NotificationSettingsModal';
 import { BookingHistoryModal } from '@/components/profile/BookingHistoryModal';
-
-// Business stats item
-const BusinessStat = ({ 
-  label, 
-  value, 
-  icon,
-  trend,
-  trendValue,
-  isLoading = false
-}: { 
-  label: string; 
-  value: string; 
-  icon: string;
-  trend?: 'up' | 'down' | 'neutral';
-  trendValue?: string;
-  isLoading?: boolean;
-}) => (
-  <View className="items-center flex-1 py-4">
-    <Text className="text-2xl mb-1">{icon}</Text>
-    {isLoading ? (
-      <Skeleton className="w-8 h-6 mb-1" />
-    ) : (
-      <Text variant="h3" className="text-foreground font-bold mb-1">
-        {value}
-      </Text>
-    )}
-    <Text variant="small" className="text-muted-foreground text-center mb-1">
-      {label}
-    </Text>
-    {trend && trendValue && !isLoading && (
-      <View className="flex-row items-center">
-        <Text className={cn(
-          'text-xs font-medium',
-          trend === 'up' && 'text-chart-2',
-          trend === 'down' && 'text-destructive',
-          trend === 'neutral' && 'text-muted-foreground'
-        )}>
-          {trend === 'up' ? '↗' : trend === 'down' ? '↘' : '→'} {trendValue}
-        </Text>
-      </View>
-    )}
-  </View>
-);
-
-// Provider menu item
-const ProviderMenuItem = ({ 
-  title, 
-  subtitle, 
-  icon, 
-  onPress,
-  showArrow = true,
-  badge 
-}: { 
-  title: string; 
-  subtitle?: string; 
-  icon: string; 
-  onPress?: () => void;
-  showArrow?: boolean;
-  badge?: string;
-}) => (
-  <TouchableOpacity
-    className="w-full justify-start px-4 py-4 h-auto"
-    onPress={onPress}
-  >
-    <View className="flex-row items-center w-full">
-      <View className="w-10 h-10 bg-primary/10 rounded-xl items-center justify-center mr-4">
-        <Text className="text-lg">{icon}</Text>
-      </View>
-      <View className="flex-1">
-        <View className="flex-row items-center gap-2">
-          <Text variant="p" className="text-foreground font-semibold text-left">
-            {title}
-          </Text>
-          {badge && (
-            <View className="bg-primary/10 px-2 py-0.5 rounded-full">
-              <Text variant="small" className="text-primary font-medium text-xs">
-                {badge}
-              </Text>
-            </View>
-          )}
-        </View>
-        {subtitle && (
-          <Text variant="small" className="text-muted-foreground text-left">
-            {subtitle}
-          </Text>
-        )}
-      </View>
-      {showArrow && (
-        <Text className="text-muted-foreground text-lg">›</Text>
-      )}
-    </View>
-  </TouchableOpacity>
-);
+import { StripeIntegrationModal } from '@/components/profile/StripeIntegrationModal';
 
 export default function ProfileScreen() {
   const { userRole } = useAppStore();
@@ -131,6 +39,7 @@ export default function ProfileScreen() {
   const [personalInfoModalVisible, setPersonalInfoModalVisible] = React.useState(false);
   const [notificationModalVisible, setNotificationModalVisible] = React.useState(false);
   const [bookingHistoryModalVisible, setBookingHistoryModalVisible] = React.useState(false);
+  const [stripeIntegrationModalVisible, setStripeIntegrationModalVisible] = React.useState(false);
 
   // Helper functions
   const getDisplayName = () => {
@@ -273,83 +182,101 @@ export default function ProfileScreen() {
         </LinearGradient>
 
         {/* Business Stats Cards */}
-        <View className="px-4 -mt-4 mb-6">
-          <Card>
-            <CardContent className="p-0">
-              <View className="flex-row">
-                <BusinessStat 
-                  icon="💰" 
-                  value={statsLoading ? '-' : `$${(statsData?.total_bookings * 68 || 3200).toLocaleString()}`}
-                  label="This Month"
-                  trend="up"
-                  trendValue="+12%"
-                  isLoading={statsLoading}
-                />
-                <View className="w-px bg-border" />
-                <BusinessStat 
-                  icon="⭐" 
-                  value={statsLoading ? '-' : (statsData?.avg_rating || 4.9).toFixed(1)}
-                  label="Rating"
-                  trend="up"
-                  trendValue="+0.1"
-                  isLoading={statsLoading}
-                />
-                <View className="w-px bg-border" />
-                <BusinessStat 
-                  icon="👥" 
-                  value={statsLoading ? '-' : (statsData?.total_bookings || 48).toString()}
-                  label="Clients"
-                  trend="up"
-                  trendValue="+8"
-                  isLoading={statsLoading}
-                />
-              </View>
-            </CardContent>
-          </Card>
+        <View className="px-6 -mt-4 mb-6">
+          <View className="flex-row gap-4">
+            <View className="flex-1 bg-accent dark:bg-accent rounded-2xl p-4 shadow-sm">
+              <Text className="text-3xl text-center font-bold text-primary mb-1">
+                {statsLoading ? '-' : `$${(statsData?.total_bookings * 68 || 3200).toLocaleString()}`}
+              </Text>
+              <Text className="text-muted-foreground text-center text-xs">This Month</Text>
+            </View>
+            <View className="flex-1 bg-accent dark:bg-accent rounded-2xl p-4 shadow-sm">
+              <Text className="text-3xl text-center font-bold text-green-500 mb-1">
+                {statsLoading ? '-' : (statsData?.avg_rating || 4.9).toFixed(1)}
+              </Text>
+              <Text className="text-muted-foreground text-center text-xs">Rating</Text>
+            </View>
+            <View className="flex-1 bg-accent dark:bg-accent rounded-2xl p-4 shadow-sm">
+              <Text className="text-3xl text-center font-bold text-orange-500 mb-1">
+                {statsLoading ? '-' : (statsData?.total_bookings || 48)}
+              </Text>
+              <Text className="text-muted-foreground text-center text-xs">Clients</Text>
+            </View>
+          </View>
         </View>
 
         {/* Menu Sections */}
-        <View className="px-4 gap-6">
+        <View className="px-6 gap-6">
           {/* Business Management Section */}
           <View>
             <Text className="text-lg font-bold text-foreground mb-4">Business Management</Text>
             <View className="gap-2">
               <TouchableOpacity className="bg-card rounded-xl p-4 shadow-sm border border-border">
-                <ProviderMenuItem 
-                  icon="📅" 
-                  title="Calendar & Bookings" 
-                  subtitle="Manage your schedule and appointments"
-                  badge="3 today"
-                  showArrow={false}
-                />
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 bg-primary/10 rounded-xl items-center justify-center mr-4">
+                    <Text className="text-xl">📅</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-semibold text-foreground">Calendar & Bookings</Text>
+                    <Text className="text-muted-foreground text-sm">Manage your schedule and appointments</Text>
+                  </View>
+                  <Text className="text-muted-foreground text-lg">›</Text>
+                </View>
               </TouchableOpacity>
 
               <TouchableOpacity className="bg-card rounded-xl p-4 shadow-sm border border-border">
-                <ProviderMenuItem 
-                  icon="⚙️" 
-                  title="Services & Pricing" 
-                  subtitle="Update your service offerings"
-                  showArrow={false}
-                />
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 bg-secondary/20 rounded-xl items-center justify-center mr-4">
+                    <Text className="text-xl">⚙️</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-semibold text-foreground">Services & Pricing</Text>
+                    <Text className="text-muted-foreground text-sm">Update your service offerings</Text>
+                  </View>
+                  <Text className="text-muted-foreground text-lg">›</Text>
+                </View>
               </TouchableOpacity>
 
               <TouchableOpacity className="bg-card rounded-xl p-4 shadow-sm border border-border">
-                <ProviderMenuItem 
-                  icon="💳" 
-                  title="Earnings & Payouts" 
-                  subtitle="Track income and payment history"
-                  badge="$248 pending"
-                  showArrow={false}
-                />
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-xl items-center justify-center mr-4">
+                    <Text className="text-xl">💰</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-semibold text-foreground">Earnings & Payouts</Text>
+                    <Text className="text-muted-foreground text-sm">$248 pending</Text>
+                  </View>
+                  <Text className="text-muted-foreground text-lg">›</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                className="bg-card rounded-xl p-4 shadow-sm border border-border"
+                onPress={() => setStripeIntegrationModalVisible(true)}
+              >
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 bg-primary/10 rounded-xl items-center justify-center mr-4">
+                    <Text className="text-xl">💳</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-semibold text-foreground">Payment Integration</Text>
+                    <Text className="text-muted-foreground text-sm">Connect your Stripe account for payments</Text>
+                  </View>
+                  <Text className="text-muted-foreground text-lg">›</Text>
+                </View>
               </TouchableOpacity>
 
               <TouchableOpacity className="bg-card rounded-xl p-4 shadow-sm border border-border">
-                <ProviderMenuItem 
-                  icon="📊" 
-                  title="Analytics" 
-                  subtitle="View detailed business insights"
-                  showArrow={false}
-                />
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 bg-secondary/20 rounded-xl items-center justify-center mr-4">
+                    <Text className="text-xl">📊</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-semibold text-foreground">Analytics</Text>
+                    <Text className="text-muted-foreground text-sm">View detailed business insights</Text>
+                  </View>
+                  <Text className="text-muted-foreground text-lg">›</Text>
+                </View>
               </TouchableOpacity>
             </View>
           </View>
@@ -359,31 +286,42 @@ export default function ProfileScreen() {
             <Text className="text-lg font-bold text-foreground mb-4">Customer Relations</Text>
             <View className="gap-2">
               <TouchableOpacity className="bg-card rounded-xl p-4 shadow-sm border border-border">
-                <ProviderMenuItem 
-                  icon="⭐" 
-                  title="Reviews & Ratings" 
-                  subtitle="Manage customer feedback"
-                  badge="2 new"
-                  showArrow={false}
-                />
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/30 rounded-xl items-center justify-center mr-4">
+                    <Text className="text-xl">⭐</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-semibold text-foreground">Reviews & Ratings</Text>
+                    <Text className="text-muted-foreground text-sm">2 new reviews</Text>
+                  </View>
+                  <Text className="text-muted-foreground text-lg">›</Text>
+                </View>
               </TouchableOpacity>
 
               <TouchableOpacity className="bg-card rounded-xl p-4 shadow-sm border border-border">
-                <ProviderMenuItem 
-                  icon="💬" 
-                  title="Messages" 
-                  subtitle="Communicate with clients"
-                  showArrow={false}
-                />
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl items-center justify-center mr-4">
+                    <Text className="text-xl">💬</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-semibold text-foreground">Messages</Text>
+                    <Text className="text-muted-foreground text-sm">Communicate with clients</Text>
+                  </View>
+                  <Text className="text-muted-foreground text-lg">›</Text>
+                </View>
               </TouchableOpacity>
 
               <TouchableOpacity className="bg-card rounded-xl p-4 shadow-sm border border-border">
-                <ProviderMenuItem 
-                  icon="🎯" 
-                  title="Marketing Tools" 
-                  subtitle="Promote your services"
-                  showArrow={false}
-                />
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-xl items-center justify-center mr-4">
+                    <Text className="text-xl">🎯</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-semibold text-foreground">Marketing Tools</Text>
+                    <Text className="text-muted-foreground text-sm">Promote your services</Text>
+                  </View>
+                  <Text className="text-muted-foreground text-lg">›</Text>
+                </View>
               </TouchableOpacity>
             </View>
           </View>
@@ -392,46 +330,62 @@ export default function ProfileScreen() {
           <View>
             <Text className="text-lg font-bold text-foreground mb-4">Account Settings</Text>
             <View className="gap-2">
-              <TouchableOpacity 
+              <TouchableOpacity
                 className="bg-card rounded-xl p-4 shadow-sm border border-border"
                 onPress={() => setPersonalInfoModalVisible(true)}
               >
-                <ProviderMenuItem 
-                  icon="👤" 
-                  title="Business Profile" 
-                  subtitle="Update your business information"
-                  showArrow={false}
-                />
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 bg-primary/10 rounded-xl items-center justify-center mr-4">
+                    <Text className="text-xl">👤</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-semibold text-foreground">Business Profile</Text>
+                    <Text className="text-muted-foreground text-sm">Update your business information</Text>
+                  </View>
+                  <Text className="text-muted-foreground text-lg">›</Text>
+                </View>
               </TouchableOpacity>
 
               <TouchableOpacity className="bg-card rounded-xl p-4 shadow-sm border border-border">
-                <ProviderMenuItem 
-                  icon="🏪" 
-                  title="Business Hours" 
-                  subtitle="Set your availability"
-                  showArrow={false}
-                />
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 bg-secondary/20 rounded-xl items-center justify-center mr-4">
+                    <Text className="text-xl">🏪</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-semibold text-foreground">Business Hours</Text>
+                    <Text className="text-muted-foreground text-sm">Set your availability</Text>
+                  </View>
+                  <Text className="text-muted-foreground text-lg">›</Text>
+                </View>
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 className="bg-card rounded-xl p-4 shadow-sm border border-border"
                 onPress={() => setNotificationModalVisible(true)}
               >
-                <ProviderMenuItem 
-                  icon="🔔" 
-                  title="Notifications" 
-                  subtitle="Customize business alerts"
-                  showArrow={false}
-                />
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-xl items-center justify-center mr-4">
+                    <Text className="text-xl">🔔</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-semibold text-foreground">Notifications</Text>
+                    <Text className="text-muted-foreground text-sm">Customize business alerts</Text>
+                  </View>
+                  <Text className="text-muted-foreground text-lg">›</Text>
+                </View>
               </TouchableOpacity>
 
               <TouchableOpacity className="bg-card rounded-xl p-4 shadow-sm border border-border">
-                <ProviderMenuItem 
-                  icon="🔒" 
-                  title="Privacy & Security" 
-                  subtitle="Manage account security"
-                  showArrow={false}
-                />
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-xl items-center justify-center mr-4">
+                    <Text className="text-xl">🔒</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-semibold text-foreground">Privacy & Security</Text>
+                    <Text className="text-muted-foreground text-sm">Manage account security</Text>
+                  </View>
+                  <Text className="text-muted-foreground text-lg">›</Text>
+                </View>
               </TouchableOpacity>
             </View>
           </View>
@@ -441,42 +395,58 @@ export default function ProfileScreen() {
             <Text className="text-lg font-bold text-foreground mb-4">Support & Resources</Text>
             <View className="gap-2">
               <TouchableOpacity className="bg-card rounded-xl p-4 shadow-sm border border-border">
-                <ProviderMenuItem 
-                  icon="📚" 
-                  title="Provider Resources" 
-                  subtitle="Tips and best practices"
-                  showArrow={false}
-                />
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 bg-primary/10 rounded-xl items-center justify-center mr-4">
+                    <Text className="text-xl">📚</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-semibold text-foreground">Provider Resources</Text>
+                    <Text className="text-muted-foreground text-sm">Tips and best practices</Text>
+                  </View>
+                  <Text className="text-muted-foreground text-lg">›</Text>
+                </View>
               </TouchableOpacity>
 
               <TouchableOpacity className="bg-card rounded-xl p-4 shadow-sm border border-border">
-                <ProviderMenuItem 
-                  icon="❓" 
-                  title="Help Center" 
-                  subtitle="Find answers to your questions"
-                  showArrow={false}
-                />
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 bg-secondary/20 rounded-xl items-center justify-center mr-4">
+                    <Text className="text-xl">❓</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-semibold text-foreground">Help Center</Text>
+                    <Text className="text-muted-foreground text-sm">Find answers to your questions</Text>
+                  </View>
+                  <Text className="text-muted-foreground text-lg">›</Text>
+                </View>
               </TouchableOpacity>
 
               <TouchableOpacity className="bg-card rounded-xl p-4 shadow-sm border border-border">
-                <ProviderMenuItem 
-                  icon="💬" 
-                  title="Contact Support" 
-                  subtitle="Get help from our business team"
-                  showArrow={false}
-                />
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl items-center justify-center mr-4">
+                    <Text className="text-xl">💬</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-semibold text-foreground">Contact Support</Text>
+                    <Text className="text-muted-foreground text-sm">Get help from our business team</Text>
+                  </View>
+                  <Text className="text-muted-foreground text-lg">›</Text>
+                </View>
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 className="bg-card rounded-xl p-4 shadow-sm border border-border"
                 onPress={() => setBookingHistoryModalVisible(true)}
               >
-                <ProviderMenuItem 
-                  icon="📱" 
-                  title="Business History" 
-                  subtitle="View your service history"
-                  showArrow={false}
-                />
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-xl items-center justify-center mr-4">
+                    <Text className="text-xl">📱</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-semibold text-foreground">Business History</Text>
+                    <Text className="text-muted-foreground text-sm">View your service history</Text>
+                  </View>
+                  <Text className="text-muted-foreground text-lg">›</Text>
+                </View>
               </TouchableOpacity>
 
               {/* Theme Toggle */}
@@ -532,6 +502,11 @@ export default function ProfileScreen() {
         onClose={() => setBookingHistoryModalVisible(false)}
         bookings={bookingsData}
         isLoading={bookingsLoading}
+      />
+
+      <StripeIntegrationModal
+        visible={stripeIntegrationModalVisible}
+        onClose={() => setStripeIntegrationModalVisible(false)}
       />
     </SafeAreaView>
   );

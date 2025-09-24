@@ -247,6 +247,31 @@ export default function CustomerDashboard() {
           </View>
         </View>
 
+        {/* Development Tools - Only show in development */}
+        {__DEV__ && (
+          <View className="px-4 mb-6">
+            <Text className="text-lg font-bold text-foreground mb-4">🔧 Development Tools</Text>
+            <View className="gap-3">
+              <TouchableOpacity onPress={() => router.push('/stripe-test')}>
+                <Card className='bg-card border-yellow-200'>
+                  <CardContent className="p-4 flex-row items-center">
+                    <Text className="text-xl mr-3">🧪</Text>
+                    <View className="flex-1">
+                      <Text className="font-semibold text-foreground">
+                        Stripe Integration Test
+                      </Text>
+                      <Text className="text-muted-foreground text-xs">
+                        Test payment system functionality
+                      </Text>
+                    </View>
+                    <Text className="text-primary text-xs">→</Text>
+                  </CardContent>
+                </Card>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Recent Activity */}
         <View className="px-4 mb-6">
           <Text className="text-lg font-bold text-foreground mb-4">Recent Activity</Text>

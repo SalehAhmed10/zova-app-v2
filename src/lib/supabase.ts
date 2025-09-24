@@ -154,7 +154,7 @@ export const storage = {
     return { data, error };
   },
 
-  // Upload portfolio image
+  // Upload portfolio image with organized structure
   uploadPortfolioImage: async (userId: string, imageUri: string, index: number) => {
     try {
       // For Expo/React Native, we need to use expo-file-system
@@ -168,9 +168,9 @@ export const storage = {
         encoding: FileSystem.EncodingType.Base64,
       });
 
-      // Create unique filename
+      // Create organized filename with new structure
       const fileExt = imageUri.split('.').pop()?.toLowerCase() || 'jpg';
-      const fileName = `${userId}/portfolio/${Date.now()}_${index}.${fileExt}`;
+      const fileName = `providers/${userId}/portfolio/image_${Date.now()}_${index}.${fileExt}`;
 
       // Convert base64 to Uint8Array for upload
       const binaryString = atob(base64);
@@ -179,7 +179,7 @@ export const storage = {
         bytes[i] = binaryString.charCodeAt(i);
       }
 
-      // Upload to Supabase storage using Uint8Array
+      // Upload to Supabase storage using organized structure
       const { data, error } = await supabase.storage
         .from('verification-images')
         .upload(fileName, bytes, {
@@ -189,7 +189,8 @@ export const storage = {
 
       if (error) throw error;
 
-      // Get public URL
+      // Get public URL (even though bucket is private, we store the public format)
+      // The app will generate signed URLs when needed
       const publicUrl = supabase.storage
         .from('verification-images')
         .getPublicUrl(fileName).data.publicUrl;

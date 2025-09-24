@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, View, Platform } from 'react-native';
+import { ScrollView, View, Platform, RefreshControlProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -12,6 +12,7 @@ interface ScreenWrapperProps {
   edges?: readonly ('top' | 'bottom' | 'left' | 'right')[];
   contentContainerClassName?: string;
   style?: any;
+  refreshControl?: React.ReactElement<RefreshControlProps>;
 }
 
 export const ScreenWrapper: React.FC<ScreenWrapperProps> = ({
@@ -23,6 +24,7 @@ export const ScreenWrapper: React.FC<ScreenWrapperProps> = ({
   edges = ['top'],
   contentContainerClassName = 'px-6 py-4',
   style,
+  refreshControl,
 }) => {
   const insets = useSafeAreaInsets();
   
@@ -44,6 +46,7 @@ export const ScreenWrapper: React.FC<ScreenWrapperProps> = ({
             paddingBottom: getBottomPadding(),
           }}
           contentContainerClassName={contentContainerClassName}
+          refreshControl={refreshControl}
         >
           {children}
         </ScrollView>

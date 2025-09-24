@@ -11,7 +11,12 @@
     },
     "plugins": [
       "expo-router",
-      "expo-web-browser",
+      [
+        "expo-web-browser",
+        {
+          "experimentalLauncherActivity": true
+        }
+      ],
       [
         "expo-camera",
         {

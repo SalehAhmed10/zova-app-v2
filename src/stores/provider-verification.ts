@@ -17,6 +17,7 @@ interface ProviderVerificationState {
   providerId: string | null;
   verificationStatus: 'pending' | 'in_review' | 'approved' | 'rejected';
   _hasHydrated: boolean; // Track hydration state
+  _isNavigating: boolean; // Track navigation state to prevent loops
   
   // Step Data
   documentData: {
@@ -84,6 +85,7 @@ interface ProviderVerificationActions {
   
   // Step completion
   completeStep: (stepNumber: number, data?: any) => void;
+  completeStepAndNext: (stepNumber: number, data?: any) => void;
   markStepIncomplete: (stepNumber: number) => void;
   
   // Data updates
@@ -100,6 +102,7 @@ interface ProviderVerificationActions {
   setVerificationStatus: (status: ProviderVerificationState['verificationStatus']) => void;
   setProviderId: (id: string) => void;
   setHasHydrated: (hasHydrated: boolean) => void;
+  setIsNavigating: (isNavigating: boolean) => void;
   
   // Reset
   resetVerification: () => void;
@@ -108,6 +111,7 @@ interface ProviderVerificationActions {
   canProceedToNextStep: () => boolean;
   getCompletionPercentage: () => number;
   isStepCompleted: (stepNumber: number) => boolean;
+  getFirstIncompleteStep: () => number;
 }
 
 type ProviderVerificationStore = ProviderVerificationState & ProviderVerificationActions;
@@ -169,6 +173,13 @@ const initialSteps: Record<number, VerificationStep> = {
     isCompleted: false,
     isRequired: true,
   },
+  9: {
+    stepNumber: 9,
+    title: 'Payment Setup',
+    description: 'Connect your Stripe account to receive payments',
+    isCompleted: false,
+    isRequired: false, // Make optional
+  },
 };
 
 export const useProviderVerificationStore = create<ProviderVerificationStore>()(
@@ -180,6 +191,7 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
       providerId: null,
       verificationStatus: 'pending',
       _hasHydrated: false,
+      _isNavigating: false,
       
       documentData: {
         documentType: null,
@@ -239,21 +251,34 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
       },
       
       nextStep: () => {
-        const { currentStep } = get();
-        if (currentStep < 8) {
-          set({ currentStep: currentStep + 1 });
+        const { currentStep, _isNavigating } = get();
+        if (currentStep < 9 && !_isNavigating) {
+          console.log(`[Store] nextStep called: ${currentStep} -> ${currentStep + 1}`);
+          set({ currentStep: currentStep + 1, _isNavigating: true });
+          
+          // Reset navigation flag after a short delay
+          setTimeout(() => {
+            set({ _isNavigating: false });
+          }, 300);
         }
       },
       
       previousStep: () => {
-        const { currentStep } = get();
+        const { currentStep, _isNavigating } = get();
+        if (_isNavigating) return; // Prevent multiple rapid calls
+        
         if (currentStep > 1) {
-          set({ currentStep: currentStep - 1 });
+          set({ currentStep: currentStep - 1, _isNavigating: true });
+          
+          // Reset navigation flag after delay
+          setTimeout(() => {
+            set({ _isNavigating: false });
+          }, 300);
         }
       },
       
       goToStep: (step) => {
-        if (step >= 1 && step <= 8) {
+        if (step >= 1 && step <= 9) {
           set({ currentStep: step });
         }
       },
@@ -270,6 +295,32 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
             },
           },
         });
+      },
+      
+      completeStepAndNext: (stepNumber, data) => {
+        const { steps, currentStep, _isNavigating } = get();
+        if (_isNavigating) return; // Prevent multiple rapid calls
+        
+        console.log(`[Store] completeStepAndNext called for step ${stepNumber}`);
+        
+        // Complete the step and move to next in a single atomic operation
+        set({
+          steps: {
+            ...steps,
+            [stepNumber]: {
+              ...steps[stepNumber],
+              isCompleted: true,
+              data,
+            },
+          },
+          currentStep: currentStep < 9 ? currentStep + 1 : currentStep,
+          _isNavigating: true,
+        });
+        
+        // Reset navigation flag after delay
+        setTimeout(() => {
+          set({ _isNavigating: false });
+        }, 300);
       },
       
       markStepIncomplete: (stepNumber) => {
@@ -346,6 +397,10 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
         set({ _hasHydrated: hasHydrated });
       },
       
+      setIsNavigating: (isNavigating) => {
+        set({ _isNavigating: isNavigating });
+      },
+      
       resetVerification: () => {
         set({
           currentStep: 1,
@@ -404,18 +459,29 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
       getCompletionPercentage: () => {
         const { steps } = get();
         const completedSteps = Object.values(steps).filter(step => step.isCompleted).length;
-        return Math.round((completedSteps / 8) * 100);
+        return Math.round((completedSteps / 9) * 100); // Fixed: divide by 9, not 8
       },
       
       isStepCompleted: (stepNumber) => {
         const { steps } = get();
         return steps[stepNumber]?.isCompleted || false;
       },
+
+      getFirstIncompleteStep: () => {
+        const { steps } = get();
+        // Find the first step that is not completed
+        for (let stepNumber = 1; stepNumber <= 9; stepNumber++) {
+          if (!steps[stepNumber]?.isCompleted) {
+            return stepNumber;
+          }
+        }
+        return 1; // Default to step 1 if all steps are somehow completed
+      },
     }),
     {
       name: 'provider-verification-storage',
       storage: createJSONStorage(() => AsyncStorage),
-      version: 1,
+      version: 2,
       migrate: (persistedState: any, version: number) => {
         if (version === 0) {
           // Migration from version 0: Reset currentStep if it's 9 (removed payment step)
@@ -427,6 +493,7 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
             delete persistedState.paymentData;
           }
         }
+        // Version 1: No changes needed, step 9 is now valid
         return persistedState;
       },
       partialize: (state) => ({
@@ -448,11 +515,8 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
           if (error) {
             console.error('[Provider Verification] Rehydration error:', error);
           } else if (state) {
-            // Migration: Reset currentStep if it's 9 (removed payment step)
-            if (state.currentStep === 9) {
-              console.log('[Provider Verification] Migrating currentStep from 9 to 8');
-              state.currentStep = 8;
-            }
+            // Migration: Update version to support step 9 (payment setup)
+            // No longer resetting currentStep from 9 to 8 since step 9 is now valid
             state.setHasHydrated(true);
           }
         };

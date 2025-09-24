@@ -15,6 +15,9 @@ import {
   useProfileStats,
   useUserBookings
 } from '@/hooks/useProfileData';
+import { PaymentSetupStatusCard } from '@/components/providers/PaymentSetupStatusCard';
+import { usePaymentSetupNudge } from '@/hooks/usePaymentSetupNudge';
+import { StorageDebugPanel } from '@/components/StorageDebugPanel';
 
 // Today's Stats Component  
 const TodaysStat = ({
@@ -62,6 +65,26 @@ export default function ProviderDashboard() {
   const { data: profileData, isLoading: profileLoading } = useProfile(user?.id);
   const { data: statsData, isLoading: statsLoading } = useProfileStats(user?.id);
   const { data: bookingsData, isLoading: bookingsLoading } = useUserBookings(user?.id);
+
+  // Payment setup nudge functionality
+  const { 
+    shouldShowNudge, 
+    isPaymentComplete, 
+    showPaymentNudge,
+    checkNudgeStatus 
+  } = usePaymentSetupNudge();
+
+  // Show payment nudge if needed
+  React.useEffect(() => {
+    if (shouldShowNudge && !isPaymentComplete) {
+      // Small delay to ensure dashboard has loaded
+      const timer = setTimeout(() => {
+        showPaymentNudge();
+      }, 2000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [shouldShowNudge, isPaymentComplete, showPaymentNudge]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -166,6 +189,11 @@ export default function ProviderDashboard() {
           </Card>
         </View>
 
+        {/* Payment Setup Status */}
+        <View className="px-4 mb-6">
+          <PaymentSetupStatusCard userId={user?.id || ''} />
+        </View>
+
         {/* Quick Actions */}
         <View className="px-4 mb-6">
           <Text className="text-lg font-bold text-foreground mb-4">Quick Actions</Text>
@@ -231,6 +259,35 @@ export default function ProviderDashboard() {
             </View>
           </View>
         </View>
+
+        {/* Development Tools - Only show in development */}
+        {(() => {
+          return __DEV__ && (
+            <View className="px-4 mb-6">
+              <Text className="text-lg font-bold text-foreground mb-4">🔧 Development Tools</Text>
+              <View className="gap-3">
+                <TouchableOpacity onPress={() => {
+                  router.push('/stripe-test');
+                }}>
+                  <Card className='bg-card border-yellow-200'>
+                    <CardContent className="p-4 flex-row items-center">
+                      <Text className="text-xl mr-3">🧪</Text>
+                      <View className="flex-1">
+                        <Text className="font-semibold text-foreground">
+                          Stripe Integration Test
+                        </Text>
+                        <Text className="text-muted-foreground text-xs">
+                          Test payment system functionality
+                        </Text>
+                      </View>
+                      <Text className="text-primary text-xs">→</Text>
+                    </CardContent>
+                  </Card>
+                </TouchableOpacity>
+              </View>
+            </View>
+          );
+        })()}
 
         {/* Recent Activity */}
         <View className="px-4 mb-6">
@@ -413,6 +470,9 @@ export default function ProviderDashboard() {
         {/* Bottom spacing for tab bar */}
         <View className={cn("h-6", Platform.OS === 'ios' && "h-24")} />
       </ScrollView>
+      
+      {/* Debug Panel - Only in development */}
+      {__DEV__ && <StorageDebugPanel />}
     </SafeAreaView>
   );
 }

@@ -165,6 +165,20 @@ export default function LoginScreen() {
           <Text>Back to Onboarding</Text>
         </Button>
       </Animated.View>
+
+      {/* Development Tools - Only show in development */}
+      {__DEV__ && (
+        <Animated.View entering={FadeIn.delay(1000).springify()} className="mt-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onPress={() => router.push('/stripe-test')}
+            className="w-full border border-yellow-300"
+          >
+            <Text className="text-yellow-600 text-xs">🧪 Dev: Stripe Test</Text>
+          </Button>
+        </Animated.View>
+      )}
     </ScreenWrapper>
   );
 }

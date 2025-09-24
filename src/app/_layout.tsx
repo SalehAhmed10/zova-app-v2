@@ -106,6 +106,13 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 1000 * 60 * 5, // 5 minutes
       gcTime: 1000 * 60 * 30, // 30 minutes
+      retry: (failureCount, error) => {
+        // Don't retry on 4xx errors (client errors)
+        if (error instanceof Error && 'status' in error && typeof error.status === 'number') {
+          return error.status >= 500 && failureCount < 2;
+        }
+        return failureCount < 2;
+      },
     },
   },
 });

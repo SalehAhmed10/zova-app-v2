@@ -3,6 +3,11 @@
  * This module provides centralized error handling and reporting capabilities
  */
 
+import React from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+
 export interface ErrorReport {
   id: string;
   timestamp: string;
@@ -41,6 +46,11 @@ class ErrorReportingService {
     if (config) {
       this.config = { ...this.config, ...config };
     }
+    
+    // Load existing errors from AsyncStorage asynchronously
+    this.loadStoredErrors().catch(error => {
+      console.error('Error loading stored errors during initialization:', error);
+    });
   }
 
   /**
@@ -176,9 +186,8 @@ class ErrorReportingService {
         this.errorQueue = this.errorQueue.slice(-this.config.maxStoredErrors);
       }
 
-      // TODO: Implement AsyncStorage persistence
-      // const AsyncStorage = require('@react-native-async-storage/async-storage');
-      // await AsyncStorage.setItem('error_reports', JSON.stringify(this.errorQueue));
+      // Persist to AsyncStorage
+      await AsyncStorage.setItem('zova_error_reports', JSON.stringify(this.errorQueue));
     } catch (error) {
       console.error('Failed to store error locally:', error);
     }
@@ -220,11 +229,29 @@ class ErrorReportingService {
   }
 
   /**
+   * Load stored errors from AsyncStorage
+   */
+  private async loadStoredErrors(): Promise<void> {
+    try {
+      const stored = await AsyncStorage.getItem('zova_error_reports');
+      if (stored) {
+        this.errorQueue = JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Failed to load stored errors:', error);
+    }
+  }
+
+  /**
    * Clear stored error reports
    */
   async clearStoredErrors(): Promise<void> {
     this.errorQueue = [];
-    // TODO: Clear from AsyncStorage
+    try {
+      await AsyncStorage.removeItem('zova_error_reports');
+    } catch (error) {
+      console.error('Failed to clear stored errors:', error);
+    }
   }
 
   /**
@@ -245,29 +272,60 @@ class ErrorReportingService {
   }
 
   private getUserAgent(): string {
-    // React Native doesn't have navigator.userAgent
-    // You might want to use a library like react-native-device-info
-    return 'React Native App';
+    try {
+      // Try to get device info
+      const platform = Platform.OS;
+      const version = Platform.Version;
+      const appVersion = Constants?.expoConfig?.version || '1.0.0';
+      
+      return `ZOVA/${appVersion} (${platform} ${version})`;
+    } catch {
+      return 'ZOVA React Native App';
+    }
   }
 
   private getAppVersion(): string {
-    // TODO: Get from app.json or package.json
-    return '1.0.0';
+    try {
+      // Get version from package.json
+      const packageJson = require('../../package.json');
+      return packageJson.version || '1.0.0';
+    } catch {
+      return '1.0.0';
+    }
   }
 
   private getCurrentUserId(): string | undefined {
-    // TODO: Get from auth store
-    return undefined;
+    try {
+      // Get from Supabase auth if available
+      const { supabase } = require('./supabase');
+      // Note: This is synchronous access to cached user data
+      const session = supabase.auth.getSession();
+      return session?.data?.session?.user?.id;
+    } catch {
+      return undefined;
+    }
   }
 
   private getCurrentUserRole(): string | undefined {
-    // TODO: Get from app store
-    return undefined;
+    try {
+      // Get from app store
+      const { useAppStore } = require('../stores/app');
+      const store = useAppStore.getState();
+      return store.userRole || undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   private getCurrentRoute(): string | undefined {
-    // TODO: Get current route from Expo Router
-    return undefined;
+    try {
+      // We can't use hooks here since this is not a React component
+      // Let's use a different approach by checking navigation state
+      // This will be undefined for now, but can be enhanced with navigation ref
+      return undefined;
+    } catch {
+      return undefined;
+    }
   }
 }
 
@@ -308,6 +366,3 @@ export const handleErrorBoundaryError = (error: Error, errorInfo: React.ErrorInf
     source: 'error_boundary',
   });
 };
-
-// Export for React import
-import React from 'react';

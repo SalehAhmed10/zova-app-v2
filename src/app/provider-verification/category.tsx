@@ -107,6 +107,7 @@ export default function CategorySelectionScreen() {
     categoryData,
     updateCategoryData,
     completeStep,
+    completeStepAndNext,
     nextStep,
     previousStep,
     providerId
@@ -168,16 +169,14 @@ export default function CategorySelectionScreen() {
     try {
       // Mark step as completed and move to next
       const selectedCategoryData = categories.find(cat => cat.id === selectedCategory);
-      completeStep(4, {
+      completeStepAndNext(4, {
         categoryId: selectedCategory,
         categoryName: selectedCategoryData?.name,
       });
-
-      nextStep();
     } catch (error) {
       console.error('Error saving category:', error);
     }
-  }, [selectedCategory, categories, completeStep, nextStep]);
+  }, [selectedCategory, categories, completeStepAndNext]);
 
   const renderCategoryItem = useCallback(({ item, index }: { item: ServiceCategory; index: number }) => (
     <CategoryItem

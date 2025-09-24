@@ -18,6 +18,7 @@ export interface ProfileData {
   country: string;
   phone_number?: string;
   country_code?: string;
+  verification_status?: 'pending' | 'in_review' | 'approved' | 'rejected';
 }
 
 export interface BookingData {

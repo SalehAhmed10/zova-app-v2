@@ -8,13 +8,25 @@ import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import { useProviderVerificationStore } from '@/stores/provider-verification';
 import { useAppStore } from '@/stores/app';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PaymentEmailCampaignService } from '@/lib/payment-email-campaigns';
+import { PaymentAnalyticsService } from '@/lib/payment-analytics';
+import { supabase } from '@/lib/supabase';
 
 export default function VerificationCompleteScreen() {
   console.log('[Complete Screen] Rendered');
-  const { resetVerification, getCompletionPercentage } = useProviderVerificationStore();
+  const { resetVerification, getCompletionPercentage, isStepCompleted, steps } = useProviderVerificationStore();
   const { setAuthenticated } = useAppStore();
-  const completionPercentage = getCompletionPercentage();
+  // Make completion percentage reactive by calculating it from steps
+  const completedSteps = Object.values(steps).filter(step => step.isCompleted).length;
+  const completionPercentage = Math.round((completedSteps / 9) * 100);
   const insets = useSafeAreaInsets();
+
+  // Debug step completion status
+  console.log('[Complete Screen] Step completion status:');
+  for (let i = 1; i <= 9; i++) {
+    console.log(`Step ${i}: ${steps[i]?.isCompleted ? '✅' : '⏳'}`);
+  }
+  console.log(`[Complete Screen] Completion percentage: ${completionPercentage}%`);
 
   useEffect(() => {
     // Update the user profile to mark verification as complete
@@ -23,13 +35,41 @@ export default function VerificationCompleteScreen() {
 
   const updateProviderStatus = async () => {
     try {
-      // TODO: Update profile in database
-      // await supabase
-      //   .from('profiles')
-      //   .update({ verification_status: 'in_review' })
-      //   .eq('id', userId);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-      console.log('Provider verification submitted for review');
+      // Ensure all steps are marked as completed since verification is being submitted
+      // This handles cases where steps might not have been completed due to navigation or bugs
+      const { completeStep } = useProviderVerificationStore.getState();
+      for (let step = 1; step <= 9; step++) {
+        if (!isStepCompleted(step)) {
+          console.log(`[Complete Screen] Completing step ${step} that was missed`);
+          completeStep(step, { completedViaSubmission: true });
+        }
+      }
+
+      // Update profile in database
+      const { error } = await supabase
+        .from('profiles')
+        .update({ 
+          verification_status: 'in_review', // Submit for admin review, not auto-approved
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
+
+      if (error) {
+        console.error('Error updating provider status:', error);
+      } else {
+        console.log('Provider verification submitted for review');
+        
+        // Track verification completion analytics
+        await PaymentAnalyticsService.trackEvent({
+          event_type: 'payment_setup_completed',
+          user_id: user.id,
+          context: 'verification_complete',
+          metadata: { submitted_for_review_at: Date.now() }
+        });
+      }
     } catch (error) {
       console.error('Error updating provider status:', error);
     }
@@ -83,20 +123,24 @@ export default function VerificationCompleteScreen() {
 
             <View className="mt-4 space-y-2">
               <View className="flex-row items-center">
-                <Text className="text-lg mr-2">✅</Text>
+                <Text className="text-lg mr-2">{steps[1]?.isCompleted ? '✅' : '⏳'}</Text>
                 <Text className="text-sm text-muted-foreground">Identity verified</Text>
               </View>
               <View className="flex-row items-center">
-                <Text className="text-lg mr-2">✅</Text>
+                <Text className="text-lg mr-2">{steps[3]?.isCompleted ? '✅' : '⏳'}</Text>
                 <Text className="text-sm text-muted-foreground">Business information provided</Text>
               </View>
               <View className="flex-row items-center">
-                <Text className="text-lg mr-2">✅</Text>
+                <Text className="text-lg mr-2">{steps[5]?.isCompleted ? '✅' : '⏳'}</Text>
                 <Text className="text-sm text-muted-foreground">Services configured</Text>
               </View>
               <View className="flex-row items-center">
-                <Text className="text-lg mr-2">✅</Text>
+                <Text className="text-lg mr-2">{steps[8]?.isCompleted ? '✅' : '⏳'}</Text>
                 <Text className="text-sm text-muted-foreground">Terms accepted</Text>
+              </View>
+              <View className="flex-row items-center">
+                <Text className="text-lg mr-2">{steps[9]?.isCompleted ? '✅' : '⏳'}</Text>
+                <Text className="text-sm text-muted-foreground">Payment setup completed</Text>
               </View>
             </View>
           </View>
@@ -119,7 +163,7 @@ export default function VerificationCompleteScreen() {
                 • After approval, you'll gain access to your provider dashboard
               </Text>
               <Text className="text-accent-foreground text-sm">
-                • Once approved, you can start receiving bookings
+                • Your Stripe account is ready to receive payments once approved
               </Text>
             </View>
           </View>
@@ -131,7 +175,7 @@ export default function VerificationCompleteScreen() {
         className="px-5 bg-background border-t border-border"
         style={{ paddingBottom: Math.max(insets.bottom, 16) }}
       >
-        <Animated.View entering={SlideInDown.delay(800).springify()} className="mb-2">
+        <Animated.View entering={SlideInDown.delay(700).springify()} className="mb-2">
           <Button
             size="lg"
             onPress={handleContinue}
@@ -139,6 +183,19 @@ export default function VerificationCompleteScreen() {
           >
             <Text className="font-semibold text-primary-foreground">
               View Verification Status
+            </Text>
+          </Button>
+        </Animated.View>
+
+        <Animated.View entering={SlideInDown.delay(750).springify()} className="mb-2">
+          <Button
+            variant="outline"
+            size="lg"
+            onPress={() => router.back()}
+            className="w-full"
+          >
+            <Text className="font-medium">
+              Back to Payment Setup
             </Text>
           </Button>
         </Animated.View>

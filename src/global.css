@@ -39,15 +39,15 @@
     --popover: 270 5.5556% 7.0588%;
     --popover-foreground: 0 0% 75.6863%;
     --primary: 22.2973 75.5102% 61.5686%;
-    --primary-foreground: 270 5.5556% 7.0588%;
+    --primary-foreground: 0 0% 98%;
     --secondary: 180 17.3913% 45.0980%;
-    --secondary-foreground: 270 5.5556% 7.0588%;
+    --secondary-foreground: 0 0% 98%;
     --muted: 0 0% 13.3333%;
     --muted-foreground: 0 0% 53.3333%;
     --accent: 0 0% 20%;
     --accent-foreground: 0 0% 75.6863%;
     --destructive: 180 17.3913% 45.0980%;
-    --destructive-foreground: 270 5.5556% 7.0588%;
+    --destructive-foreground: 0 0% 98%;
     --border: 0 0% 13.3333%;
     --input: 0 0% 13.3333%;
     --ring: 22.2973 75.5102% 61.5686%;

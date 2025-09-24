@@ -69,6 +69,7 @@ export default function ServicesSelectionScreen() {
     servicesData,
     updateServicesData,
     completeStep,
+    completeStepAndNext,
     nextStep,
     previousStep
   } = useProviderVerificationStore();
@@ -194,9 +195,7 @@ export default function ServicesSelectionScreen() {
       await saveServicesToDatabase(user.id, selectedServices);
 
       // Mark step as completed and move to next
-      completeStep(5, { selectedServices });
-
-      nextStep();
+      completeStepAndNext(5, { selectedServices });
     } catch (error) {
       console.error('Error saving services:', error);
     }

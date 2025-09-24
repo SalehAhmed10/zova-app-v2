@@ -52,6 +52,9 @@ export const useAuth = () => {
       // Handle sign in events - fetch user profile and set role
       if (event === 'SIGNED_IN' && session?.user) {
         console.log('[Auth] User signed in:', session.user.id);
+        console.log('🔑 [Auth] JWT Token (first 50 chars):', session.access_token.substring(0, 50) + '...');
+        console.log('🔑 [Auth] Full JWT Token:', session.access_token);
+        console.log('📅 [Auth] Token expires at:', new Date(session.expires_at * 1000));
         
         // Check if email is verified
         if (!session.user.email_confirmed_at) {

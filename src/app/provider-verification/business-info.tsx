@@ -25,6 +25,7 @@ export default function BusinessInfoScreen() {
     businessData, 
     updateBusinessData, 
     completeStep, 
+    completeStepAndNext,
     nextStep,
     previousStep,
     providerId
@@ -126,10 +127,9 @@ export default function BusinessInfoScreen() {
 
       console.log('[Business Info] Database update successful');
 
-      // Mark step as completed and move to next
-      completeStep(3, data);
-      console.log('[Business Info] Step 3 completed, calling nextStep()');
-      nextStep();
+      // Mark step as completed and move to next in one atomic operation
+      console.log('[Business Info] Step 3 completed, calling completeStepAndNext()');
+      completeStepAndNext(3, data);
       
       console.log('[Business Info] Submission completed successfully');
     } catch (error) {

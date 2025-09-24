@@ -10,14 +10,69 @@ import { Select } from '@/components/ui/select';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import { useProviderVerificationStore, useProviderVerificationSelectors, useProviderVerificationHydration } from '@/stores/provider-verification';
 import { supabase } from '@/lib/supabase';
-import { uploadVerificationDocument, validateFileSize, validateFileType, checkFileExists, getSignedUrl } from '@/lib/storage';
+import { createStorageService } from '@/lib/organized-storage';
 import { testStorageBuckets } from '@/utils/storage-test';
+import { useStripeVerificationIntegration } from '@/lib/stripe-verification-integration';
+
+// Helper function to get signed URL using organized storage service
+const getDocumentSignedUrl = async (providerId: string, filePath: string): Promise<string> => {
+  if (!providerId) {
+    throw new Error('Provider ID not found');
+  }
+  
+  const storageService = createStorageService(providerId);
+  
+  // First try the provided path
+  let result = await storageService.getSignedUrl(filePath);
+  
+  if (!result.success) {
+    console.log('Document not found at provided path, trying to migrate from old path format');
+    
+    // Try to construct new organized path from old path
+    const pathParts = filePath.split('/');
+    const filename = pathParts[pathParts.length - 1];
+    
+    if (filename && (filename.includes('passport') || filename.includes('driving_license') || filename.includes('id_card'))) {
+      // This looks like a document filename, try new organized path
+      const documentType = filename.includes('passport') ? 'passport' : 
+                          filename.includes('driving_license') ? 'driving_license' : 'id_card';
+      const newPath = `providers/${providerId}/document-verification/${filename}`;
+      console.log('Trying new organized path for document:', newPath);
+      
+      result = await storageService.getSignedUrl(newPath);
+      
+      if (result.success) {
+        console.log('Found document with new organized path');
+        return result.signedUrl!;
+      }
+    }
+  }
+  
+  if (!result.success || !result.signedUrl) {
+    throw new Error(result.error || 'Failed to generate signed URL');
+  }
+  
+  return result.signedUrl;
+};
+
+// Helper function to check if file exists in storage
+const checkDocumentFileExists = async (providerId: string, filePath: string): Promise<boolean> => {
+  try {
+    // Use the same logic as getDocumentSignedUrl to try both old and new paths
+    await getDocumentSignedUrl(providerId, filePath);
+    return true;
+  } catch (error) {
+    console.error('Error checking file existence:', error);
+    return false;
+  }
+};
 
 interface DocumentForm {
   documentType: 'passport' | 'driving_license' | 'id_card';
 }
 
 interface DocumentUploadContentProps {
+  providerId: string;
   fetchingExisting: boolean;
   existingDocument: {
     document_type: string;
@@ -45,6 +100,7 @@ interface DocumentUploadContentProps {
 }
 
 const DocumentUploadContent: React.FC<DocumentUploadContentProps> = ({
+  providerId,
   fetchingExisting,
   existingDocument,
   selectedImage,
@@ -78,6 +134,8 @@ const DocumentUploadContent: React.FC<DocumentUploadContentProps> = ({
     setImageLoadError(true);
   };
 
+  const { handleProviderVerificationComplete } = useStripeVerificationIntegration();
+
   const handleRetryImage = async () => {
     if (!existingDocument || retryCount >= 2) return;
 
@@ -86,7 +144,7 @@ const DocumentUploadContent: React.FC<DocumentUploadContentProps> = ({
 
     try {
       // Try to get a fresh signed URL
-      const freshSignedUrl = await getSignedUrl(existingDocument.document_url);
+      const freshSignedUrl = await getDocumentSignedUrl(providerId, existingDocument.document_url);
       
       // Update the document with fresh URL
       if (onUpdateExistingDocument) {
@@ -322,6 +380,7 @@ const DocumentUploadContent: React.FC<DocumentUploadContentProps> = ({
     documentData, 
     updateDocumentData, 
     completeStep, 
+    completeStepAndNext,
     nextStep,
     providerId,
     currentStep
@@ -329,6 +388,7 @@ const DocumentUploadContent: React.FC<DocumentUploadContentProps> = ({
 
   const { canGoBack, previousStep } = useProviderVerificationSelectors();
   const isHydrated = useProviderVerificationHydration();
+  const { handleProviderVerificationComplete } = useStripeVerificationIntegration();
 
   // Don't render until hydrated
   if (!isHydrated) {
@@ -363,12 +423,12 @@ const DocumentUploadContent: React.FC<DocumentUploadContentProps> = ({
 
         if (data) {
           // Check if the file actually exists in storage
-          const fileExists = await checkFileExists(data.document_url);
+          const fileExists = await checkDocumentFileExists(providerId, data.document_url);
           
           if (fileExists) {
             try {
               // Get a signed URL for the document
-              const signedUrl = await getSignedUrl(data.document_url);
+              const signedUrl = await getDocumentSignedUrl(providerId, data.document_url);
               setExistingDocument({
                 ...data,
                 document_url: signedUrl
@@ -519,29 +579,28 @@ const DocumentUploadContent: React.FC<DocumentUploadContentProps> = ({
       throw new Error('Provider ID not found. Please try logging in again.');
     }
 
-    // Validate file type
-    if (!validateFileType(uri)) {
+    // Create organized storage service
+    const storageService = createStorageService(providerId);
+
+    // Validate file type by extension
+    const fileExtension = uri.split('.').pop()?.toLowerCase() || '';
+    const validExtensions = ['jpg', 'jpeg', 'png', 'pdf'];
+    if (!validExtensions.includes(fileExtension)) {
       throw new Error('Invalid file type. Please upload a JPG, PNG, or PDF file.');
     }
 
-    // Validate file size
-    const isValidSize = await validateFileSize(uri);
-    if (!isValidSize) {
-      throw new Error('File size too large. Please upload a file smaller than 10MB.');
-    }
-
-    // Upload to Supabase Storage
-    const result = await uploadVerificationDocument(
+    // Upload using organized storage service
+    const result = await storageService.uploadIdentityDocument(
       uri,
       documentType as 'passport' | 'driving_license' | 'id_card',
-      providerId
+      Date.now()
     );
 
     if (!result.success) {
       throw new Error(result.error || 'Failed to upload document');
     }
 
-    return result.url!;
+    return result.filePath || result.url!; // Return file path for signed URL generation
   };
 
   const onSubmit = async (data: DocumentForm) => {
@@ -573,14 +632,12 @@ const DocumentUploadContent: React.FC<DocumentUploadContentProps> = ({
         console.error('Profile update error:', profileError);
       }
 
-      // Mark step as completed and move to next
-      completeStep(1, { 
+      // Mark step as completed and move to next in one atomic operation
+      console.log('Step 1 completed with existing document, proceeding to next step');
+      completeStepAndNext(1, { 
         documentType: existingDocument.document_type, 
         documentUrl: existingDocument.document_url 
       });
-      
-      console.log('Step 1 completed, proceeding to next step');
-      nextStep();
       return;
     }
 
@@ -637,8 +694,29 @@ const DocumentUploadContent: React.FC<DocumentUploadContentProps> = ({
         // Don't throw here as document was saved successfully
       }
 
-      // Mark step as completed and move to next
-      completeStep(1, { documentType: data.documentType, documentUrl });
+      // Mark step as completed and move to next in one atomic operation
+      completeStepAndNext(1, { documentType: data.documentType, documentUrl });
+      
+      // 🔗 Integrate with Stripe verification (PROVIDERS ONLY - NOT FOR CUSTOMERS)
+      // This automatically uploads provider documents to Stripe for payment compliance
+      // Customers have a simple booking experience without complex verification
+      try {
+        console.log('🔗 [Stripe Integration] Uploading provider document to Stripe for payment compliance...');
+        const stripeResult = await handleProviderVerificationComplete(providerId, {
+          documentType: data.documentType,
+          documentUrl
+        });
+        
+        if (stripeResult.success) {
+          console.log('✅ [Stripe Integration] Provider document uploaded to Stripe successfully');
+        } else {
+          console.log('⚠️ [Stripe Integration] Failed to upload to Stripe:', stripeResult.error);
+          // Don't fail the verification - this is additional integration
+        }
+      } catch (stripeError) {
+        console.log('⚠️ [Stripe Integration] Exception during Stripe upload:', stripeError);
+        // Don't fail the verification - this is additional integration
+      }
       
       // Refetch existing document to update UI
       const { data: refetchData, error: refetchError } = await supabase
@@ -651,7 +729,7 @@ const DocumentUploadContent: React.FC<DocumentUploadContentProps> = ({
 
       if (!refetchError && refetchData) {
         // Get a signed URL for the newly uploaded document
-        const signedUrl = await getSignedUrl(refetchData.document_url);
+        const signedUrl = await getDocumentSignedUrl(providerId, refetchData.document_url);
         setExistingDocument({
           ...refetchData,
           document_url: signedUrl
@@ -670,7 +748,8 @@ const DocumentUploadContent: React.FC<DocumentUploadContentProps> = ({
           {
             text: 'Continue',
             onPress: () => {
-              nextStep();
+              // Navigation already handled by completeStepAndNext above
+              console.log('Document upload confirmation acknowledged');
             },
           },
         ]
@@ -702,6 +781,8 @@ const DocumentUploadContent: React.FC<DocumentUploadContentProps> = ({
           Upload a valid ID document to verify your identity
         </Text>
       </Animated.View>
+
+
 
       {/* Document Type Selection */}
       <Animated.View entering={SlideInDown.delay(600).springify()} className="mb-8">
@@ -767,6 +848,7 @@ const DocumentUploadContent: React.FC<DocumentUploadContentProps> = ({
         </Text>
 
         <DocumentUploadContent
+          providerId={providerId}
           fetchingExisting={fetchingExisting}
           existingDocument={existingDocument}
           selectedImage={selectedImage}
