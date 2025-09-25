@@ -1,12 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, ScrollView, RefreshControl, TouchableOpacity, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Text } from '@/components/ui/text';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/lib/supabase';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
+import {
+  useProviderEarnings,
+  useProviderPayouts,
+  useProviderEarningsAnalytics
+} from '@/hooks/useProfileData';
+import { supabase } from '@/lib/supabase';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { THEME } from '@/lib/theme';
+import {
+  LineChart,
+  BarChart,
+  PieChart,
+  ProgressChart
+} from 'react-native-chart-kit';
 
 interface EarningsData {
   totalEarnings: number;
@@ -27,82 +41,31 @@ interface PayoutHistoryItem {
 
 export default function ProviderEarningsScreen() {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
+  const { isDarkColorScheme } = useColorScheme();
   const [refreshing, setRefreshing] = useState(false);
-  const [earnings, setEarnings] = useState<EarningsData>({
-    totalEarnings: 0,
-    thisMonth: 0,
-    pendingPayouts: 0,
-    completedBookings: 0,
-    nextPayoutDate: 'N/A'
-  });
-  const [payoutHistory, setPayoutHistory] = useState<PayoutHistoryItem[]>([]);
+
+  // React Query hooks
+  const {
+    data: earnings,
+    isLoading: earningsLoading,
+    refetch: refetchEarnings
+  } = useProviderEarnings(user?.id);
+
+  const {
+    data: payoutHistory,
+    isLoading: payoutsLoading
+  } = useProviderPayouts(user?.id);
+
+  const {
+    data: analytics,
+    isLoading: analyticsLoading
+  } = useProviderEarningsAnalytics(user?.id);
+
   const [stripeStatus, setStripeStatus] = useState<any>(null);
 
   useEffect(() => {
-    loadEarningsData();
     checkStripeStatus();
   }, []);
-
-  const loadEarningsData = async () => {
-    if (!user?.id) return;
-
-    try {
-      // Get provider payouts
-      const { data: payouts, error: payoutsError } = await supabase
-        .from('provider_payouts')
-        .select('*')
-        .eq('provider_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (payoutsError) throw payoutsError;
-
-      // Get completed bookings count
-      const { count: bookingsCount } = await supabase
-        .from('bookings')
-        .select('*', { count: 'exact', head: true })
-        .eq('provider_id', user.id)
-        .eq('status', 'completed');
-
-      if (payouts) {
-        const totalEarnings = payouts
-          .filter(p => p.status === 'paid')
-          .reduce((sum, p) => sum + p.amount, 0);
-
-        const thisMonth = payouts
-          .filter(p => {
-            const payoutDate = new Date(p.created_at);
-            const now = new Date();
-            return payoutDate.getMonth() === now.getMonth() && 
-                   payoutDate.getFullYear() === now.getFullYear() &&
-                   p.status === 'paid';
-          })
-          .reduce((sum, p) => sum + p.amount, 0);
-
-        const pendingAmount = payouts
-          .filter(p => p.status === 'pending' || p.status === 'processing')
-          .reduce((sum, p) => sum + p.amount, 0);
-
-        // Calculate next payout date (next Monday)
-        const nextMonday = getNextMonday();
-
-        setEarnings({
-          totalEarnings,
-          thisMonth,
-          pendingPayouts: pendingAmount,
-          completedBookings: bookingsCount || 0,
-          nextPayoutDate: nextMonday.toLocaleDateString()
-        });
-
-        setPayoutHistory(payouts.slice(0, 10)); // Last 10 payouts
-      }
-    } catch (error) {
-      console.error('Error loading earnings data:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
 
   const checkStripeStatus = async () => {
     try {
@@ -123,18 +86,13 @@ export default function ProviderEarningsScreen() {
     }
   };
 
-  const getNextMonday = () => {
-    const today = new Date();
-    const daysUntilMonday = (7 - today.getDay() + 1) % 7;
-    const nextMonday = new Date(today);
-    nextMonday.setDate(today.getDate() + (daysUntilMonday === 0 ? 7 : daysUntilMonday));
-    return nextMonday;
-  };
-
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    loadEarningsData();
-    checkStripeStatus();
+    await Promise.all([
+      refetchEarnings(),
+      checkStripeStatus()
+    ]);
+    setRefreshing(false);
   };
 
   const formatCurrency = (amount: number) => {
@@ -163,6 +121,26 @@ export default function ProviderEarningsScreen() {
 
   const isStripeReady = stripeStatus?.charges_enabled && stripeStatus?.details_submitted;
 
+  // Chart configuration
+  const chartConfig = {
+    backgroundColor: isDarkColorScheme ? THEME.dark.background : THEME.light.background,
+    backgroundGradientFrom: isDarkColorScheme ? THEME.dark.background : THEME.light.background,
+    backgroundGradientTo: isDarkColorScheme ? THEME.dark.background : THEME.light.background,
+    decimalPlaces: 0,
+    color: (opacity = 1) => isDarkColorScheme ? `rgba(255, 255, 255, ${opacity})` : `rgba(0, 0, 0, ${opacity})`,
+    labelColor: (opacity = 1) => isDarkColorScheme ? `rgba(255, 255, 255, ${opacity})` : `rgba(0, 0, 0, ${opacity})`,
+    style: {
+      borderRadius: 16,
+    },
+    propsForDots: {
+      r: '6',
+      strokeWidth: '2',
+      stroke: isDarkColorScheme ? THEME.dark.primary : THEME.light.primary,
+    },
+  };
+
+  const screenWidth = Dimensions.get('window').width - 32; // Account for padding
+
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       {/* Header */}
@@ -174,7 +152,7 @@ export default function ProviderEarningsScreen() {
         <View className="w-6" />
       </View>
 
-      <ScrollView 
+      <ScrollView
         className="flex-1"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
@@ -205,39 +183,123 @@ export default function ProviderEarningsScreen() {
             <Card>
               <CardContent className="p-4">
                 <Text className="text-sm text-muted-foreground">Total Earnings</Text>
-                <Text className="text-2xl font-bold text-foreground">
-                  {formatCurrency(earnings.totalEarnings)}
-                </Text>
+                {earningsLoading ? (
+                  <Skeleton className="w-20 h-8 mt-2" />
+                ) : (
+                  <Text className="text-2xl font-bold text-foreground">
+                    {formatCurrency(earnings?.totalEarnings || 0)}
+                  </Text>
+                )}
               </CardContent>
             </Card>
 
             <Card>
               <CardContent className="p-4">
                 <Text className="text-sm text-muted-foreground">This Month</Text>
-                <Text className="text-2xl font-bold text-foreground">
-                  {formatCurrency(earnings.thisMonth)}
-                </Text>
+                {earningsLoading ? (
+                  <Skeleton className="w-20 h-8 mt-2" />
+                ) : (
+                  <Text className="text-2xl font-bold text-foreground">
+                    {formatCurrency(earnings?.thisMonth || 0)}
+                  </Text>
+                )}
               </CardContent>
             </Card>
 
             <Card>
               <CardContent className="p-4">
                 <Text className="text-sm text-muted-foreground">Pending Payouts</Text>
-                <Text className="text-2xl font-bold text-yellow-600">
-                  {formatCurrency(earnings.pendingPayouts)}
-                </Text>
+                {earningsLoading ? (
+                  <Skeleton className="w-20 h-8 mt-2" />
+                ) : (
+                  <Text className="text-2xl font-bold text-yellow-600">
+                    {formatCurrency(earnings?.pendingPayouts || 0)}
+                  </Text>
+                )}
               </CardContent>
             </Card>
 
             <Card>
               <CardContent className="p-4">
                 <Text className="text-sm text-muted-foreground">Completed Bookings</Text>
-                <Text className="text-2xl font-bold text-foreground">
-                  {earnings.completedBookings}
-                </Text>
+                {earningsLoading ? (
+                  <Skeleton className="w-20 h-8 mt-2" />
+                ) : (
+                  <Text className="text-2xl font-bold text-foreground">
+                    {earnings?.completedBookings || 0}
+                  </Text>
+                )}
               </CardContent>
             </Card>
           </View>
+
+          {/* Monthly Earnings Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Earnings Trend</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {analyticsLoading ? (
+                <Skeleton className="w-full h-64" />
+              ) : analytics?.monthlyEarnings && analytics.monthlyEarnings.length > 0 ? (
+                <LineChart
+                  data={{
+                    labels: analytics.monthlyEarnings.map(d => d.month),
+                    datasets: [{
+                      data: analytics.monthlyEarnings.map(d => d.value),
+                    }],
+                  }}
+                  width={screenWidth}
+                  height={220}
+                  chartConfig={chartConfig}
+                  bezier
+                  style={{
+                    marginVertical: 8,
+                    borderRadius: 16,
+                  }}
+                />
+              ) : (
+                <View className="items-center justify-center py-8">
+                  <Text className="text-muted-foreground">No earnings data yet</Text>
+                </View>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Service Performance Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Top Performing Services</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {analyticsLoading ? (
+                <Skeleton className="w-full h-64" />
+              ) : analytics?.servicePerformance && analytics.servicePerformance.length > 0 ? (
+                <BarChart
+                  data={{
+                    labels: analytics.servicePerformance.slice(0, 5).map(s => s.service.substring(0, 10) + (s.service.length > 10 ? '...' : '')),
+                    datasets: [{
+                      data: analytics.servicePerformance.slice(0, 5).map(s => s.revenue),
+                    }],
+                  }}
+                  width={screenWidth}
+                  height={220}
+                  yAxisLabel="£"
+                  yAxisSuffix=""
+                  chartConfig={chartConfig}
+                  showValuesOnTopOfBars
+                  style={{
+                    marginVertical: 8,
+                    borderRadius: 16,
+                  }}
+                />
+              ) : (
+                <View className="items-center justify-center py-8">
+                  <Text className="text-muted-foreground">No service data yet</Text>
+                </View>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Next Payout Info */}
           <Card>
@@ -249,13 +311,13 @@ export default function ProviderEarningsScreen() {
                 <View>
                   <Text className="text-sm text-muted-foreground">Scheduled for</Text>
                   <Text className="text-lg font-semibold text-foreground">
-                    {earnings.nextPayoutDate}
+                    {earnings?.nextPayoutDate || 'N/A'}
                   </Text>
                 </View>
                 <View className="items-end">
                   <Text className="text-sm text-muted-foreground">Amount</Text>
                   <Text className="text-lg font-semibold text-primary">
-                    {formatCurrency(earnings.pendingPayouts)}
+                    {formatCurrency(earnings?.pendingPayouts || 0)}
                   </Text>
                 </View>
               </View>
@@ -271,9 +333,15 @@ export default function ProviderEarningsScreen() {
               <CardTitle>Recent Payouts</CardTitle>
             </CardHeader>
             <CardContent>
-              {payoutHistory.length > 0 ? (
+              {payoutsLoading ? (
                 <View className="space-y-3">
-                  {payoutHistory.map((payout) => (
+                  {[1, 2, 3].map(i => (
+                    <Skeleton key={i} className="w-full h-12" />
+                  ))}
+                </View>
+              ) : payoutHistory && payoutHistory.length > 0 ? (
+                <View className="space-y-3">
+                  {payoutHistory.slice(0, 10).map((payout) => (
                     <View key={payout.id} className="flex-row items-center justify-between py-2 border-b border-border last:border-b-0">
                       <View className="flex-1">
                         <Text className="font-medium text-foreground">

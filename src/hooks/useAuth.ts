@@ -484,12 +484,21 @@ export const useAuth = () => {
       setUser(null);
       setAuthenticated(false);
       
+      // Clear profile store on logout
+      const { useProfileStore } = await import('@/stores/useProfileStore');
+      useProfileStore.getState().clear();
+      
       return { success: true };
     } catch (error: any) {
       console.error('[Auth] Unexpected sign out error:', error);
       // Still clear local state even if Supabase call fails
       setUser(null);
       setAuthenticated(false);
+      
+      // Clear profile store on logout even on error
+      const { useProfileStore } = await import('@/stores/useProfileStore');
+      useProfileStore.getState().clear();
+      
       return { success: true }; // Return success to prevent UI issues
     } finally {
       setLoading(false);

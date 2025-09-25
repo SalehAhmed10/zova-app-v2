@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.4"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       booking_deposits: {
@@ -616,6 +591,7 @@ export type Database = {
         Row: {
           address: string | null
           auto_confirm_bookings: boolean | null
+          availability_message: string | null
           availability_status:
             | Database["public"]["Enums"]["user_availability"]
             | null
@@ -639,6 +615,7 @@ export type Database = {
           is_business_visible: boolean | null
           is_verified: boolean | null
           last_name: string
+          pause_until: string | null
           phone: string | null
           phone_number: string | null
           postal_code: string | null
@@ -670,6 +647,7 @@ export type Database = {
         Insert: {
           address?: string | null
           auto_confirm_bookings?: boolean | null
+          availability_message?: string | null
           availability_status?:
             | Database["public"]["Enums"]["user_availability"]
             | null
@@ -693,6 +671,7 @@ export type Database = {
           is_business_visible?: boolean | null
           is_verified?: boolean | null
           last_name?: string
+          pause_until?: string | null
           phone?: string | null
           phone_number?: string | null
           postal_code?: string | null
@@ -724,6 +703,7 @@ export type Database = {
         Update: {
           address?: string | null
           auto_confirm_bookings?: boolean | null
+          availability_message?: string | null
           availability_status?:
             | Database["public"]["Enums"]["user_availability"]
             | null
@@ -747,6 +727,7 @@ export type Database = {
           is_business_visible?: boolean | null
           is_verified?: boolean | null
           last_name?: string
+          pause_until?: string | null
           phone?: string | null
           phone_number?: string | null
           postal_code?: string | null
@@ -2226,7 +2207,7 @@ export type Database = {
         }[]
       }
       get_nearby_sos_providers: {
-        Args: { radius_km?: number; user_lat: number; user_lng: number }
+        Args: { user_lat: number; user_lng: number }
         Returns: {
           allows_sos_booking: boolean
           auto_confirm_bookings: boolean
@@ -2240,9 +2221,19 @@ export type Database = {
           is_business_visible: boolean
           is_home_service: boolean
           last_name: string
-          price_type: Database["public"]["Enums"]["price_type"]
+          price_type: string
           provider_id: string
           title: string
+        }[]
+      }
+      get_portfolio_signed_urls: {
+        Args: { provider_id: string }
+        Returns: {
+          alt_text: string
+          id: string
+          image_url: string
+          signed_url: string
+          sort_order: number
         }[]
       }
       get_proj4_from_srid: {
@@ -3577,7 +3568,7 @@ export type Database = {
       price_type: "fixed" | "hourly"
       user_availability: "available" | "busy" | "unavailable"
       user_role: "customer" | "provider" | "admin" | "super-admin"
-      verification_status: "pending" | "approved" | "rejected"
+      verification_status: "pending" | "approved" | "rejected" | "in_review"
     }
     CompositeTypes: {
       geometry_dump: {
@@ -3711,9 +3702,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       booking_status: [
@@ -3729,7 +3717,7 @@ export const Constants = {
       price_type: ["fixed", "hourly"],
       user_availability: ["available", "busy", "unavailable"],
       user_role: ["customer", "provider", "admin", "super-admin"],
-      verification_status: ["pending", "approved", "rejected"],
+      verification_status: ["pending", "approved", "rejected", "in_review"],
     },
   },
 } as const

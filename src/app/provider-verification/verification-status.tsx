@@ -13,6 +13,7 @@ import { useColorScheme } from '@/lib/useColorScheme';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { router } from 'expo-router';
+import { useProfileStore } from '@/stores/useProfileStore';
 
 // Global debouncing store to persist across component remounts
 const verificationDebounceMap = new Map<string, { lastStatus: string | null; lastTime: number }>();
@@ -314,16 +315,19 @@ const useVerificationSubscription = (userId: string | undefined, queryClient: an
             console.log(`[VerificationStatus] Status update received: ${newStatus} (no change)`);
           }
 
+          // Update profile store to keep it in sync
+          useProfileStore.getState().setProfile(userId, newStatus as VerificationStatus);
+
           // Update our last known status
           lastKnownStatusRef.current = newStatus;
 
           if (newStatus === 'approved') {
             console.log('[VerificationStatus] ✅ Status changed to APPROVED');
             // Don't auto-redirect - let user click "Go to Dashboard" button for better UX
-          } else {
-            // Invalidate the query to ensure fresh data
-            queryClient.invalidateQueries({ queryKey: ['verification-status', userId] });
           }
+
+          // Always invalidate the query to ensure fresh data for all status changes
+          queryClient.invalidateQueries({ queryKey: ['verification-status', userId] });
         }
       )
       .subscribe((status, err) => {
@@ -414,6 +418,14 @@ export default function VerificationStatusScreen() {
   }, [user?.id, refetch]);
 
   const currentStatus = verificationData?.status || 'pending';
+
+  // Sync profile store with React Query data
+  React.useEffect(() => {
+    if (user?.id && verificationData?.status) {
+      console.log('[VerificationStatus] Syncing profile store with status:', verificationData.status);
+      useProfileStore.getState().setProfile(user.id, verificationData.status);
+    }
+  }, [user?.id, verificationData?.status]);
 
   // Set up real-time subscription
   useVerificationSubscription(user?.id, queryClient, currentStatus);

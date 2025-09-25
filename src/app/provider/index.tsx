@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, ScrollView, Platform, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, ScrollView, Platform, TouchableOpacity, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -8,16 +8,22 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { THEME } from '@/lib/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import {
   useProfile,
-  useProfileStats,
-  useUserBookings
+  useProviderStats,
+  useUserBookings,
+  useBusinessAvailability,
+  useUpdateBusinessAvailability
 } from '@/hooks/useProfileData';
 import { PaymentSetupStatusCard } from '@/components/providers/PaymentSetupStatusCard';
 import { usePaymentSetupNudge } from '@/hooks/usePaymentSetupNudge';
 import { StorageDebugPanel } from '@/components/StorageDebugPanel';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 // Today's Stats Component  
 const TodaysStat = ({
@@ -33,7 +39,7 @@ const TodaysStat = ({
   trend?: 'up' | 'down' | 'neutral';
   isLoading?: boolean;
 }) => (
-  <View className="flex-1 bg-accent/50 rounded-2xl p-5 min-w-[110px]">
+  <View className="flex-1 bg-muted/50 rounded-2xl p-5 min-w-[110px]">
     <View className="items-center">
       <Text className="text-xl mb-2">{icon}</Text>
       {isLoading ? (
@@ -62,9 +68,20 @@ const TodaysStat = ({
 
 export default function ProviderDashboard() {
   const { user } = useAuth();
+  const { colorScheme } = useColorScheme();
   const { data: profileData, isLoading: profileLoading } = useProfile(user?.id);
-  const { data: statsData, isLoading: statsLoading } = useProfileStats(user?.id);
+  const { data: statsData, isLoading: statsLoading } = useProviderStats(user?.id);
   const { data: bookingsData, isLoading: bookingsLoading } = useUserBookings(user?.id);
+  const { data: availabilityData, isLoading: availabilityLoading } = useBusinessAvailability(user?.id);
+  const updateAvailability = useUpdateBusinessAvailability();
+
+  // Business pause state
+  const [showPauseModal, setShowPauseModal] = React.useState(false);
+  const [pauseMessage, setPauseMessage] = React.useState('');
+  const [pauseUntil, setPauseUntil] = React.useState('');
+  const [showDatePicker, setShowDatePicker] = React.useState(false);
+  const [selectedDate, setSelectedDate] = React.useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)); // Default to 1 week from now
+  const [isIndefinitePause, setIsIndefinitePause] = React.useState(false);
 
   // Payment setup nudge functionality
   const { 
@@ -105,7 +122,7 @@ export default function ProviderDashboard() {
       <ScrollView className="flex-1">
         {/* Header with Gradient */}
         <LinearGradient
-          colors={['#EC6751', '#F4A261']}
+          colors={[THEME[colorScheme].gradientStart, THEME[colorScheme].gradientEnd]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 24 }}
@@ -136,7 +153,7 @@ export default function ProviderDashboard() {
                   <AvatarImage source={{ uri: profileData.avatar_url }} />
                 ) : null}
                 <AvatarFallback className="bg-muted/50">
-                  <Text className="text-2xl text-foreground font-bold">
+                  <Text className="text-2xl text-primary font-bold">
                     {profileData?.first_name?.[0]?.toUpperCase() ||
                       profileData?.email?.[0]?.toUpperCase() || '💼'}
                   </Text>
@@ -146,11 +163,18 @@ export default function ProviderDashboard() {
           </View>
 
           {/* Business Status Badge */}
-          <View className="bg-muted/30 px-4 py-2 rounded-full self-start">
-            <Text className="text-foreground font-medium text-sm">
-              🟢 Available for bookings
-            </Text>
-          </View>
+          <TouchableOpacity
+            onPress={() => setShowPauseModal(true)}
+            className="bg-muted/30 dark:bg-muted/50 px-4 py-2 rounded-full self-start"
+          >
+            {availabilityLoading ? (
+              <Skeleton className="w-32 h-5" />
+            ) : (
+              <Text className="text-primary-foreground font-medium text-sm">
+                {availabilityData?.isPaused ? '⏸️ Paused' : '🟢 Available for bookings'}
+              </Text>
+            )}
+          </TouchableOpacity>
         </LinearGradient>
 
         {/* Today's Overview */}
@@ -164,21 +188,21 @@ export default function ProviderDashboard() {
                 <View className="flex-row gap-3">
                   <TodaysStat
                     icon="📅"
-                    value={bookingsLoading ? '-' : '3'}
-                    label="Appointments"
+                    value={statsLoading ? '-' : (statsData?.todays_bookings || 0).toString()}
+                    label="Today's Appointments"
                     trend="up"
-                    isLoading={bookingsLoading}
+                    isLoading={statsLoading}
                   />
                   <TodaysStat
                     icon="💰"
-                    value={statsLoading ? '-' : '$420'}
-                    label="Expected"
+                    value={statsLoading ? '-' : `£${(statsData?.this_month_earnings || 0).toFixed(0)}`}
+                    label="This Month"
                     trend="up"
                     isLoading={statsLoading}
                   />
                   <TodaysStat
                     icon="⭐"
-                    value={statsLoading ? '-' : (statsData?.avg_rating || 4.9).toFixed(1)}
+                    value={statsLoading ? '-' : (statsData?.avg_rating || 0).toString()}
                     label="Rating"
                     trend="neutral"
                     isLoading={statsLoading}
@@ -189,9 +213,56 @@ export default function ProviderDashboard() {
           </Card>
         </View>
 
-        {/* Payment Setup Status */}
+        {/* Business Management Controls */}
         <View className="px-4 mb-6">
-          <PaymentSetupStatusCard userId={user?.id || ''} />
+          <Text className="text-lg font-bold text-foreground mb-4">Business Controls</Text>
+          <View className="gap-3">
+            {/* Service Management Quick Access */}
+            <Card className="bg-card">
+              <CardContent className="p-4">
+                <TouchableOpacity
+                  onPress={() => router.push('/provider/profile')}
+                  className="flex-row items-center justify-between"
+                >
+                  <View className="flex-row items-center">
+                    <Text className="text-xl mr-3">⚙️</Text>
+                    <View>
+                      <Text className="font-semibold text-foreground">
+                        Service Management
+                      </Text>
+                      <Text className="text-muted-foreground text-sm">
+                        Enable/disable services quickly
+                      </Text>
+                    </View>
+                  </View>
+                  <Text className="text-muted-foreground text-lg">›</Text>
+                </TouchableOpacity>
+              </CardContent>
+            </Card>
+
+            {/* Availability Settings */}
+            <Card className="bg-card">
+              <CardContent className="p-4">
+                <TouchableOpacity
+                  onPress={() => router.push('/provider/calendar')}
+                  className="flex-row items-center justify-between"
+                >
+                  <View className="flex-row items-center">
+                    <Text className="text-xl mr-3">🕒</Text>
+                    <View>
+                      <Text className="font-semibold text-foreground">
+                        Availability Settings
+                      </Text>
+                      <Text className="text-muted-foreground text-sm">
+                        Set working hours & breaks
+                      </Text>
+                    </View>
+                  </View>
+                  <Text className="text-muted-foreground text-lg">›</Text>
+                </TouchableOpacity>
+              </CardContent>
+            </Card>
+          </View>
         </View>
 
         {/* Quick Actions */}
@@ -213,7 +284,7 @@ export default function ProviderDashboard() {
                 </Card>
               </TouchableOpacity>
               
-              <TouchableOpacity className="flex-1" onPress={() => router.push('/provider/services')}>
+              <TouchableOpacity className="flex-1" onPress={() => router.push('/provider/profile')}>
                 <Card className='bg-card'>
                   <CardContent className=" p-4 items-center">
                     <Text className="text-xl mb-2">➕</Text>
@@ -373,7 +444,7 @@ export default function ProviderDashboard() {
           <Card>
             <CardContent className="p-4">
               <View className="gap-4">
-                <TouchableOpacity className="flex-row items-center" onPress={() => router.push('/provider/services')}>
+                <TouchableOpacity className="flex-row items-center" onPress={() => router.push('/provider/profile')}>
                   <View className="w-10 h-10 bg-primary/10 rounded-full items-center justify-center mr-3">
                     <Text className="text-lg">✏️</Text>
                   </View>
@@ -384,7 +455,7 @@ export default function ProviderDashboard() {
                   <Text className="text-muted-foreground">→</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity className="flex-row items-center" onPress={() => router.push('/provider/services')}>
+                <TouchableOpacity className="flex-row items-center" onPress={() => router.push('/provider/profile')}>
                   <View className="w-10 h-10 bg-accent/50 rounded-full items-center justify-center mr-3">
                     <Text className="text-lg">📋</Text>
                   </View>
@@ -472,7 +543,130 @@ export default function ProviderDashboard() {
       </ScrollView>
       
       {/* Debug Panel - Only in development */}
-      {__DEV__ && <StorageDebugPanel />}
+      {/* {__DEV__ && <StorageDebugPanel />} */}
+
+      {/* Business Pause Modal */}
+      {showPauseModal && (
+        <View className="absolute inset-0 bg-black/50 justify-center items-center p-4">
+          <View className="bg-background rounded-lg p-6 w-full max-w-sm">
+            <Text className="text-lg font-bold text-foreground mb-4">
+              {availabilityData?.isPaused ? 'Resume Business' : 'Pause Business'}
+            </Text>
+            
+            {!availabilityData?.isPaused && (
+              <View className="mb-4 gap-4">
+                <View>
+                  <Text className="text-sm text-muted-foreground mb-2">
+                    Pause duration
+                  </Text>
+                  <View className="gap-3">
+                    <TouchableOpacity
+                      onPress={() => setIsIndefinitePause(!isIndefinitePause)}
+                      className="flex-row items-center p-2 -m-2"
+                      activeOpacity={0.7}
+                    >
+                      <View className={cn(
+                        'w-5 h-5 border-2 rounded mr-3 items-center justify-center',
+                        isIndefinitePause ? 'bg-primary border-primary' : 'border-muted-foreground'
+                      )}>
+                        {isIndefinitePause && <Text className="text-primary-foreground text-xs">✓</Text>}
+                      </View>
+                      <Text className="text-foreground">Pause indefinitely</Text>
+                    </TouchableOpacity>
+
+                    {!isIndefinitePause && (
+                      <TouchableOpacity
+                        onPress={() => setShowDatePicker(true)}
+                        className="bg-card border border-border rounded-lg p-3"
+                        activeOpacity={0.7}
+                      >
+                        <Text className="text-foreground">
+                          Resume on: {selectedDate.toLocaleDateString('en-GB', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+
+                <View>
+                  <Text className="text-sm text-muted-foreground mb-2">
+                    Custom message (optional)
+                  </Text>
+                  <Textarea
+                    placeholder="e.g., On vacation until next week"
+                    value={pauseMessage}
+                    onChangeText={setPauseMessage}
+                    className="min-h-20"
+                  />
+                </View>
+              </View>
+            )}
+
+            <View className="flex-row gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onPress={() => {
+                  setShowPauseModal(false);
+                  setPauseMessage('');
+                  setPauseUntil('');
+                  setIsIndefinitePause(false);
+                  setSelectedDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)); // Reset to default
+                }}
+              >
+                <Text>Cancel</Text>
+              </Button>
+              <Button
+                className="flex-1"
+                onPress={async () => {
+                  if (user?.id) {
+                    try {
+                      await updateAvailability.mutateAsync({
+                        providerId: user.id,
+                        isPaused: !availabilityData?.isPaused,
+                        availabilityMessage: pauseMessage || undefined,
+                        pauseUntil: availabilityData?.isPaused ? undefined : 
+                          (isIndefinitePause ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() : selectedDate.toISOString()),
+                      });
+                      setShowPauseModal(false);
+                      setPauseMessage('');
+                      setPauseUntil('');
+                      setIsIndefinitePause(false);
+                      setSelectedDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+                    } catch (error) {
+                      console.error('Error updating availability:', error);
+                    }
+                  }
+                }}
+                disabled={updateAvailability.isPending}
+              >
+                <Text>{availabilityData?.isPaused ? 'Resume' : 'Pause'}</Text>
+              </Button>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* Date Picker Modal */}
+      {showDatePicker && (
+        <DateTimePicker
+          value={selectedDate}
+          mode="date"
+          display="default"
+          minimumDate={new Date()}
+          onChange={(event, date) => {
+            setShowDatePicker(false);
+            if (date) {
+              setSelectedDate(date);
+            }
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }

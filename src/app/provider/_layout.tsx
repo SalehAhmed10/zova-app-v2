@@ -6,7 +6,7 @@ import { useColorScheme } from '@/lib/useColorScheme';
 import { THEME } from '@/lib/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfileSync } from '@/hooks/useProfileSync';
-import { useProfileStore } from '@/stores/useProfileStore';
+import { useProfileStore, useProfileHydration } from '@/stores/useProfileStore';
 
 export default function ProviderLayout() {
   const { isDarkColorScheme } = useColorScheme();
@@ -16,41 +16,57 @@ export default function ProviderLayout() {
 
   useProfileSync(user?.id); // 🔥 keeps Zustand in sync with Supabase
   const verificationStatus = useProfileStore((s) => s.verificationStatus);
+  const isHydrated = useProfileHydration();
 
-  console.log('[ProviderLayout] Current verification status:', verificationStatus);
+  console.log('[ProviderLayout] Current verification status:', verificationStatus, 'Hydrated:', isHydrated);
 
-  // Security timeout - if no verification status after 10 seconds, redirect
+  // Wait for hydration before making security decisions
+  if (!isHydrated) {
+    console.log('[ProviderLayout] Waiting for store hydration...');
+    return null; // Show nothing while hydrating
+  }
+
+  // Security timeout - if no verification status after 5 seconds of being hydrated, redirect
   React.useEffect(() => {
+    if (!isHydrated) return; // Don't start timeout until hydrated
+
     const timeout = setTimeout(() => {
       if (!verificationStatus) {
-        console.warn('[ProviderLayout] Security timeout: No verification status after 10s, redirecting');
+        console.warn('[ProviderLayout] Security timeout: No verification status after hydration + 5s, redirecting');
         router.replace("/provider-verification/verification-status" as any);
       }
-    }, 10000);
+    }, 5000); // Reduced from 10s since we're already hydrated
 
     return () => clearTimeout(timeout);
-  }, [verificationStatus, router]);
+  }, [isHydrated, verificationStatus, router]);
 
   useEffect(() => {
     console.log('[ProviderLayout] useEffect triggered, verificationStatus:', verificationStatus);
-    // Always redirect if not explicitly approved
-    if (verificationStatus !== "approved") {
+    // Only redirect if we have a definitive non-approved status (not null/undefined)
+    // Allow time for the profile store to be populated from persistence or sync
+    if (verificationStatus !== null && verificationStatus !== "approved") {
       console.log('[ProviderLayout] Status not approved, redirecting to verification status');
       router.replace("/provider-verification/verification-status" as any);
-    } else {
+    } else if (verificationStatus === "approved") {
       console.log('[ProviderLayout] Status is approved, showing provider dashboard');
+    } else {
+      console.log('[ProviderLayout] Status is null, waiting for sync...');
     }
   }, [verificationStatus, router]);
 
-  // Show loading while checking verification status
-  if (!verificationStatus) {
+  // Show loading while checking verification status (after hydration)
+  if (verificationStatus === null) {
+    console.log('[ProviderLayout] Verification status is null, showing loading state');
     return null; // or loading component
   }
 
   // Only render tabs if approved
   if (verificationStatus !== "approved") {
-    return null; // Guard will redirect
+    console.log('[ProviderLayout] Verification status not approved, redirect will be handled by useEffect');
+    return null; // Guard will redirect via useEffect
   }
+
+  console.log('[ProviderLayout] Rendering tabs: Home, Calendar, Bookings, Earnings, Profile');
 
   return (
     <Tabs
@@ -90,11 +106,11 @@ export default function ProviderLayout() {
           }}
         />
         <Tabs.Screen
-          name="services"
+          name="bookings"
           options={{
-            title: 'Services',
+            title: 'Bookings',
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name="list" size={size} color={color} />
+              <Ionicons name="clipboard" size={size} color={color} />
             ),
           }}
         />
@@ -103,7 +119,7 @@ export default function ProviderLayout() {
           options={{
             title: 'Earnings',
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name="trending-up" size={size} color={color} />
+              <Ionicons name="cash" size={size} color={color} />
             ),
           }}
         />

@@ -8,7 +8,8 @@ export function useProfileSync(userId?: string) {
 
   useEffect(() => {
     if (!userId) {
-      clear();
+      // Don't clear the profile store immediately - it might be a temporary state during navigation
+      // Only clear if we have a different user or on explicit logout
       return;
     }
 
