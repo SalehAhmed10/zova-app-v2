@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Ionicons } from '@expo/vector-icons';
-import { useTrustedProviders } from '@/hooks/useProfileData';
+import { useTrustedProviders } from '@/hooks';
 import { ProviderCard } from '@/components/providers';
 
 // Loading Skeleton

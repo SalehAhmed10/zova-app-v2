@@ -19,15 +19,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { cn } from '@/lib/utils';
-import { useColorScheme } from '@/lib/useColorScheme';
-import { THEME } from '@/lib/theme';
-import { useAuth } from '@/hooks/useAuth';
+import { cn } from '@/lib/core/utils';
+import { useColorScheme } from '@/lib/core/useColorScheme';
+import { THEME } from '@/lib/core/theme';
+import { useCalendarStore } from '@/stores/ui/calendar';
 import {
-  useProviderWeeklySchedule,
-  useProviderCalendarBookings,
-  useUpdateWeeklySchedule
-} from '@/hooks/useProfileData';
+  useCalendarData,
+  useCalendarTimeSlots,
+  useCalendarWeekData
+} from '@/hooks/provider/useCalendarData';
+import { Skeleton } from '@/components/ui/skeleton';
 
 // Calendar view types
 type CalendarView = 'day' | 'week';
@@ -299,88 +300,53 @@ function isValidWeeklySchedule(schedule: any): schedule is WeeklySchedule {
 
 export default function ProviderCalendar() {
   const { colorScheme } = useColorScheme();
-  const { user } = useAuth();
-  const [currentView, setCurrentView] = useState<CalendarView>('day');
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [showWeeklyDialog, setShowWeeklyDialog] = useState(false);
-  const [editingDay, setEditingDay] = useState<keyof WeeklySchedule | null>(null);
-  const [timePickerMode, setTimePickerMode] = useState<'start' | 'end'>('start');
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [tempTime, setTempTime] = useState(new Date());
 
-  // React Query hooks
+  // Zustand store for local state management
   const {
-    data: weeklySchedule,
-    isLoading: scheduleLoading
-  } = useProviderWeeklySchedule(user?.id);
+    currentView,
+    selectedDate,
+    showWeeklyDialog,
+    editingDay,
+    timePickerMode,
+    showTimePicker,
+    tempTime,
+    setCurrentView,
+    setSelectedDate,
+    goToPreviousDay,
+    goToNextDay,
+    goToToday,
+    setShowWeeklyDialog,
+    setEditingDay,
+    setTimePickerMode,
+    setShowTimePicker,
+    setTempTime,
+  } = useCalendarStore();
 
+  // Optimized React Query hooks with better loading states and error handling
   const {
-    data: bookings = [],
-    isLoading: bookingsLoading,
-    refetch: refetchBookings
-  } = useProviderCalendarBookings(user?.id, getWeekStart(selectedDate), getWeekEnd(selectedDate));
+    weeklySchedule,
+    bookings,
+    stats, // Use server-calculated stats instead of local calculation
+    isLoading,
+    isRefetching, // Could show subtle loading indicator during background refetches
+    hasError, // Could show error state in UI
+    error, // Could display error messages
+    updateScheduleMutation,
+  } = useCalendarData();
 
-  const updateScheduleMutation = useUpdateWeeklySchedule();
+  // Memoized time slots generation
+  const timeSlots = useCalendarTimeSlots(selectedDate, weeklySchedule);
 
-  // Generate time slots based on current day's working hours
-  const timeSlots = useMemo(() => {
-    if (!weeklySchedule) return [];
+  // Memoized week data
+  const weekData = useCalendarWeekData(selectedDate, bookings, weeklySchedule);
 
-    const dayName = selectedDate.toLocaleDateString('en', { weekday: 'long' }).toLowerCase() as keyof WeeklySchedule;
-    const daySchedule = weeklySchedule[dayName];
-
-    if (!daySchedule || !daySchedule.enabled) return [];
-
-    const startHour = parseInt(daySchedule.start.split(':')[0]);
-    const endHour = parseInt(daySchedule.end.split(':')[0]);
-
-    const slots = [];
-    const now = new Date();
-    const isToday = selectedDate.toDateString() === now.toDateString();
-    const currentHour = now.getHours();
-
-    for (let hour = startHour; hour < endHour; hour++) {
-      if (isToday && hour <= currentHour) continue;
-
-      slots.push({
-        time: `${hour.toString().padStart(2, '0')}:00`,
-        displayTime: hour > 12 ? `${hour - 12}:00 PM` : hour === 12 ? '12:00 PM' : `${hour}:00 AM`
-      });
-    }
-    return slots;
-  }, [selectedDate, weeklySchedule]);
-
+  // Date info calculations
   const dateInfo = getCurrentDateInfo(selectedDate);
-
-  // Check if selected date is today
   const isTodaySelected = selectedDate.toDateString() === new Date().toDateString();
 
-  // Navigation functions
-  const goToPreviousDay = useCallback(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const newDate = new Date(selectedDate);
-    newDate.setDate(selectedDate.getDate() - 1);
-    newDate.setHours(0, 0, 0, 0);
-
-    if (newDate >= today) {
-      setSelectedDate(newDate);
-    }
-  }, [selectedDate]);
-
-  const goToNextDay = useCallback(() => {
-    const newDate = new Date(selectedDate);
-    newDate.setDate(selectedDate.getDate() + 1);
-    setSelectedDate(newDate);
-  }, [selectedDate]);
-
-  const goToToday = useCallback(() => {
-    setSelectedDate(new Date());
-  }, []);
-
-  // Handle working hours update
+  // Handle working hours update with optimistic updates
   const handleUpdateWorkingHours = useCallback(async (day: keyof WeeklySchedule, hours: WorkingHours) => {
-    if (!user?.id || !weeklySchedule) return;
+    if (!weeklySchedule) return;
 
     const newSchedule = {
       ...weeklySchedule,
@@ -389,13 +355,13 @@ export default function ProviderCalendar() {
 
     try {
       await updateScheduleMutation.mutateAsync({
-        providerId: user.id,
-        schedule: newSchedule
+        provider_id: 'current-user-id', // This will be handled by the hook
+        schedule_data: newSchedule
       });
     } catch (error) {
       console.error('Error updating schedule:', error);
     }
-  }, [weeklySchedule, user?.id, updateScheduleMutation]);
+  }, [weeklySchedule, updateScheduleMutation]);
 
   // Time picker helper functions
   const timeStringToDate = useCallback((timeString: string) => {
@@ -429,7 +395,7 @@ export default function ProviderCalendar() {
       const timeString = dateToTimeString(selectedDate);
       const daySchedule = weeklySchedule[editingDay];
 
-      handleUpdateWorkingHours(editingDay, {
+      handleUpdateWorkingHours(editingDay as keyof WeeklySchedule, {
         ...daySchedule,
         [timePickerMode]: timeString
       });
@@ -439,28 +405,8 @@ export default function ProviderCalendar() {
     setEditingDay(null);
   }, [editingDay, timePickerMode, weeklySchedule, dateToTimeString, handleUpdateWorkingHours]);
 
-  // Calculate real stats from bookings
-  const stats = useMemo(() => {
-    const today = new Date();
-    const todayString = today.toISOString().split('T')[0];
-
-    const todayBookings = bookings.filter((booking) => booking.date === todayString);
-
-    const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() - today.getDay());
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-
-    const weekBookings = bookings.filter((booking) => {
-      const bookingDate = new Date(booking.date);
-      return bookingDate >= weekStart && bookingDate <= weekEnd;
-    });
-
-    return {
-      today: todayBookings.length,
-      thisWeek: weekBookings.length
-    };
-  }, [bookings]);
+  // Use server-calculated stats instead of local calculation
+  const bookingStats = stats;
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -548,11 +494,11 @@ export default function ProviderCalendar() {
           <CardContent className="px-4 py-2">
             <View className="flex-row justify-between items-center">
               <View className="items-center">
-                <Text className="text-2xl font-bold text-foreground">{stats.today}</Text>
+                <Text className="text-2xl font-bold text-foreground">{bookingStats.today}</Text>
                 <Text className="text-muted-foreground text-xs">Today</Text>
               </View>
               <View className="items-center">
-                <Text className="text-2xl font-bold text-foreground">{stats.thisWeek}</Text>
+                <Text className="text-2xl font-bold text-foreground">{bookingStats.thisWeek}</Text>
                 <Text className="text-muted-foreground text-xs">This Week</Text>
               </View>
               <View className="items-center">
@@ -565,12 +511,81 @@ export default function ProviderCalendar() {
       </View>
 
       {/* Calendar Content */}
-      {scheduleLoading ? (
+      {isLoading ? (
         <View className="px-4 py-8">
-          <Text className="text-center text-muted-foreground">Loading schedule...</Text>
+          {/* Stats Skeleton */}
+          <Card className="mb-6">
+            <CardContent className="px-4 py-2">
+              <View className="flex-row justify-between items-center">
+                <View className="items-center">
+                  <Skeleton className="w-12 h-8 mb-1" />
+                  <Skeleton className="w-8 h-3" />
+                </View>
+                <View className="items-center">
+                  <Skeleton className="w-12 h-8 mb-1" />
+                  <Skeleton className="w-12 h-3" />
+                </View>
+                <View className="items-center">
+                  <Skeleton className="w-12 h-8 mb-1" />
+                  <Skeleton className="w-16 h-3" />
+                </View>
+              </View>
+            </CardContent>
+          </Card>
+
+          {/* Calendar Content Skeleton */}
+          <View className="space-y-3">
+            {/* Header */}
+            <View className="px-4">
+              <Skeleton className="w-32 h-6 mb-4" />
+            </View>
+
+            {/* Time slots/week items */}
+            {Array.from({ length: 6 }).map((_, index) => (
+              <Card key={index}>
+                <CardContent className="p-3">
+                  <View className="flex-row items-center justify-between">
+                    <Skeleton className="w-16 h-5" />
+                    <View className="flex-1 ml-4">
+                      <Skeleton className="w-24 h-4 mb-1" />
+                      <Skeleton className="w-32 h-3" />
+                    </View>
+                  </View>
+                </CardContent>
+              </Card>
+            ))}
+          </View>
+        </View>
+      ) : hasError ? (
+        <View className="px-4 py-8">
+          <Card className="border-destructive/50 bg-destructive/5">
+            <CardContent className="p-4">
+              <Text className="text-center font-semibold text-destructive mb-2">
+                Failed to load schedule
+              </Text>
+              <Text className="text-center text-sm text-muted-foreground mb-4">
+                {error?.message || 'An error occurred while loading your schedule'}
+              </Text>
+              <Button
+                onPress={() => window.location.reload()}
+                variant="outline"
+                className="w-full"
+              >
+                <Text className="font-medium">Retry</Text>
+              </Button>
+            </CardContent>
+          </Card>
         </View>
       ) : (
         <>
+          {isRefetching && (
+            <View className="px-4 py-2">
+              <Text className="text-center text-sm text-muted-foreground">
+                Updating schedule...
+              </Text>
+            </View>
+          )}
+
           {currentView === 'day' && (() => {
             const dayViewData = DayView({ timeSlots, bookings, selectedDate });
             return (
@@ -656,57 +671,59 @@ export default function ProviderCalendar() {
             </View>
 
             {/* Individual Day Settings */}
-            {Object.entries(weeklySchedule || {}).map(([day, hours]) => {
-              const dayHours = hours as WorkingHours;
-              return (
-                <View key={day} className="mb-4 p-3 bg-card rounded-lg border border-border">
-                  <View className="flex-row items-center justify-between mb-2">
-                    <Text className="font-semibold text-foreground capitalize">
-                      {day}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => handleUpdateWorkingHours(day as keyof WeeklySchedule, {
-                        ...dayHours,
-                        enabled: !dayHours.enabled
-                      })}
-                      className={cn(
-                        "px-3 py-1 rounded-full",
-                        dayHours.enabled ? "bg-primary/20" : "bg-muted"
-                      )}
-                    >
-                      <Text className={cn(
-                        "text-xs font-medium",
-                        dayHours.enabled ? "text-primary" : "text-muted-foreground"
-                      )}>
-                        {dayHours.enabled ? 'Open' : 'Closed'}
+            {(() => {
+              return Object.entries(weeklySchedule || {}).map(([day, hours]) => {
+                const dayHours = hours as WorkingHours;
+                return (
+                  <View key={day} className="mb-4 p-3 bg-card rounded-lg border border-border">
+                    <View className="flex-row items-center justify-between mb-2">
+                      <Text className="font-semibold text-foreground capitalize">
+                        {day}
                       </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {dayHours.enabled && (
-                    <View className="flex-row items-center gap-2">
                       <TouchableOpacity
-                        onPress={() => handleTimePickerPress(day as keyof WeeklySchedule, 'start')}
-                        className="flex-1 p-2 bg-secondary/20 rounded"
+                        onPress={() => handleUpdateWorkingHours(day as keyof WeeklySchedule, {
+                          ...dayHours,
+                          enabled: !dayHours.enabled
+                        })}
+                        className={cn(
+                          "px-3 py-1 rounded-full",
+                          dayHours.enabled ? "bg-primary/20" : "bg-muted"
+                        )}
                       >
-                        <Text className="text-center text-foreground">{dayHours.start}</Text>
-                        <Text className="text-xs text-center text-muted-foreground">Start</Text>
-                      </TouchableOpacity>
-
-                      <Text className="text-muted-foreground">to</Text>
-
-                      <TouchableOpacity
-                        onPress={() => handleTimePickerPress(day as keyof WeeklySchedule, 'end')}
-                        className="flex-1 p-2 bg-secondary/20 rounded"
-                      >
-                        <Text className="text-center text-foreground">{dayHours.end}</Text>
-                        <Text className="text-xs text-center text-muted-foreground">End</Text>
+                        <Text className={cn(
+                          "text-xs font-medium",
+                          dayHours.enabled ? "text-primary" : "text-muted-foreground"
+                        )}>
+                          {dayHours.enabled ? 'Open' : 'Closed'}
+                        </Text>
                       </TouchableOpacity>
                     </View>
-                  )}
-                </View>
-              );
-            })}
+
+                    {dayHours.enabled && (
+                      <View className="flex-row items-center gap-2">
+                        <TouchableOpacity
+                          onPress={() => handleTimePickerPress(day as keyof WeeklySchedule, 'start')}
+                          className="flex-1 p-2 bg-secondary/20 rounded"
+                        >
+                          <Text className="text-center text-foreground">{dayHours.start}</Text>
+                          <Text className="text-xs text-center text-muted-foreground">Start</Text>
+                        </TouchableOpacity>
+
+                        <Text className="text-muted-foreground">to</Text>
+
+                        <TouchableOpacity
+                          onPress={() => handleTimePickerPress(day as keyof WeeklySchedule, 'end')}
+                          className="flex-1 p-2 bg-secondary/20 rounded"
+                        >
+                          <Text className="text-center text-foreground">{dayHours.end}</Text>
+                          <Text className="text-xs text-center text-muted-foreground">End</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                );
+              });
+            })()}
           </ScrollView>
 
           <AlertDialogFooter>

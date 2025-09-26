@@ -5,11 +5,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { useProviderVerificationStore } from '@/stores/provider-verification';
-import { supabase } from '@/lib/supabase';
+import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
+import { supabase } from '@/lib/core/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/lib/useColorScheme';
-import { useAuth } from '@/hooks/useAuth';
+import { useColorScheme } from '@/lib/core/useColorScheme';
+import { useAuth } from '@/hooks';
 
 interface ServiceSubcategory {
   id: string;

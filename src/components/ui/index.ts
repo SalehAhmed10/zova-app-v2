@@ -15,5 +15,5 @@ export * from './switch';
 export * from './tabs';
 export * from './text';
 export * from './textarea';
-
+export * from './theme-toggle';
 export * from './view';

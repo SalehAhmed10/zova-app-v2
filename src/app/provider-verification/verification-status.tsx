@@ -8,12 +8,12 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { useColorScheme } from '@/lib/useColorScheme';
+import { useColorScheme } from '@/lib/core/useColorScheme';
 
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks';
+import { supabase } from '@/lib/core/supabase';
 import { router } from 'expo-router';
-import { useProfileStore } from '@/stores/useProfileStore';
+import { useProfileStore } from '@/stores/verification/useProfileStore';
 
 // Global debouncing store to persist across component remounts
 const verificationDebounceMap = new Map<string, { lastStatus: string | null; lastTime: number }>();

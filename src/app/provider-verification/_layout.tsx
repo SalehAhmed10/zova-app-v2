@@ -3,8 +3,8 @@ import { Stack, useRouter, usePathname } from 'expo-router';
 import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text } from '@/components/ui/text';
-import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/provider-verification';
-import { useAuth } from '@/hooks/useAuth';
+import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/verification/provider-verification';
+import { useAuth } from '@/hooks';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { LogoutButton } from '@/components/ui/logout-button';
 

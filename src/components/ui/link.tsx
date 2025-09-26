@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/core/utils';
 import { Link as ExpoLink, type LinkProps } from 'expo-router';
 import * as React from 'react';
 import { Text } from './text';

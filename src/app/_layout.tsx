@@ -1,6 +1,6 @@
 import "~/global.css";
 
-import { Theme, ThemeProvider, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import { Theme, ThemeProvider } from '@react-navigation/native';
 import { Slot } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as React from 'react';
@@ -63,21 +63,21 @@ LogBox.ignoreLogs([
   /shared value.*render/i,
 ]);
 
-import { NAV_THEME } from '@/lib/theme';
-import { useColorScheme } from '@/lib/useColorScheme';
+import { NAV_THEME } from '@/lib/core/theme';
+import { useColorScheme } from '@/lib/core/useColorScheme';
 import { PortalHost } from '@rn-primitives/portal';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { colorScheme } from 'nativewind';
-import { SessionProvider, useSession } from '@/lib/auth-context';
-import { useAppStore } from '@/stores/app';
-import { useThemeHydration } from '@/stores/theme';
+import { SessionProvider, useSession } from '@/lib/auth';
+import { useAppStore } from '@/stores/auth/app';
+import { useThemeHydration } from '@/stores/ui/theme';
 import { cssInterop } from 'nativewind';
 import * as Icons from '@expo/vector-icons';
 import { Text } from '@/components/ui/text';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
-import { StripeProvider } from '@/providers/StripeProvider';
+import { StripeProvider } from '@/app-providers/stripe-provider';
 
 // Apply cssInterop to all Expo Vector Icons globally
 Object.keys(Icons).forEach((iconKey) => {

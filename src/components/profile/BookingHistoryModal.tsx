@@ -2,8 +2,8 @@ import React from 'react';
 import { View, Modal, ScrollView, Pressable, FlatList } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Card, CardContent } from '@/components/ui/card';
-import { BookingData } from '@/hooks/useProfileData';
-import { cn } from '@/lib/utils';
+import type { BookingData } from '@/hooks';
+import { cn } from '@/lib/core/utils';
 
 interface BookingHistoryModalProps {
   visible: boolean;

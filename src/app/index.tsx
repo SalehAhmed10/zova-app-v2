@@ -6,11 +6,14 @@ import Animated, {
   useAnimatedStyle, 
   useDerivedValue,
   withSpring,
+  withTiming,
+  withSequence,
   runOnJS
 } from 'react-native-reanimated';
 import { Text } from '@/components/ui/text';
-import { useAppStore, initializeApp } from '@/stores/app';
-import { supabase } from '@/lib/supabase';
+import { useAppStore, initializeApp } from '@/stores/auth/app';
+import { supabase } from '@/lib/core/supabase';
+import { Logo } from '@/components/branding';
 
 export default function SplashScreen() {
   const [initialized, setInitialized] = useState(false);
@@ -80,13 +83,14 @@ export default function SplashScreen() {
     // Start splash animation using worklet
     const startAnimation = () => {
       'worklet';
-      fadeAnim.value = withSpring(1, { damping: 15 });
-      scaleAnim.value = withSpring(1, { damping: 15 });
+      // Smooth fade-in and gentle scale animation
+      fadeAnim.value = withTiming(1, { duration: 800 });
+      scaleAnim.value = withTiming(1, { duration: 600 });
     };
     
     // Initialize animation values
     fadeAnim.value = 0;
-    scaleAnim.value = 0.8;
+    scaleAnim.value = 0.9;
     
     // Run animation on next frame to avoid render cycle
     const timer = setTimeout(startAnimation, 0);
@@ -155,9 +159,7 @@ export default function SplashScreen() {
         <View className="items-center space-y-6">
           {/* ZOVA Logo/Brand */}
           <View className="items-center space-y-2">
-            <Text variant="h1" className="text-primary font-bold text-4xl">
-              ZOVA
-            </Text>
+            <Logo size={120} />
             <Text variant="p" className="text-muted-foreground text-center">
               Connect with trusted service providers
             </Text>
@@ -189,12 +191,8 @@ export default function SplashScreen() {
   return (
     <View className="flex-1 bg-background items-center justify-center">
       <Animated.View style={animatedStyle} className="items-center">
-        <Text variant="h1" className="text-primary mb-4 font-bold">
-          ZOVA
-        </Text>
-        <Text variant="p" className="text-muted-foreground text-center">
-          Connect with trusted service providers
-        </Text>
+        <Logo size={200} />
+     
       </Animated.View>
     </View>
   );

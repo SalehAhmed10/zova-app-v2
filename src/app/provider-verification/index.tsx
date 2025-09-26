@@ -8,11 +8,11 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { useProviderVerificationStore, useProviderVerificationSelectors, useProviderVerificationHydration } from '@/stores/provider-verification';
-import { supabase } from '@/lib/supabase';
-import { createStorageService } from '@/lib/organized-storage';
+import { useProviderVerificationStore, useProviderVerificationSelectors, useProviderVerificationHydration } from '@/stores/verification/provider-verification';
+import { supabase } from '@/lib/core/supabase';
+import { createStorageService } from '@/lib/storage/organized-storage';
 import { testStorageBuckets } from '@/utils/storage-test';
-import { useStripeVerificationIntegration } from '@/lib/stripe-verification-integration';
+import { useStripeVerificationIntegration } from '@/lib/payment/stripe-verification-integration';
 
 // Helper function to get signed URL using organized storage service
 const getDocumentSignedUrl = async (providerId: string, filePath: string): Promise<string> => {

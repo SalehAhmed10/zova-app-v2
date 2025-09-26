@@ -6,10 +6,10 @@ import * as ImagePicker from 'expo-image-picker';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { supabase } from '@/lib/supabase';
-import { createStorageService } from '@/lib/organized-storage';
-import { StoragePathUtils } from '@/lib/storage-paths';
-import { useProviderVerificationStore, useProviderVerificationSelectors } from '@/stores/provider-verification';
+import { supabase } from '@/lib/core/supabase';
+import { createStorageService } from '@/lib/storage/organized-storage';
+import { StoragePathUtils } from '@/lib/storage/storage-paths';
+import { useProviderVerificationStore, useProviderVerificationSelectors } from '@/stores/verification/provider-verification';
 
 export default function SelfieVerificationScreen() {
   const [loading, setLoading] = useState(false);

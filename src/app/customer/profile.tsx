@@ -8,24 +8,23 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { LogoutButton } from '@/components/ui/logout-button';
-import { useAppStore } from '@/stores/app';
-import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@/lib/utils';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { 
-  useProfile, 
-  useProfileStats, 
+import { useAppStore } from '@/stores/auth/app';
+import {
+  useAuth,
+  useProfile,
+  useProfileStats,
   useUserBookings,
-  useNotificationSettings 
-} from '@/hooks/useProfileData';
-
+  useNotificationSettings,
+  useUserFavorites
+} from '@/hooks';
+import { cn } from '@/lib/core/utils';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 
 // Import modals
 import { PersonalInfoModal } from '@/components/profile/PersonalInfoModal';
 import { NotificationSettingsModal } from '@/components/profile/NotificationSettingsModal';
 import { BookingHistoryModal } from '@/components/profile/BookingHistoryModal';
 import { FavoritesModal } from '@/components/profile/FavoritesModal';
-import { useUserFavorites } from '@/hooks/useFavorites';
 
 export default function ProfileScreen() {
   const { userRole } = useAppStore();

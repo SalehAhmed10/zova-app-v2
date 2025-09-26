@@ -8,10 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Ionicons } from '@expo/vector-icons';
-import { useColorScheme } from '@/lib/useColorScheme';
-import { useProviderProfile, type ProviderProfileData } from '@/hooks/useProviderProfile';
-import { ProviderProfileSkeleton } from '@/components/ProviderProfileSkeleton';
-import { DebugPanel } from '@/components/DebugPanel';
+import { useColorScheme } from '@/lib/core/useColorScheme';
+import { useProviderProfile } from '@/hooks';
+import type { ProviderProfileData } from '@/hooks';
+import { ProviderProfileSkeleton } from '@/components/providers/ProviderProfileSkeleton';
+import { DebugPanel } from '@/components/debug/DebugPanel';
 import { useQueryClient } from '@tanstack/react-query';
 
 export default function ProviderProfileScreen() {

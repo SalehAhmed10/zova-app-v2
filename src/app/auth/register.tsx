@@ -18,8 +18,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useAuth } from '@/hooks/useAuth';
-import { useAppStore } from '@/stores/app';
+import { useAuth } from '@/hooks';
+import { useAppStore } from '@/stores/auth/app';
 
 interface RegisterForm {
   firstName: string;

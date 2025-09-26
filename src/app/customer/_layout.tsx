@@ -2,9 +2,9 @@ import React, { useEffect } from 'react';
 import { Tabs, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/lib/useColorScheme';
-import { useAppStore } from '@/stores/app';
-import { THEME } from '@/lib/theme';
+import { useColorScheme } from '@/lib/core/useColorScheme';
+import { useAppStore } from '@/stores/auth/app';
+import { THEME } from '@/lib/core/theme';
 
 export default function CustomerLayout() {
   const { isDarkColorScheme } = useColorScheme();

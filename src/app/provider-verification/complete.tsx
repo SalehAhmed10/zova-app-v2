@@ -5,12 +5,12 @@ import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { useProviderVerificationStore } from '@/stores/provider-verification';
-import { useAppStore } from '@/stores/app';
+import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
+import { useAppStore } from '@/stores/auth/app';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { PaymentEmailCampaignService } from '@/lib/payment-email-campaigns';
-import { PaymentAnalyticsService } from '@/lib/payment-analytics';
-import { supabase } from '@/lib/supabase';
+import { PaymentEmailCampaignService } from '@/lib/payment/payment-email-campaigns';
+import { PaymentAnalyticsService } from '@/lib/payment/payment-analytics';
+import { supabase } from '@/lib/core/supabase';
 
 export default function VerificationCompleteScreen() {
   console.log('[Complete Screen] Rendered');

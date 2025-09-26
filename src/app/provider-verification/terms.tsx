@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { useProviderVerificationStore } from '@/stores/provider-verification';
-import { supabase } from '@/lib/supabase';
+import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
+import { supabase } from '@/lib/core/supabase';
 
 export default function BusinessTermsScreen() {
   const [formData, setFormData] = useState({

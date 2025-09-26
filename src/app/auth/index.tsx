@@ -6,8 +6,8 @@ import { Text } from '@/components/ui/text';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { useAuth } from '@/hooks/useAuth';
-import { useAppStore } from '@/stores/app';
+import { useAuth } from '@/hooks';
+import { useAppStore } from '@/stores/auth/app';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');

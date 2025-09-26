@@ -6,8 +6,8 @@ import { OtpInput } from 'react-native-otp-entry';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { useAuth } from '@/hooks/useAuth';
-import { useAppStore } from '@/stores/app';
+import { useAuth } from '@/hooks';
+import { useAppStore } from '@/stores/auth/app';
 
 export default function OTPVerificationScreen() {
   const [otp, setOtp] = useState('');

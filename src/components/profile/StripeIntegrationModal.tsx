@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { View, ScrollView, Alert, Linking, Modal, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/lib/useColorScheme';
-import { THEME } from '@/lib/theme';
+import { useColorScheme } from '@/lib/core/useColorScheme';
+import { THEME } from '@/lib/core/theme';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/core/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 

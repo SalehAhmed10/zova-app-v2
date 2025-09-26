@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Alert } from 'react-native';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/hooks';
 import { router } from 'expo-router';
 
 export default function AuthLayout() {

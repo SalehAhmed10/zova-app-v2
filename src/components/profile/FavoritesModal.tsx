@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { FavoriteProvider, FavoriteService, useUserFavorites } from '@/hooks/useFavorites';
+import { useUserFavorites } from '@/hooks';
+import type { FavoriteProvider, FavoriteService } from '@/hooks';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface FavoritesModalProps {

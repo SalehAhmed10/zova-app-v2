@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/core/supabase';
 
 // Test storage bucket access
 export async function testStorageBuckets() {

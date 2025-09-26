@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useStableCallback } from '@/lib/performance';
+import { useStableCallback } from '@/lib/monitoring/performance';
 
 // Shared Provider Card Component
 export const ProviderCard = React.memo(({

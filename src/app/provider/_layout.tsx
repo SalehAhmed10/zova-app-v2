@@ -2,11 +2,10 @@ import React, { useEffect } from 'react';
 import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/lib/useColorScheme';
-import { THEME } from '@/lib/theme';
-import { useAuth } from '@/hooks/useAuth';
-import { useProfileSync } from '@/hooks/useProfileSync';
-import { useProfileStore, useProfileHydration } from '@/stores/useProfileStore';
+import { useColorScheme } from '@/lib/core/useColorScheme';
+import { THEME } from '@/lib/core/theme';
+import { useAuth, useProfileSync } from '@/hooks';
+import { useProfileStore, useProfileHydration } from '@/stores/verification/useProfileStore';
 
 export default function ProviderLayout() {
   const { isDarkColorScheme } = useColorScheme();

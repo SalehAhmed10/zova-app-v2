@@ -10,20 +10,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { LogoutButton } from '@/components/ui/logout-button';
-import { useAppStore } from '@/stores/app';
-import { useProfileModalStore } from '@/stores/profileModal';
-import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@/lib/utils';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { useColorScheme } from '@/lib/useColorScheme';
-import { THEME } from '@/lib/theme';
-import ServicesModal from '@/components/profile/ServicesModal';
+import { useAppStore } from '@/stores/auth/app';
+import { useProfileModalStore } from '@/stores/ui/profileModal';
 import {
+  useAuth,
   useProfile,
   useProviderStats,
   useUserBookings,
   useNotificationSettings
-} from '@/hooks/useProfileData';
+} from '@/hooks';
+import { cn } from '@/lib/core/utils';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { useColorScheme } from '@/lib/core/useColorScheme';
+import { THEME } from '@/lib/core/theme';
+import ServicesModal from '@/components/profile/ServicesModal';
 
 // Import modals
 import { PersonalInfoModal } from '@/components/profile/PersonalInfoModal';

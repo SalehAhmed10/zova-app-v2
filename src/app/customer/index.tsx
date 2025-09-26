@@ -8,15 +8,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@/lib/utils';
-import { Ionicons } from '@expo/vector-icons';
 import {
+  useAuth,
   useProfile,
   useProfileStats,
   useUserBookings,
   useTrustedProviders
-} from '@/hooks/useProfileData';
+} from '@/hooks';
+import { cn } from '@/lib/core/utils';
+import { Ionicons } from '@expo/vector-icons';
 
 // Today's Stats Component
 const TodaysStat = ({

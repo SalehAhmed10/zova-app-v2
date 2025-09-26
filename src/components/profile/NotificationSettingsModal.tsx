@@ -3,8 +3,9 @@ import { View, Modal, ScrollView, Pressable, Switch } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { NotificationSettings, useUpdateNotificationSettings } from '@/hooks/useProfileData';
-import { cn } from '@/lib/utils';
+import { useUpdateNotificationSettings } from '@/hooks';
+import type { NotificationSettings } from '@/hooks';
+import { cn } from '@/lib/core/utils';
 
 interface NotificationSettingsModalProps {
   visible: boolean;

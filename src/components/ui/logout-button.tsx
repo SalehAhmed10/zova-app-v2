@@ -13,9 +13,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useAppStore } from '@/stores/app';
-import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@/lib/utils';
+import { useAppStore } from '@/stores/auth/app';
+import { useAuth } from '@/hooks';
+import { cn } from '@/lib/core/utils';
 
 interface LogoutButtonProps {
   variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'modern';

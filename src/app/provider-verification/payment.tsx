@@ -8,10 +8,10 @@ import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import * as WebBrowser from 'expo-web-browser';
 import * as Clipboard from 'expo-clipboard';
-import { supabase } from '@/lib/supabase';
-import { useProviderVerificationStore } from '@/stores/provider-verification';
+import { supabase } from '@/lib/core/supabase';
+import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
 // import { StripeOnboardingComplete } from '@/components/providers';
-import { PaymentAnalyticsService } from '@/lib/payment-analytics';
+import { PaymentAnalyticsService } from '@/lib/payment/payment-analytics';
 
 export default function PaymentSetupScreen() {
   const [loading, setLoading] = useState(false);

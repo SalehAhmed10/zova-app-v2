@@ -6,15 +6,15 @@ import { Text } from '@/components/ui/text';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAuth } from '@/hooks/useAuth';
 import {
+  useAuth,
   useProviderEarnings,
   useProviderPayouts,
   useProviderEarningsAnalytics
-} from '@/hooks/useProfileData';
-import { supabase } from '@/lib/supabase';
-import { useColorScheme } from '@/lib/useColorScheme';
-import { THEME } from '@/lib/theme';
+} from '@/hooks';
+import { supabase } from '@/lib/core/supabase';
+import { useColorScheme } from '@/lib/core/useColorScheme';
+import { THEME } from '@/lib/core/theme';
 import {
   LineChart,
   BarChart,

@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
-import { useAppStore } from '@/stores/app';
+import { useAppStore } from '@/stores/auth/app';
 
 const ONBOARDING_STEPS = [
   {

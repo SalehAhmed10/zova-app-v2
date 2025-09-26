@@ -11,11 +11,16 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
-import { useProviderSearch, useServiceCategories, SearchFilters, ProviderSearchResult, useServiceSearch, ServiceSearchResult } from '@/hooks/useSearch';
-
-import { useAuth } from '@/hooks/useAuth';
-import { useIsFavorited, useToggleFavorite } from '@/hooks/useFavorites';
+import { cn } from '@/lib/core/utils';
+import {
+  useAuth,
+  useProviderSearch,
+  useServiceCategories,
+  useServiceSearch,
+  useIsFavorited,
+  useToggleFavorite
+} from '@/hooks';
+import type { SearchFilters, ProviderSearchResult, ServiceSearchResult } from '@/hooks';
 
 // Search Bar Component
 const SearchBar = ({

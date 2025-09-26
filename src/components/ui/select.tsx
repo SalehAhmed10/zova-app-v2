@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Pressable } from 'react-native';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Text } from './text';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/core/utils';
 
 const selectVariants = cva(
   'flex-row items-center justify-between rounded-lg border px-3 py-2.5 min-h-[44px]',

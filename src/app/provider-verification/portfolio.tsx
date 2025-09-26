@@ -6,9 +6,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/provider-verification';
-import { supabase } from '@/lib/supabase';
-import { createStorageService } from '@/lib/organized-storage';
+import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/verification/provider-verification';
+import { supabase } from '@/lib/core/supabase';
+import { createStorageService } from '@/lib/storage/organized-storage';
 
 export default function PortfolioUploadScreen() {
   const [selectedImages, setSelectedImages] = useState<string[]>([]);

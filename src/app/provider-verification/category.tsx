@@ -7,8 +7,8 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { useProviderVerificationStore, useProviderVerificationSelectors } from '@/stores/provider-verification';
-import { supabase } from '@/lib/supabase';
+import { useProviderVerificationStore, useProviderVerificationSelectors } from '@/stores/verification/provider-verification';
+import { supabase } from '@/lib/core/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface ServiceCategory {

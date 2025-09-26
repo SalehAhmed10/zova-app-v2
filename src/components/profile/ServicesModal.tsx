@@ -11,19 +11,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { useAuth } from '@/hooks/useAuth';
 import {
-    useProviderServices,
-    useServiceCategories,
-    useCreateService,
-    useUpdateService,
-    useToggleServiceStatus,
-    useDeleteService
-} from '@/hooks/useProfileData';
-import { useColorScheme } from '@/lib/useColorScheme';
-import { THEME } from '@/lib/theme';
-import { cn } from '@/lib/utils';
-import { useServicesModalStore } from '@/stores/servicesModal';
+  useAuth,
+  useProviderServices,
+  useServiceCategories,
+  useDeleteService
+} from '@/hooks';
+import { useColorScheme } from '@/lib/core/useColorScheme';
+import { THEME } from '@/lib/core/theme';
+import { cn } from '@/lib/core/utils';
+import { useServicesModalStore } from '@/stores/ui/servicesModal';
 
 // Service Card Component
 const ServiceCard = ({ service, onEdit, onToggle, onDelete, isDeleting, isToggling }: {
@@ -552,9 +549,9 @@ export default function ServicesModal({ visible, onClose }: ServicesModalProps) 
     const { colorScheme } = useColorScheme();
     const { data: servicesData, isLoading, error, refetch } = useProviderServices(user?.id);
     const { data: categoriesData, isLoading: categoriesLoading } = useServiceCategories();
-    const createServiceMutation = useCreateService();
-    const updateServiceMutation = useUpdateService();
-    const toggleServiceMutation = useToggleServiceStatus();
+    const createServiceMutation = null; // TODO: Implement useCreateService hook
+    const updateServiceMutation = null; // TODO: Implement useUpdateService hook
+    const toggleServiceMutation = null; // TODO: Implement useToggleServiceStatus hook
     const deleteServiceMutation = useDeleteService();
 
     // Use Zustand store for modal state
@@ -738,7 +735,7 @@ export default function ServicesModal({ visible, onClose }: ServicesModalProps) 
     // Create categories array with proper structure for filtering
     const categories = categoriesData ? [
         { id: 'All', name: 'All', icon: '📋' },
-        ...categoriesData.map(cat => ({ id: cat.id, name: cat.name, icon: cat.icon_url || '⚙️' }))
+        ...categoriesData.map(cat => ({ id: cat.id, name: cat.name, icon: (cat as any).icon_url || '⚙️' }))
     ] : [{ id: 'All', name: 'All', icon: '📋' }];
 
     return (

@@ -9,20 +9,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
-import { useColorScheme } from '@/lib/useColorScheme';
-import { THEME } from '@/lib/theme';
-import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@/lib/utils';
+import { useColorScheme } from '@/lib/core/useColorScheme';
+import { THEME } from '@/lib/core/theme';
 import {
+  useAuth,
   useProfile,
   useProviderStats,
   useUserBookings,
   useBusinessAvailability,
-  useUpdateBusinessAvailability
-} from '@/hooks/useProfileData';
+  useUpdateBusinessAvailability,
+  usePaymentSetupNudge
+} from '@/hooks';
+import { cn } from '@/lib/core/utils';
 import { PaymentSetupStatusCard } from '@/components/providers/PaymentSetupStatusCard';
-import { usePaymentSetupNudge } from '@/hooks/usePaymentSetupNudge';
-import { StorageDebugPanel } from '@/components/StorageDebugPanel';
+import { StorageDebugPanel } from '@/components/debug/StorageDebugPanel';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 // Today's Stats Component  

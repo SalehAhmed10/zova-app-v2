@@ -7,8 +7,8 @@ import { router } from 'expo-router';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { supabase } from '@/lib/supabase';
-import { PaymentAnalyticsService } from '@/lib/payment-analytics';
+import { supabase } from '@/lib/core/supabase';
+import { PaymentAnalyticsService } from '@/lib/payment/payment-analytics';
 
 interface PaymentSetupStatusProps {
   userId: string;

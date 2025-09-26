@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { Text } from './text';
 import { Button } from './button';
 import { Card, CardContent } from './card';
-import { handleErrorBoundaryError } from '@/lib/error-reporting';
+import { handleErrorBoundaryError } from '@/lib/monitoring/error-reporting';
 
 interface ErrorBoundaryState {
   hasError: boolean;

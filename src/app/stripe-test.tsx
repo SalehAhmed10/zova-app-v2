@@ -6,8 +6,8 @@ import * as WebBrowser from 'expo-web-browser';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/core/supabase';
+import { useAuth } from '@/hooks';
 
 export default function StripeTestScreen() {
   const { user } = useAuth();
