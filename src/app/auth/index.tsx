@@ -1,72 +1,120 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Alert } from 'react-native';
 import { router } from 'expo-router';
-import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import Animated, { 
+  FadeIn, 
+  FadeInDown
+} from 'react-native-reanimated';
+import { Loader2 } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { useAuth } from '@/hooks';
+import { useAuthOptimized } from '@/hooks';
 import { useAppStore } from '@/stores/auth/app';
+import { loginSchema, type LoginFormData } from '@/lib/validation/authValidation';
+import { DebugPanel, StorageDebugPanel } from '@/components';
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isNavigating, setIsNavigating] = useState(false);
-  const { signIn, loading } = useAuth();
+  // ✅ OPTIMIZED: React Query + Zustand + React Hook Form + Zod
+  const { signIn, isLoading } = useAuthOptimized();
   const { isAuthenticated, userRole } = useAppStore();
+  
+  // ✅ Optimistic loading state for immediate UI feedback
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Handle navigation after authentication state updates
-  useEffect(() => {
-    if (isAuthenticated && userRole && isNavigating) {
+  // ✅ React Hook Form with Zod validation - no manual state
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isValid },
+    setError,
+    watch
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    mode: 'onChange',
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
+
+  const formValues = watch();
+
+  // ✅ PURE: Auto-navigation logic using useMemo (replaces setTimeout in render)
+  React.useMemo(() => {
+    if (isAuthenticated && userRole) {
       console.log('[Login] Auth state updated, navigating to:', userRole);
-      if (userRole === 'customer') {
-        router.replace('/customer');
-      } else if (userRole === 'provider') {
-        router.replace('/provider');
-      }
-      setIsNavigating(false);
+      setIsSubmitting(false); // Reset optimistic state before navigation
+      
+      // Use queueMicrotask for clean navigation without render conflicts
+      queueMicrotask(() => {
+        if (userRole === 'customer') {
+          router.replace('/customer');
+        } else if (userRole === 'provider') {
+          router.replace('/provider');
+        }
+      });
     }
-  }, [isAuthenticated, userRole, isNavigating]);
+  }, [isAuthenticated, userRole]);
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
+  const onSubmit = async (data: LoginFormData) => {
+    // ✅ Set optimistic loading state immediately
+    setIsSubmitting(true);
+    
+    try {
+      console.log('[Login] Attempting login with:', { email: data.email });
+      
+      const result = await signIn(data.email, data.password);
 
-    const result = await signIn(email, password);
-
-    if (result.success) {
-      console.log('Login successful');
-      setIsNavigating(true);
-      // Navigation will happen in useEffect when auth state updates
-    } else if (result.requiresVerification) {
-      // User needs to verify their email
-      Alert.alert(
-        'Email Verification Required',
-        'Please verify your email before signing in.',
-        [
-          {
-            text: 'Verify Email',
-            onPress: () => {
-              router.push({
-                pathname: '/auth/otp-verification',
-                params: {
-                  email: result.email,
-                  role: 'customer', // Default to customer, will be updated after verification
-                },
-              } as any);
+      if (result.success) {
+        console.log('[Login] Login successful');
+        // Keep loading state until navigation happens
+        // Navigation will happen automatically via the auth state check above
+      } else if (result.requiresVerification) {
+        // Reset loading state for verification flow
+        setIsSubmitting(false);
+        
+        // User needs to verify their email
+        Alert.alert(
+          'Email Verification Required',
+          'Please verify your email before signing in.',
+          [
+            {
+              text: 'Verify Email',
+              onPress: () => {
+                router.push({
+                  pathname: '/auth/otp-verification',
+                  params: {
+                    email: result.email || data.email,
+                    role: 'customer', // Default to customer, will be updated after verification
+                  },
+                } as any);
+              }
+            },
+            {
+              text: 'Cancel',
+              style: 'cancel'
             }
-          },
-          {
-            text: 'Cancel',
-            style: 'cancel'
-          }
-        ]
-      );
-    } else {
-      Alert.alert('Login Failed', result.error || 'An error occurred');
+          ]
+        );
+      } else {
+        console.error('[Login] Login failed:', result.error);
+        setIsSubmitting(false); // Reset loading state on error
+        
+        // Set form-level error
+        if (result.error?.includes('Invalid credentials') || result.error?.includes('Invalid login')) {
+          setError('password', { message: 'Invalid email or password' });
+        } else {
+          Alert.alert('Login Failed', result.error || 'An error occurred');
+        }
+      }
+    } catch (error) {
+      console.error('[Login] Unexpected error:', error);
+      setIsSubmitting(false); // Reset loading state on error
+      Alert.alert('Login Error', 'An unexpected error occurred. Please try again.');
     }
   };
 
@@ -74,7 +122,7 @@ export default function LoginScreen() {
     <ScreenWrapper scrollable={false} contentContainerClassName="px-6 py-4 justify-center">
       {/* Header */}
       <Animated.View
-        entering={FadeIn.delay(200).springify()}
+        entering={FadeIn.delay(100).duration(800)}
         className="items-center mb-8"
       >
         <View className="w-16 h-16 bg-primary rounded-2xl justify-center items-center mb-4">
@@ -89,49 +137,91 @@ export default function LoginScreen() {
       </Animated.View>
 
       {/* Login Form */}
-      <Animated.View entering={SlideInDown.delay(400).springify()} className="px-2">
+      <Animated.View 
+        entering={FadeInDown.delay(300).duration(700).springify()}
+        className="px-2"
+      >
         <View className="w-full max-w-md mx-auto mb-6">
           <Text variant="h3" className="text-center mb-8">
             Sign In
           </Text>
 
           <View className="gap-6">
+            {/* Email Field */}
             <View>
               <Text variant="small" className="mb-3 font-semibold text-foreground">
                 Email
               </Text>
-              <Input
-                placeholder="Enter your email"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
+              <Controller
+                control={control}
+                name="email"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <Input
+                    placeholder="Enter your email"
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    className={errors.email ? 'border-destructive' : ''}
+                  />
+                )}
               />
+              {errors.email && (
+                <Text className="text-sm text-destructive mt-1">
+                  {errors.email.message}
+                </Text>
+              )}
             </View>
 
+            {/* Password Field */}
             <View>
               <Text variant="small" className="mb-3 font-semibold text-foreground">
                 Password
               </Text>
-              <Input
-                placeholder="Enter your password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                autoComplete="current-password"
+              <Controller
+                control={control}
+                name="password"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <Input
+                    placeholder="Enter your password"
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    secureTextEntry
+                    autoComplete="current-password"
+                    className={errors.password ? 'border-destructive' : ''}
+                  />
+                )}
               />
+              {errors.password && (
+                <Text className="text-sm text-destructive mt-1">
+                  {errors.password.message}
+                </Text>
+              )}
             </View>
 
             <Button
-              onPress={handleLogin}
-              disabled={loading}
+              onPress={handleSubmit(onSubmit)}
+              disabled={isSubmitting || isLoading || !isValid}
               className="w-full mt-4"
               size="lg"
             >
-              <Text variant="default" className="text-primary-foreground font-semibold">
-                {loading ? 'Signing In...' : 'Sign In'}
-              </Text>
+              {(isSubmitting || isLoading) ? (
+                <>
+                  <View className="pointer-events-none animate-spin mr-2">
+                    <Loader2 size={20} className="text-primary-foreground" />
+                  </View>
+                  <Text variant="default" className="text-primary-foreground font-semibold">
+                    Signing In...
+                  </Text>
+                </>
+              ) : (
+                <Text variant="default" className="text-primary-foreground font-semibold">
+                  Sign In
+                </Text>
+              )}
             </Button>
           </View>
         </View>
@@ -139,7 +229,7 @@ export default function LoginScreen() {
 
       {/* Register Option */}
       <Animated.View
-        entering={FadeIn.delay(600).springify()}
+        entering={FadeIn.delay(500).duration(600)}
         className="mt-6 mb-4 px-2"
       >
         <View className="flex-row items-center justify-center">
@@ -155,7 +245,9 @@ export default function LoginScreen() {
       </Animated.View>
 
       {/* Back Button */}
-      <Animated.View entering={FadeIn.delay(800).springify()}>
+      <Animated.View 
+        entering={FadeIn.delay(700).duration(600)}
+      >
         <Button
           variant="outline"
           size="lg"
@@ -168,15 +260,11 @@ export default function LoginScreen() {
 
       {/* Development Tools - Only show in development */}
       {__DEV__ && (
-        <Animated.View entering={FadeIn.delay(1000).springify()} className="mt-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onPress={() => router.push('/stripe-test')}
-            className="w-full border border-yellow-300"
-          >
-            <Text className="text-yellow-600 text-xs">🧪 Dev: Stripe Test</Text>
-          </Button>
+        <Animated.View 
+          entering={FadeIn.delay(900).duration(500)}
+          className="mt-4"
+        >
+      <StorageDebugPanel/>
         </Animated.View>
       )}
     </ScreenWrapper>

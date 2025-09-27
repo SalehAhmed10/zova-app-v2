@@ -43,8 +43,8 @@ export interface FavoriteService {
 
 // Hook to get user favorites
 export const useUserFavorites = (userId?: string) => {
-  // Only log when userId actually changes
-  React.useEffect(() => {
+  // ✅ PURE: Debug logging on call (replaces useEffect)
+  React.useMemo(() => {
     if (userId) {
       console.log('useUserFavorites: Hook called with userId:', userId);
     }

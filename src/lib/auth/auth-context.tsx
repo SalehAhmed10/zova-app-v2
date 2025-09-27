@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import React, { createContext, useContext, useState, useMemo } from 'react';
 import { useAppStore } from '@/stores/auth/app';
-import { useAuth } from '@/hooks';
+import { useAuthOptimized } from '@/hooks';
 
 interface SessionContextType {
   session: boolean;
@@ -21,7 +21,7 @@ export function useSession() {
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, logout } = useAppStore();
-  const { signOut: authSignOut } = useAuth();
+  const { signOut: authSignOut } = useAuthOptimized();
 
   const signIn = () => {
     // This will be called from sign-in screen

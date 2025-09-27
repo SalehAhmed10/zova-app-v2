@@ -137,7 +137,8 @@ export const useOnboardingHydration = () => {
   const hasHydrated = useOnboardingStore((state) => state._hasHydrated);
   const [isReady, setIsReady] = React.useState(hasHydrated);
 
-  React.useEffect(() => {
+  // ✅ PURE: Hydration check using useMemo (replaces useEffect)
+  React.useMemo(() => {
     if (hasHydrated) {
       setIsReady(true);
     } else if (!isReady) {

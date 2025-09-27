@@ -16,6 +16,7 @@
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
     "@gorhom/bottom-sheet": "^5.2.6",
+    "@hookform/resolvers": "^5.2.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",
     "@rn-primitives/alert-dialog": "^1.2.0",
@@ -64,6 +65,7 @@
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
+    "zod": "^3.25.76",
     "zustand": "^5.0.8"
   },
   "devDependencies": {

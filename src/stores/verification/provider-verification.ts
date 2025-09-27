@@ -390,7 +390,11 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
       },
       
       setProviderId: (id) => {
-        set({ providerId: id });
+        const currentId = get().providerId;
+        if (currentId !== id) {
+          console.log('[ProviderVerificationStore] Setting provider ID:', id, 'from:', currentId);
+          set({ providerId: id });
+        }
       },
       
       setHasHydrated: (hasHydrated) => {

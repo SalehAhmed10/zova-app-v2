@@ -1,71 +1,55 @@
-import React, { useEffect } from 'react';
-import { Tabs, useRouter } from 'expo-router';
+import React from 'react';
+import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { THEME } from '@/lib/core/theme';
-import { useAuth, useProfileSync } from '@/hooks';
+import { useAuthOptimized, useProfileSync } from '@/hooks';
 import { useProfileStore, useProfileHydration } from '@/stores/verification/useProfileStore';
+import { useAppStore } from '@/stores/auth/app';
+import { Redirect } from 'expo-router';
+import { Text } from '@/components/ui/text';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useNavigationDecision } from '@/hooks/shared/useNavigationDecision';
 
 export default function ProviderLayout() {
   const { isDarkColorScheme } = useColorScheme();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const { user } = useAuth();
-
-  useProfileSync(user?.id); // 🔥 keeps Zustand in sync with Supabase
-  const verificationStatus = useProfileStore((s) => s.verificationStatus);
+  const { user } = useAuthOptimized();
+  const { isLoggingOut } = useAppStore();
   const isHydrated = useProfileHydration();
+  const navigationDecision = useNavigationDecision();
 
-  console.log('[ProviderLayout] Current verification status:', verificationStatus, 'Hydrated:', isHydrated);
+  // ✅ React Query + Zustand pattern: Server state sync
+  useProfileSync(user?.id); // Keeps Zustand in sync with Supabase
 
-  // Wait for hydration before making security decisions
+  console.log('[ProviderLayout] Navigation decision:', navigationDecision);
+
+  // ✅ CRITICAL FIX: Don't render anything during logout to prevent flash
+  if (isLoggingOut) {
+    console.log('[ProviderLayout] Logout in progress, hiding layout');
+    return null;
+  }
+
+  // Wait for store hydration
   if (!isHydrated) {
     console.log('[ProviderLayout] Waiting for store hydration...');
-    return null; // Show nothing while hydrating
+    return (
+      <View className="flex-1 bg-background items-center justify-center">
+        <Skeleton className="w-32 h-32 rounded-full mb-4" />
+        <Text className="text-muted-foreground">Loading...</Text>
+      </View>
+    );
   }
 
-  // Security timeout - if no verification status after 5 seconds of being hydrated, redirect
-  React.useEffect(() => {
-    if (!isHydrated) return; // Don't start timeout until hydrated
-
-    const timeout = setTimeout(() => {
-      if (!verificationStatus) {
-        console.warn('[ProviderLayout] Security timeout: No verification status after hydration + 5s, redirecting');
-        router.replace("/provider-verification/verification-status" as any);
-      }
-    }, 5000); // Reduced from 10s since we're already hydrated
-
-    return () => clearTimeout(timeout);
-  }, [isHydrated, verificationStatus, router]);
-
-  useEffect(() => {
-    console.log('[ProviderLayout] useEffect triggered, verificationStatus:', verificationStatus);
-    // Only redirect if we have a definitive non-approved status (not null/undefined)
-    // Allow time for the profile store to be populated from persistence or sync
-    if (verificationStatus !== null && verificationStatus !== "approved") {
-      console.log('[ProviderLayout] Status not approved, redirecting to verification status');
-      router.replace("/provider-verification/verification-status" as any);
-    } else if (verificationStatus === "approved") {
-      console.log('[ProviderLayout] Status is approved, showing provider dashboard');
-    } else {
-      console.log('[ProviderLayout] Status is null, waiting for sync...');
-    }
-  }, [verificationStatus, router]);
-
-  // Show loading while checking verification status (after hydration)
-  if (verificationStatus === null) {
-    console.log('[ProviderLayout] Verification status is null, showing loading state');
-    return null; // or loading component
+  // ✅ PURE: Use centralized navigation decisions
+  if (navigationDecision.shouldRedirect) {
+    console.log(`[ProviderLayout] Redirecting to ${navigationDecision.targetRoute} - ${navigationDecision.reason}`);
+    return <Redirect href={navigationDecision.targetRoute as any} />;
   }
 
-  // Only render tabs if approved
-  if (verificationStatus !== "approved") {
-    console.log('[ProviderLayout] Verification status not approved, redirect will be handled by useEffect');
-    return null; // Guard will redirect via useEffect
-  }
-
-  console.log('[ProviderLayout] Rendering tabs: Home, Calendar, Bookings, Earnings, Profile');
+  console.log('[ProviderLayout] Access granted - rendering provider tabs');
 
   return (
     <Tabs
@@ -110,6 +94,15 @@ export default function ProviderLayout() {
             title: 'Bookings',
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="clipboard" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="subscriptions"
+          options={{
+            title: 'Premium',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="star" size={size} color={color} />
             ),
           }}
         />

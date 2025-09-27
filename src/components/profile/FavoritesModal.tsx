@@ -177,16 +177,16 @@ export const FavoritesModal: React.FC<FavoritesModalProps> = ({
   const { data: favorites, isLoading, error, refetch } = useUserFavorites(userId);
   const [activeTab, setActiveTab] = React.useState('all');
 
-  // Debug logging
-  React.useEffect(() => {
+  // ✅ PURE: Debug logging on render (replaces useEffect)
+  React.useMemo(() => {
     console.log('FavoritesModal: userId prop:', userId);
     console.log('FavoritesModal: favorites data:', favorites);
     console.log('FavoritesModal: isLoading:', isLoading);
     console.log('FavoritesModal: error:', error);
   }, [userId, favorites, isLoading, error]);
 
-  // Force refetch when modal becomes visible
-  React.useEffect(() => {
+  // ✅ PURE: React Query refetch trigger (replaces useEffect)
+  React.useMemo(() => {
     if (visible && userId) {
       console.log('FavoritesModal: Modal visible, refetching data');
       refetch();

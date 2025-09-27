@@ -1,13 +1,15 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { View, Pressable } from 'react-native';
 import { router } from 'expo-router';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { FlashList } from '@shopify/flash-list';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { useProviderVerificationStore, useProviderVerificationSelectors } from '@/stores/verification/provider-verification';
+import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/verification/provider-verification';
+import { useCategorySearchStore, useCategorySearchResults } from '@/stores/ui';
 import { supabase } from '@/lib/core/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -86,21 +88,6 @@ const CategoryItem = React.memo(({
 CategoryItem.displayName = 'CategoryItem';
 
 export default function CategorySelectionScreen() {
-  const [categories, setCategories] = useState<ServiceCategory[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
-
-  // Debounce search query to improve performance
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery);
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
   const insets = useSafeAreaInsets();
 
   const {
@@ -113,80 +100,114 @@ export default function CategorySelectionScreen() {
     providerId
   } = useProviderVerificationStore();
 
-  const { canGoBack } = useProviderVerificationSelectors();
+  const isHydrated = useProviderVerificationHydration();
 
-  // Filter categories based on search query - optimized with early returns
-  const filteredCategories = useMemo(() => {
-    const query = debouncedSearchQuery.trim().toLowerCase();
-    if (!query) return categories;
-    
-    return categories.filter(category => {
-      const name = category.name.toLowerCase();
-      const description = category.description?.toLowerCase() || '';
-      return name.includes(query) || description.includes(query);
-    });
-  }, [categories, debouncedSearchQuery]);
+  // ✅ ZUSTAND: Search state management (replaces useState + useEffect)
+  const { 
+    searchQuery, 
+    selectedCategoryId, 
+    setSearchQuery, 
+    setSelectedCategoryId,
+    clearSearch 
+  } = useCategorySearchStore();
+  
+  // ✅ PURE SYNC: Initialize selected category from verification store if needed
+  if (categoryData.selectedCategoryId && selectedCategoryId !== categoryData.selectedCategoryId) {
+    console.log('[Categories] Syncing selected category from store:', categoryData.selectedCategoryId);
+    setSelectedCategoryId(categoryData.selectedCategoryId);
+  }
 
-  useEffect(() => {
-    fetchCategories();
-  }, []);
+  // Don't render until hydrated
+  if (!isHydrated) {
+    return (
+      <ScreenWrapper>
+        <View className="flex-1 items-center justify-center">
+          <Text>Loading...</Text>
+        </View>
+      </ScreenWrapper>
+    );
+  }
 
-  useEffect(() => {
-    // Set previously selected category
-    if (categoryData.selectedCategoryId) {
-      setSelectedCategory(categoryData.selectedCategoryId);
-    }
-  }, [categoryData.selectedCategoryId]);
-
-  const fetchCategories = async () => {
-    try {
+  // ✅ REACT QUERY: Fetch service categories
+  const { data: categories = [], isLoading: loading, error: categoriesError } = useQuery({
+    queryKey: ['serviceCategories'],
+    queryFn: async () => {
+      console.log('[Categories] Fetching service categories...');
+      
       const { data, error } = await supabase
         .from('service_categories')
         .select('*')
         .eq('is_active', true)
         .order('sort_order', { ascending: true });
 
-      if (error) throw error;
-      setCategories(data || []);
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-    } finally {
-      setLoading(false);
+      if (error) {
+        console.error('[Categories] Error fetching categories:', error);
+        throw error;
+      }
+      
+      console.log('[Categories] Fetched', data?.length || 0, 'categories');
+      return data || [];
+    },
+    enabled: isHydrated,
+    staleTime: 10 * 60 * 1000, // 10 minutes
+  });
+
+  // ✅ REACT QUERY MUTATION: Submit category selection
+  const submitCategoryMutation = useMutation({
+    mutationFn: async (categoryId: string) => {
+      if (!categoryId) throw new Error('No category selected');
+
+      const selectedCategoryData = categories.find(cat => cat.id === categoryId);
+      if (!selectedCategoryData) throw new Error('Selected category not found');
+
+      console.log('[Categories] Submitting category selection:', selectedCategoryData.name);
+      
+      return {
+        categoryId,
+        categoryName: selectedCategoryData.name
+      };
+    },
+    onSuccess: ({ categoryId, categoryName }) => {
+      console.log('[Categories] Category selection successful:', categoryName);
+      
+      // Mark step as completed and move to next
+      completeStepAndNext(4, {
+        categoryId,
+        categoryName,
+      });
+    },
+    onError: (error: any) => {
+      console.error('[Categories] Category submission failed:', error);
     }
-  };
+  });
+
+  // ✅ COMPUTED CATEGORIES: Using Zustand selector (replaces useMemo + useState)
+  const filteredCategories = useCategorySearchResults(categories);
 
   const handleCategorySelect = useCallback((category: ServiceCategory) => {
-    setSelectedCategory(category.id);
+    setSelectedCategoryId(category.id);
     updateCategoryData({
       selectedCategoryId: category.id,
       categoryName: category.name,
     });
   }, [updateCategoryData]);
 
+  // ✅ OPTIMIZED: Handle form submission with React Query mutation
   const handleSubmit = useCallback(async () => {
-    if (!selectedCategory) return;
-
-    try {
-      // Mark step as completed and move to next
-      const selectedCategoryData = categories.find(cat => cat.id === selectedCategory);
-      completeStepAndNext(4, {
-        categoryId: selectedCategory,
-        categoryName: selectedCategoryData?.name,
-      });
-    } catch (error) {
-      console.error('Error saving category:', error);
-    }
-  }, [selectedCategory, categories, completeStepAndNext]);
+    if (!selectedCategoryId) return;
+    
+    submitCategoryMutation.mutate(selectedCategoryId);
+  }, [selectedCategoryId, submitCategoryMutation]);
 
   const renderCategoryItem = useCallback(({ item, index }: { item: ServiceCategory; index: number }) => (
     <CategoryItem
       key={item.id}
       item={item}
-      isSelected={selectedCategory === item.id}
+      isSelected={selectedCategoryId === item.id}
       onSelect={handleCategorySelect}
       index={index}
     />
-  ), [selectedCategory, handleCategorySelect]);
+  ), [selectedCategoryId, handleCategorySelect]);
 
   return (
     <View className="flex-1">
@@ -231,11 +252,7 @@ export default function CategorySelectionScreen() {
           </View>
           {searchQuery && (
             <Text className="text-xs text-muted-foreground mt-1">
-              {searchQuery !== debouncedSearchQuery ? (
-                'Searching...'
-              ) : (
-                `${filteredCategories.length} of ${categories.length} categories`
-              )}
+              {`${filteredCategories.length} of ${categories.length} categories`}
             </Text>
           )}
         </Animated.View>
@@ -301,28 +318,26 @@ export default function CategorySelectionScreen() {
           <Button
             size="lg"
             onPress={handleSubmit}
-            disabled={!selectedCategory}
+            disabled={!selectedCategoryId || submitCategoryMutation.isPending}
             className="w-full"
           >
             <Text className="font-semibold text-primary-foreground">
-              Continue to Service Selection
+              {submitCategoryMutation.isPending ? 'Saving...' : 'Continue to Service Selection'}
             </Text>
           </Button>
         </Animated.View>
 
-        {/* Back Button - only show if not first step */}
-        {canGoBack && (
-          <Animated.View entering={SlideInDown.delay(650).springify()}>
-            <Button
-              variant="outline"
-              size="lg"
-              onPress={previousStep}
-              className="w-full"
-            >
-              <Text>Back to Business Information</Text>
-            </Button>
-          </Animated.View>
-        )}
+        {/* Back Button - always show since this is not the first step */}
+        <Animated.View entering={SlideInDown.delay(650).springify()}>
+          <Button
+            variant="outline"
+            size="lg"
+            onPress={previousStep}
+            className="w-full"
+          >
+            <Text>Back to Business Information</Text>
+          </Button>
+        </Animated.View>
       </View>
     </View>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { View, ScrollView, RefreshControl, TouchableOpacity, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -7,12 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  useAuth,
+  useAuthOptimized,
   useProviderEarnings,
   useProviderPayouts,
-  useProviderEarningsAnalytics
+  useProviderEarningsAnalytics,
+  useStripeAccountStatus
 } from '@/hooks';
 import { supabase } from '@/lib/core/supabase';
+import { useQuery } from '@tanstack/react-query';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { THEME } from '@/lib/core/theme';
 import {
@@ -40,9 +42,9 @@ interface PayoutHistoryItem {
 }
 
 export default function ProviderEarningsScreen() {
-  const { user } = useAuth();
+  // ✅ MIGRATED: Using optimized auth hook following copilot-rules.md
+  const { user, profile } = useAuthOptimized();
   const { isDarkColorScheme } = useColorScheme();
-  const [refreshing, setRefreshing] = useState(false);
 
   // React Query hooks
   const {
@@ -61,38 +63,31 @@ export default function ProviderEarningsScreen() {
     isLoading: analyticsLoading
   } = useProviderEarningsAnalytics(user?.id);
 
-  const [stripeStatus, setStripeStatus] = useState<any>(null);
-
-  useEffect(() => {
-    checkStripeStatus();
-  }, []);
-
-  const checkStripeStatus = async () => {
-    try {
-      const { data: profile } = await supabase
+  // ✅ REACT QUERY: Fetch stripe account ID from profile
+  const { data: profileWithStripe } = useQuery({
+    queryKey: ['profileStripe', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      
+      const { data: profile, error } = await supabase
         .from('profiles')
         .select('stripe_account_id, stripe_charges_enabled, stripe_details_submitted')
-        .eq('id', user?.id)
+        .eq('id', user.id)
         .single();
+      
+      if (error) throw error;
+      return profile;
+    },
+    enabled: !!user?.id,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
 
-      if (profile?.stripe_account_id) {
-        const { data } = await supabase.functions.invoke('check-stripe-account-status', {
-          body: { account_id: profile.stripe_account_id }
-        });
-        setStripeStatus(data);
-      }
-    } catch (error) {
-      console.error('Error checking Stripe status:', error);
-    }
-  };
+  // ✅ REACT QUERY: Stripe status using account ID
+  const { data: stripeStatus } = useStripeAccountStatus(profileWithStripe?.stripe_account_id || '');
 
+  // ✅ PURE REACT QUERY: Refresh all data without state management
   const onRefresh = async () => {
-    setRefreshing(true);
-    await Promise.all([
-      refetchEarnings(),
-      checkStripeStatus()
-    ]);
-    setRefreshing(false);
+    await refetchEarnings();
   };
 
   const formatCurrency = (amount: number) => {
@@ -154,7 +149,7 @@ export default function ProviderEarningsScreen() {
 
       <ScrollView
         className="flex-1"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={earningsLoading} onRefresh={onRefresh} />}
       >
         <View className="p-6 space-y-6">
           {/* Stripe Status Alert */}

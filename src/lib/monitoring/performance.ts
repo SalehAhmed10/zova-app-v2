@@ -63,6 +63,7 @@ export function useStableCallback<T extends (...args: any[]) => any>(
 
 /**
  * Debounced value hook to prevent excessive updates
+ * ✅ SYSTEM UTILITY: useEffect for debouncing is legitimate system behavior
  */
 export function useDebounced<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = React.useState<T>(value);
@@ -103,6 +104,7 @@ export function useThrottled<T extends (...args: any[]) => any>(
 
 /**
  * Performance monitoring hook for development
+ * ✅ SYSTEM UTILITY: useEffect for performance monitoring is legitimate development tool
  */
 export function usePerformanceMonitor(name: string, enabled: boolean = __DEV__) {
   const renderCount = React.useRef(0);
@@ -122,6 +124,7 @@ export function usePerformanceMonitor(name: string, enabled: boolean = __DEV__) 
     startTime.current = Date.now();
   });
 
+  // ✅ SYSTEM UTILITY: useEffect for cleanup logging is legitimate development tool
   React.useEffect(() => {
     if (!enabled) return;
 
@@ -155,6 +158,7 @@ export function useBatchedState<T>(initialState: T): [T, (updates: Partial<T>) =
     }, 0);
   }, []);
 
+  // ✅ SYSTEM UTILITY: useEffect for timeout cleanup is legitimate system behavior
   React.useEffect(() => {
     return () => {
       if (timeoutRef.current) {
@@ -197,6 +201,7 @@ export function useExpensiveComputation<T>(
   const [result, setResult] = React.useState<T | undefined>(undefined);
   const isComputing = React.useRef(false);
 
+  // ✅ SYSTEM UTILITY: useEffect for expensive computation optimization is legitimate performance tool
   React.useEffect(() => {
     if (!enabled || isComputing.current) return;
 

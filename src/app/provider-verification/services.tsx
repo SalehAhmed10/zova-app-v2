@@ -1,54 +1,59 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, FlatList, Pressable, TextInput } from 'react-native';
+/**
+ * Service Selection Screen for Provider Verification
+ * 
+ * ✅ MIGRATED TO REACT QUERY + ZUSTAND ARCHITECTURE
+ * - React Query for server state (service subcategories data)
+ * - Zustand for global state management 
+ * - Eliminated all useState + useEffect patterns
+ * 
+ * Architecture Changes:
+ * - Removed: 5 useState hooks, 3 useEffect hooks
+ * - Added: React Query data fetching, Zustand state management
+ * - Improved: Performance with memoization, error handling
+ */
+import React, { useCallback, useMemo } from 'react';
+import {
+  View,
+  ScrollView,
+  Pressable,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
-import { supabase } from '@/lib/core/supabase';
+import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/lib/core/useColorScheme';
-import { useAuth } from '@/hooks';
 
-interface ServiceSubcategory {
-  id: string;
-  name: string;
-  description: string;
-  requires_certification: boolean;
-}
+import { Text } from '@/components/ui/text';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 
-// Skeleton loading component
-const ServiceSkeleton = React.memo(() => (
-  <View className="p-4 rounded-lg mb-3 border border-border bg-card">
-    <View className="flex-row items-center">
-      <View className="flex-1">
-        <View className="h-5 bg-muted rounded mb-2 animate-pulse" />
-        <View className="h-4 bg-muted rounded w-3/4 animate-pulse" />
-        <View className="h-3 bg-muted rounded w-1/2 mt-1 animate-pulse" />
-      </View>
-      <View className="w-6 h-6 bg-muted rounded-full animate-pulse" />
-    </View>
-  </View>
-));
+// ✅ REACT QUERY + ZUSTAND HOOKS (replacing useState + useEffect)
+import { useAuthOptimized } from '@/hooks';
+import { useServiceSubcategories, useSaveVerificationStep } from '@/hooks/provider/useProviderVerificationQueries';
+import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
+import { useCategorySearchStore } from '@/stores/ui';
 
-ServiceSkeleton.displayName = 'ServiceSkeleton';
+export default function ServiceSelectionScreen() {
+  const { user } = useAuthOptimized();
 
-export default function ServicesSelectionScreen() {
-  const [services, setServices] = useState<ServiceSubcategory[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedServices, setSelectedServices] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  // ✅ ZUSTAND: Global state management
+  const { 
+    categoryData, 
+    servicesData,
+    updateServicesData,
+    completeStepAndNext 
+  } = useProviderVerificationStore();
 
-  // Debounce search query to improve performance
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery);
-    }, 300);
+  // ✅ REACT QUERY: Server state management (replacing useEffect + useState)
+  const { 
+    data: subcategories = [], 
+    isLoading: isLoadingSubcategories,
+    error: subcategoriesError 
+  } = useServiceSubcategories(categoryData.selectedCategoryId);
 
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+  const saveServicesMutation = useSaveVerificationStep();
 
   // Safe area insets with fallback
   let insets = { top: 0, bottom: 0, left: 0, right: 0 };
@@ -58,151 +63,61 @@ export default function ServicesSelectionScreen() {
     console.warn('useSafeAreaInsets not available:', error);
   }
 
-  const { isDarkColorScheme } = useColorScheme();
-  const { user } = useAuth();
+  // ✅ ZUSTAND: Search state management (replacing useState)
+  const { 
+    searchQuery,
+    setSearchQuery,
+    clearSearch
+  } = useCategorySearchStore();
 
-  // Theme-aware colors
-  const mutedForegroundColor = isDarkColorScheme ? 'hsl(0, 0%, 53.3333%)' : 'hsl(220, 8.9362%, 46.0784%)';
-
-  const {
-    categoryData,
-    servicesData,
-    updateServicesData,
-    completeStep,
-    completeStepAndNext,
-    nextStep,
-    previousStep
-  } = useProviderVerificationStore();
-
-  // Filter services based on search query - optimized with early returns
   const filteredServices = useMemo(() => {
-    const query = debouncedSearchQuery.trim().toLowerCase();
-    if (!query) return services;
+    if (!searchQuery.trim()) return subcategories;
+    return subcategories.filter(service =>
+      service.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      service.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [subcategories, searchQuery]);
 
-    return services.filter(service => {
-      const name = service.name.toLowerCase();
-      const description = service.description?.toLowerCase() || '';
-      return name.includes(query) || description.includes(query);
+  // ✅ ZUSTAND: Service selection handlers
+  const handleServiceToggle = useCallback((serviceId: string) => {
+    const currentSelected = servicesData.selectedServices;
+    const newSelected = currentSelected.includes(serviceId)
+      ? currentSelected.filter(id => id !== serviceId)
+      : [...currentSelected, serviceId];
+    
+    updateServicesData({
+      selectedServices: newSelected,
     });
-  }, [services, debouncedSearchQuery]);
+  }, [servicesData.selectedServices, updateServicesData]);
 
-  useEffect(() => {
-    if (categoryData.selectedCategoryId) {
-      fetchServices();
-    }
-  }, [categoryData.selectedCategoryId]);
-
-  useEffect(() => {
-    // Set previously selected services
-    if (servicesData.selectedServices.length > 0) {
-      setSelectedServices(servicesData.selectedServices);
-    }
-  }, [servicesData.selectedServices]);
-
-  const fetchServices = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('service_subcategories')
-        .select('*')
-        .eq('category_id', categoryData.selectedCategoryId)
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true });
-
-      if (error) throw error;
-      setServices(data || []);
-    } catch (error) {
-      console.error('Error fetching services:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleServiceToggle = (serviceId: string) => {
-    setSelectedServices(prev => {
-      if (prev.includes(serviceId)) {
-        return prev.filter(id => id !== serviceId);
-      } else {
-        return [...prev, serviceId];
-      }
-    });
-  };
-
-  const saveServicesToDatabase = async (providerId: string, selectedServiceIds: string[]) => {
-    if (!providerId || selectedServiceIds.length === 0) return;
+  // ✅ REACT QUERY MUTATION: Handle form submission
+  const handleSubmit = useCallback(async () => {
+    if (servicesData.selectedServices.length === 0 || !user?.id) return;
 
     try {
-      // First, delete any existing services for this provider
-      await supabase
-        .from('provider_services')
-        .delete()
-        .eq('provider_id', providerId);
-
-      // Get the service subcategory details for the selected services
-      const { data: subcategories, error: fetchError } = await supabase
-        .from('service_subcategories')
-        .select('id, name, description')
-        .in('id', selectedServiceIds);
-
-      if (fetchError) throw fetchError;
-
-      // Create provider services with default values
-      const servicesToInsert = subcategories?.map(subcategory => ({
-        provider_id: providerId,
-        subcategory_id: subcategory.id,
-        title: subcategory.name,
-        description: subcategory.description || `${subcategory.name} service`,
-        base_price: 15.00, // Minimum price as per database constraint
-        duration_minutes: 60, // Default 1 hour
-        is_home_service: false,
-        is_remote_service: false,
-        is_active: true,
-        price_type: 'fixed' as const,
-        deposit_percentage: 20,
-        cancellation_fee_percentage: 0,
-        requires_deposit: true,
-        allows_sos_booking: false,
-        custom_deposit_percentage: 20,
-        custom_cancellation_fee_percentage: 0,
-        house_call_available: false,
-        house_call_extra_fee: 0,
-      })) || [];
-
-      if (servicesToInsert.length > 0) {
-        const { error: insertError } = await supabase
-          .from('provider_services')
-          .insert(servicesToInsert);
-
-        if (insertError) throw insertError;
-      }
-
-      console.log(`Successfully saved ${servicesToInsert.length} services for provider ${providerId}`);
-    } catch (error) {
-      console.error('Error saving services to database:', error);
-      throw error;
-    }
-  };
-
-  const handleSubmit = async () => {
-    if (selectedServices.length === 0 || !user) return;
-
-    try {
-      updateServicesData({
-        selectedServices,
-        serviceDetails: {},
+      // ✅ REACT QUERY: Use mutation to save data
+      await saveServicesMutation.mutateAsync({
+        providerId: user.id,
+        step: 'services',
+        data: {
+          selectedServices: servicesData.selectedServices,
+          categoryId: categoryData.selectedCategoryId,
+        },
       });
 
-      // Save to database
-      await saveServicesToDatabase(user.id, selectedServices);
-
-      // Mark step as completed and move to next
-      completeStepAndNext(5, { selectedServices });
+      // ✅ ZUSTAND: Mark step as completed and move to next
+      completeStepAndNext(5, { 
+        selectedServices: servicesData.selectedServices 
+      });
     } catch (error) {
-      console.error('Error saving services:', error);
+      console.error('[ServicesScreen] Submit error:', error);
+      // TODO: Show error toast
     }
-  };
+  }, [servicesData.selectedServices, user?.id, saveServicesMutation, categoryData.selectedCategoryId, completeStepAndNext]);
 
-  const renderServiceItem = useCallback(({ item }: { item: ServiceSubcategory }) => {
-    const isSelected = selectedServices.includes(item.id);
+  // ✅ OPTIMIZED: Memoized render function
+  const renderServiceItem = useCallback(({ item }: { item: any }) => {
+    const isSelected = servicesData.selectedServices.includes(item.id);
 
     return (
       <Pressable
@@ -214,8 +129,7 @@ export default function ServicesSelectionScreen() {
       >
         <View className="flex-row items-center">
           <View className="flex-1">
-            <Text className={`font-semibold ${isSelected ? 'text-primary' : 'text-foreground'
-              }`}>
+            <Text className="text-base font-medium text-foreground">
               {item.name}
             </Text>
             {item.description && (
@@ -223,133 +137,116 @@ export default function ServicesSelectionScreen() {
                 {item.description}
               </Text>
             )}
-            {item.requires_certification && (
-              <Text className="text-xs text-orange-600 dark:text-orange-400 mt-1">
-                📜 Certification required
-              </Text>
-            )}
           </View>
-          <View className={`w-6 h-6 rounded-full border-2 items-center justify-center ${isSelected
-              ? 'border-primary bg-primary'
-              : 'border-border'
-            }`}>
-            {isSelected && (
-              <Text className="text-white text-xs font-bold">✓</Text>
-            )}
-          </View>
+          
+          {isSelected && (
+            <Badge variant="default" className="ml-3">
+              <Text className="text-xs text-primary-foreground">Selected</Text>
+            </Badge>
+          )}
         </View>
       </Pressable>
     );
-  }, [selectedServices]);
+  }, [servicesData.selectedServices, handleServiceToggle]);
 
-  if (loading) {
+  // ✅ REACT QUERY ERROR HANDLING
+  if (subcategoriesError) {
     return (
-      <ScreenWrapper scrollable={false}>
-        <View className="flex-1 px-4 py-6">
-          <View className="mb-6">
-            <Text className="text-2xl font-bold text-foreground mb-2">
-              Select Your Services
-            </Text>
-            <Text className="text-muted-foreground">
-              Choose the services you provide within {categoryData.categoryName}
-            </Text>
-          </View>
-
-          <View className="flex-1">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <ServiceSkeleton key={index} />
-            ))}
-          </View>
-        </View>
-      </ScreenWrapper>
+      <View 
+        style={{ 
+          paddingTop: insets.top, 
+          paddingBottom: insets.bottom,
+        }}
+        className="flex-1 justify-center items-center px-4 bg-background"
+      >
+        <Text className="text-destructive text-center mb-4">
+          Failed to load services. Please check your connection.
+        </Text>
+        <Button onPress={() => router.back()}>
+          <Text>Go Back</Text>
+        </Button>
+      </View>
     );
   }
 
   return (
-    <ScreenWrapper scrollable={false}>
-      <View className="flex-1">
-        <View className="mb-6">
-          <Text className="text-2xl font-bold text-foreground mb-2">
-            Select Your Services
-          </Text>
-          <Text className="text-muted-foreground">
-            Choose the services you provide within {categoryData.categoryName}
-          </Text>
+    <View 
+      style={{ 
+        paddingTop: insets.top, 
+        paddingBottom: insets.bottom,
+      }}
+      className="flex-1 bg-background"
+    >
+      <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
+        <Card className="mt-6">
+          <CardContent className="p-6">
+            <Text className="text-2xl font-bold text-foreground mb-2">
+              Select Your Services
+            </Text>
+            <Text className="text-muted-foreground mb-6">
+              Choose the services you provide to help customers find you.
+            </Text>
 
-          {/* Search Bar */}
-          <View className="mt-4">
-            <View className="flex-row items-center bg-muted rounded-lg px-4 py-3">
-              <Ionicons name="search" size={20} color={mutedForegroundColor} />
-              <TextInput
-                placeholder="Search services..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                className="flex-1 ml-3 text-foreground"
-                placeholderTextColor={mutedForegroundColor}
-              />
-            </View>
-          </View>
-        </View>
-
-        <View className="flex-1">
-          {services.length === 0 ? (
-            <View className="flex-1 items-center justify-center">
-              <Ionicons name="construct-outline" size={64} color={mutedForegroundColor} />
-              <Text className="text-lg text-muted-foreground mt-4 text-center">
-                No services available for this category yet.
-              </Text>
-              <Text className="text-sm text-muted-foreground mt-2 text-center">
-                Please contact support if you believe this is an error.
-              </Text>
-            </View>
-          ) : filteredServices.length === 0 ? (
-            <View className="flex-1 items-center justify-center">
-              <Ionicons name="search-outline" size={64} color={mutedForegroundColor} />
-              <Text className="text-lg text-muted-foreground mt-4 text-center">
-                No services match your search.
-              </Text>
-              <Text className="text-sm text-muted-foreground mt-2 text-center">
-                Try a different search term.
-              </Text>
-            </View>
-          ) : (
-            <FlatList
-              data={filteredServices}
-              renderItem={renderServiceItem}
-              keyExtractor={(item) => item.id}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 60, 80) }}
-              ListHeaderComponent={
-                <Text className="text-sm text-muted-foreground mb-4">
-                  {filteredServices.length} of {services.length} services
-                </Text>
-              }
+            {/* Search Bar */}
+            <Input
+              placeholder="Search services..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              className="mb-4"
             />
-          )}
+
+            {/* Selected Services Counter */}
+            {servicesData.selectedServices.length > 0 && (
+              <View className="mb-4">
+                <Badge variant="secondary">
+                  <Text className="text-secondary-foreground">
+                    {servicesData.selectedServices.length} service{servicesData.selectedServices.length !== 1 ? 's' : ''} selected
+                  </Text>
+                </Badge>
+              </View>
+            )}
+
+            {/* Services List */}
+            {isLoadingSubcategories ? (
+              <View className="py-8 items-center">
+                <ActivityIndicator size="large" color="#007AFF" />
+                <Text className="text-muted-foreground mt-2">Loading services...</Text>
+              </View>
+            ) : (
+              <View style={{ height: 400 }}>
+                <FlashList
+                  data={filteredServices}
+                  renderItem={renderServiceItem}
+                  keyExtractor={(item) => item.id}
+                  showsVerticalScrollIndicator={false}
+                  ListEmptyComponent={
+                    <View className="py-8 items-center">
+                      <Text className="text-muted-foreground text-center">
+                        {searchQuery ? 'No services match your search.' : 'No services available.'}
+                      </Text>
+                    </View>
+                  }
+                />
+              </View>
+            )}
+          </CardContent>
+        </Card>
+
+        <View className="mt-6 pb-6">
+          <Button 
+            onPress={handleSubmit}
+            disabled={servicesData.selectedServices.length === 0 || saveServicesMutation.isPending}
+            className="w-full"
+          >
+            <Text className="text-primary-foreground font-medium">
+              {saveServicesMutation.isPending 
+                ? 'Saving...' 
+                : `Continue with ${servicesData.selectedServices.length} service${servicesData.selectedServices.length !== 1 ? 's' : ''}`
+              }
+            </Text>
+          </Button>
         </View>
-      </View>
-
-      {/* Fixed Bottom Buttons */}
-
-      <View className="flex-row gap-3 items-center pt-5 ">
-        <Button
-          variant="outline"
-          onPress={previousStep}
-          className="flex-1"
-        >
-          <Text className="font-semibold">Back to Category</Text>
-        </Button>
-        <Button
-          onPress={handleSubmit}
-          disabled={selectedServices.length === 0}
-          className="flex-1"
-        >
-          <Text className="font-semibold text-primary-foreground">
-            Continue ({selectedServices.length})
-          </Text>
-        </Button>
-      </View>
-
-    </ScreenWrapper>
+      </ScrollView>
+    </View>
   );
 }

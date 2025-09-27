@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
@@ -10,33 +11,28 @@ import { useAppStore } from '@/stores/auth/app';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PaymentEmailCampaignService } from '@/lib/payment/payment-email-campaigns';
 import { PaymentAnalyticsService } from '@/lib/payment/payment-analytics';
+
 import { supabase } from '@/lib/core/supabase';
 
 export default function VerificationCompleteScreen() {
   console.log('[Complete Screen] Rendered');
-  const { resetVerification, getCompletionPercentage, isStepCompleted, steps } = useProviderVerificationStore();
+  const queryClient = useQueryClient();
+  const { resetVerification, getCompletionPercentage, isStepCompleted, steps, providerId } = useProviderVerificationStore();
   const { setAuthenticated } = useAppStore();
+  
   // Make completion percentage reactive by calculating it from steps
   const completedSteps = Object.values(steps).filter(step => step.isCompleted).length;
   const completionPercentage = Math.round((completedSteps / 9) * 100);
   const insets = useSafeAreaInsets();
 
-  // Debug step completion status
-  console.log('[Complete Screen] Step completion status:');
-  for (let i = 1; i <= 9; i++) {
-    console.log(`Step ${i}: ${steps[i]?.isCompleted ? '✅' : '⏳'}`);
-  }
-  console.log(`[Complete Screen] Completion percentage: ${completionPercentage}%`);
-
-  useEffect(() => {
-    // Update the user profile to mark verification as complete
-    updateProviderStatus();
-  }, []);
-
-  const updateProviderStatus = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+  // ✅ REACT QUERY: Provider status update mutation
+  const updateProviderStatusMutation = useMutation({
+    mutationFn: async () => {
+      console.log('[Complete Screen] Updating provider status for:', providerId);
+      
+      if (!providerId) {
+        throw new Error('Provider ID not found');
+      }
 
       // Ensure all steps are marked as completed since verification is being submitted
       // This handles cases where steps might not have been completed due to navigation or bugs
@@ -55,27 +51,37 @@ export default function VerificationCompleteScreen() {
           verification_status: 'in_review', // Submit for admin review, not auto-approved
           updated_at: new Date().toISOString()
         })
-        .eq('id', user.id);
+        .eq('id', providerId);
 
       if (error) {
-        console.error('Error updating provider status:', error);
-      } else {
-        console.log('Provider verification submitted for review');
-        
-        // Track verification completion analytics
-        await PaymentAnalyticsService.trackEvent({
-          event_type: 'payment_setup_completed',
-          user_id: user.id,
-          context: 'verification_complete',
-          metadata: { submitted_for_review_at: Date.now() }
-        });
+        console.error('[Complete Screen] Error updating provider status:', error);
+        throw error;
       }
-    } catch (error) {
-      console.error('Error updating provider status:', error);
-    }
-  };
+
+      console.log('[Complete Screen] Provider verification submitted for review');
+      
+      // Track verification completion analytics
+      await PaymentAnalyticsService.trackEvent({
+        event_type: 'payment_setup_completed',
+        user_id: providerId,
+        context: 'verification_complete',
+        metadata: { submitted_for_review_at: Date.now() }
+      });
+
+      return { success: true };
+    },
+    onSuccess: () => {
+      console.log('[Complete Screen] Provider status updated successfully');
+      queryClient.invalidateQueries({ queryKey: ['providerProfile', providerId] });
+    },
+    onError: (error) => {
+      console.error('[Complete Screen] Failed to update provider status:', error);
+    },
+  });
 
   const handleContinue = () => {
+    // Update provider status when user clicks continue
+    updateProviderStatusMutation.mutate();
     // Don't reset verification store - keep it for status tracking
     // resetVerification(); // Commented out - we want to keep the verification state
     router.replace('/provider' as any);

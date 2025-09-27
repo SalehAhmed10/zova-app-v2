@@ -14,7 +14,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useAppStore } from '@/stores/auth/app';
-import { useAuth } from '@/hooks';
+import { useAuthPure } from '@/hooks/shared/useAuthPure';
 import { cn } from '@/lib/core/utils';
 
 interface LogoutButtonProps {
@@ -38,8 +38,8 @@ export function LogoutButton({
   showIcon = true,
   fullWidth = false
 }: LogoutButtonProps) {
-  const { logout } = useAppStore();
-  const { signOut } = useAuth();
+  const { logout, setLoggingOut } = useAppStore();
+  const { signOut } = useAuthPure();
   const [isLoading, setIsLoading] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
 
@@ -48,39 +48,38 @@ export function LogoutButton({
       setIsLoading(true);
       setShowDialog(false);
       
-      console.log('[Logout] Starting logout process...');
+      // ✅ CLEAN: Set logout state - triggers app-level loading screen
+      setLoggingOut(true);
+      console.log('[LogoutButton] Starting clean logout process');
       
-      // Clear app state first
+      // ✅ ROBUST: Immediate state clearing - no delays needed
       logout();
-      console.log('[Logout] App state cleared');
+      console.log('[LogoutButton] App state cleared');
       
-      // Try to sign out from Supabase (don't fail if this errors)
+      // ✅ CLEAN: Supabase sign out with proper error handling
       if (signOut) {
         try {
-          const result = await signOut();
-          if (result.success) {
-            console.log('[Logout] Auth sign out completed successfully');
-          } else {
-            console.warn('[Logout] Auth sign out had issues but continuing');
-          }
+          await signOut();
+          console.log('[LogoutButton] Supabase sign out completed');
         } catch (authError) {
-          console.warn('[Logout] Auth sign out failed, but continuing:', authError);
+          // Non-blocking error - logout can proceed without Supabase
+          console.warn('[LogoutButton] Supabase sign out failed (non-critical):', authError);
         }
       }
       
-      console.log('[Logout] Navigating to login...');
-      // Don't navigate directly - let RootNavigator handle navigation based on state changes
-      // router.replace('/auth');
+      // ✅ CLEAN: Single timeout for UX animation duration
+      setTimeout(() => {
+        setLoggingOut(false);
+        console.log('[LogoutButton] Logout animation completed');
+      }, 1500); // Reduced to 1.5s for better UX
       
     } catch (error) {
-      console.error('[Logout] Error during logout:', error);
-      // Still try to clear state even if something fails
+      console.error('[LogoutButton] Logout error:', error);
+      // ✅ ROBUST: Always reset state on error
       logout();
-      // Don't navigate here - let RootNavigator handle it
-      // router.replace('/auth');
+      setLoggingOut(false);
     } finally {
       setIsLoading(false);
-      console.log('[Logout] Logout process completed');
     }
   };
 

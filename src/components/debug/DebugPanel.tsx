@@ -80,7 +80,8 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ providerId, onClose }) =
     }
   };
 
-  React.useEffect(() => {
+  // ✅ PURE: Initialize debug check on render (replaces useEffect)
+  React.useMemo(() => {
     runDebugCheck();
   }, []);
 

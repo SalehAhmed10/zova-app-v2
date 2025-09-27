@@ -1,5 +1,25 @@
-export { useAuth } from './useAuth';
+// ✅ PURE: Auth hook with ZERO useEffect patterns
+export { useAuthPure as useAuthOptimized } from './useAuthPure';
 export { useProfileSync } from './useProfileSync';
+
+// ✅ PURE: Navigation decision hooks - NO useEffect
+export { useNavigationDecision, useVerificationNavigation } from './useNavigationDecision';
+
+// ✅ OPTIMIZED: New architecture hooks without useEffect
+export { useAppInitialization } from './useAppInitialization';
+export { useAuthNavigation } from './useAuthNavigation';
+
+// ✅ SYSTEM INTEGRATION: Deep link handler (encapsulated useEffect for system events)
+export { useDeepLinkHandler } from './useDeepLinkHandler';
+
+// ✅ SYSTEM INTEGRATION: Auth listener (encapsulated useEffect for Supabase auth events)
+export { useAuthListener } from './useAuthListener';
+export { usePendingRegistration } from './usePendingRegistration';
+
+// ✅ UTILITY: Debounce hook for search optimization
+export { useDebounceValue } from './useDebounce';
+
+export * from './useSubscription';
 export {
   useProfile,
   useUserBookings,
@@ -19,6 +39,9 @@ export {
   useProviderCalendarBookings,
   useUpdateWeeklySchedule,
   useDeleteService,
+  useToggleServiceStatus,
+  useCreateService,
+  useUpdateService,
   type ProfileData,
   type BookingData,
   type ProfileStats,

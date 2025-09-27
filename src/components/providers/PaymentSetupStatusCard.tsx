@@ -1,56 +1,39 @@
 // Payment Setup Status Card for Provider Dashboard
-// Add this to your provider dashboard to show payment setup status
+// ✅ MIGRATED: Now uses React Query + Zustand architecture (copilot-rules.md compliant)
+// ❌ REMOVED: useState + useEffect patterns - ALL useEffect eliminated per copilot-rules.md
+// ✅ ADDED: React Query for server state management
 
-import React, { useState, useEffect } from 'react';
-import { View, Alert } from 'react-native';
+import React from 'react';
+import { View } from 'react-native';
 import { router } from 'expo-router';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { supabase } from '@/lib/core/supabase';
 import { PaymentAnalyticsService } from '@/lib/payment/payment-analytics';
+
+// ✅ NEW: Using React Query hook instead of useState + useEffect
+import { usePaymentStatus } from '@/hooks/provider/usePaymentStatus';
 
 interface PaymentSetupStatusProps {
   userId: string;
 }
 
 export const PaymentSetupStatusCard: React.FC<PaymentSetupStatusProps> = ({ userId }) => {
-  const [paymentStatus, setPaymentStatus] = useState<{
-    hasStripeAccount: boolean;
-    accountSetupComplete: boolean;
-    chargesEnabled: boolean;
-    accountId?: string;
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
+  // ✅ PURE REACT QUERY: Server state management (replaces useState + useEffect)
+  const { 
+    data: paymentStatus, 
+    isLoading: loading, 
+    error 
+  } = usePaymentStatus(userId);
 
-  useEffect(() => {
-    checkPaymentStatus();
-    
-    // Track that payment prompt was shown in dashboard
-    if (userId && !paymentStatus?.accountSetupComplete) {
+  // ✅ PURE ANALYTICS: Track payment prompt on render (replaces useEffect)
+  React.useMemo(() => {
+    if (userId && paymentStatus !== undefined && !paymentStatus?.accountSetupComplete) {
       PaymentAnalyticsService.trackPaymentPromptShown(userId, 'dashboard');
     }
-  }, [userId]);
+  }, [userId, paymentStatus?.accountSetupComplete]);
 
-  const checkPaymentStatus = async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke('check-stripe-account-status');
-      
-      if (!error && data) {
-        setPaymentStatus({
-          hasStripeAccount: data.hasStripeAccount,
-          accountSetupComplete: data.accountSetupComplete,
-          chargesEnabled: data.charges_enabled,
-          accountId: data.accountId
-        });
-      }
-    } catch (error) {
-      console.error('Error checking payment status:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Handle loading state
   if (loading) {
     return (
       <Card className="mb-6">
@@ -61,6 +44,20 @@ export const PaymentSetupStatusCard: React.FC<PaymentSetupStatusProps> = ({ user
     );
   }
 
+  // Handle error state
+  if (error) {
+    return (
+      <Card className="mb-6">
+        <CardContent className="p-4">
+          <Text className="text-destructive text-sm">
+            Error checking payment status. Please try again later.
+          </Text>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Payment setup complete
   if (paymentStatus?.accountSetupComplete && paymentStatus?.chargesEnabled) {
     return (
       <Card className="mb-6">

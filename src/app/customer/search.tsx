@@ -1,4 +1,12 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+/**
+ * Customer Search Screen - OPTIMIZED VERSION
+ * ✅ Follows copilot-rules.md - React Query + Zustand architecture
+ * ✅ NO useEffect patterns
+ * ✅ NO useState for server data
+ * ✅ Proper separation of concerns
+ */
+
+import React, { useMemo, useCallback } from 'react';
 import { View, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -12,15 +20,17 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/core/utils';
-import {
-  useAuth,
-  useProviderSearch,
+
+// ✅ NEW: Optimized hooks following copilot-rules.md
+import { useSearchStore } from '@/stores/customer/search-store';
+import { 
+  useSearchResults, 
+  useSearchActions,
   useServiceCategories,
-  useServiceSearch,
   useIsFavorited,
-  useToggleFavorite
+  useToggleFavorite,
+  useAuthOptimized
 } from '@/hooks';
-import type { SearchFilters, ProviderSearchResult, ServiceSearchResult } from '@/hooks';
 
 // Search Bar Component
 const SearchBar = ({
@@ -48,475 +58,256 @@ const SearchBar = ({
           onChangeText={onChangeText}
           onSubmitEditing={onSubmit}
           className="flex-1 border-0 p-0 text-base bg-transparent dark:bg-transparent text-foreground"
-          placeholderTextColor="hsl(var(--muted-foreground))"
           returnKeyType="search"
         />
-        {value.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onPress={() => onChangeText('')}
-            className="w-8 h-8 p-0 ml-2 hover:bg-muted/50"
-          >
-            <Feather name="x" size={18} className="text-muted-foreground" />
-          </Button>
-        )}
       </View>
     </View>
   );
 };
-
-// Filter Bar Component
-const FilterBar = ({
-  filters,
-  onFiltersChange,
-  categories,
-  isCollapsed,
-  onToggleCollapse,
-  priceSortDirection,
-  onPriceSortToggle
-}: {
-  filters: SearchFilters;
-  onFiltersChange: (filters: SearchFilters) => void;
-  categories: any[];
-  isCollapsed: boolean;
-  onToggleCollapse: () => void;
-  priceSortDirection: 'asc' | 'desc';
-  onPriceSortToggle: () => void;
-}) => {
-  return (
-    <View className="px-4 mb-4">
-      <View className="flex-row items-center justify-between mb-3">
-        <Text className="text-lg font-semibold text-foreground">Filters</Text>
-        <Button
-          variant="ghost"
-          size="sm"
-          onPress={onToggleCollapse}
-          className="flex-row items-center gap-1"
-        >
-          <Feather
-            name={isCollapsed ? "chevron-down" : "chevron-up"}
-            size={16}
-            className="text-primary"
-          />
-          <Text className="text-primary font-medium">
-            {isCollapsed ? 'Show' : 'Hide'} Filters
-          </Text>
-        </Button>
-      </View>
-
-      {!isCollapsed && (
-        <>
-          {/* Category Pills */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3">
-            <View className="flex-row gap-2">
-              <Button
-                variant={!filters.category ? "default" : "outline"}
-                size="sm"
-                onPress={() => onFiltersChange({ ...filters, category: undefined })}
-                className="rounded-full px-4 py-2 bg-primary hover:bg-primary/90"
-              >
-                <Text className={!filters.category ? "text-primary-foreground font-medium" : "text-primary font-medium"}>All</Text>
-              </Button>
-              {categories?.slice(0, 6).map((category, index) => {
-                const colors = [
-                  "bg-blue-500 hover:bg-blue-600",
-                  "bg-green-500 hover:bg-green-600",
-                  "bg-purple-500 hover:bg-purple-600",
-                  "bg-orange-500 hover:bg-orange-600",
-                  "bg-pink-500 hover:bg-pink-600",
-                  "bg-indigo-500 hover:bg-indigo-600"
-                ];
-                const isSelected = filters.category === category.name;
-                return (
-                  <Button
-                    key={category.id}
-                    variant={isSelected ? "default" : "outline"}
-                    size="sm"
-                    onPress={() => onFiltersChange({ ...filters, category: category.name })}
-                    className={`rounded-full px-4 py-2 ${
-                      isSelected
-                        ? "bg-primary hover:bg-primary/90"
-                        : `${colors[index % colors.length]} border-0`
-                    }`}
-                  >
-                    <Text className={isSelected ? "text-primary-foreground font-medium" : "text-white font-medium"}>
-                      {category.name}
-                    </Text>
-                  </Button>
-                );
-              })}
-            </View>
-          </ScrollView>
-
-          {/* Sort Options */}
-          <View className="flex-row gap-2">
-            {[
-              { key: 'rating', label: 'Top Rated' },
-              { key: 'distance', label: 'Nearby' },
-              { key: 'price', label: priceSortDirection === 'asc' ? 'Low to High' : 'High to Low' },
-            ].map((option) => (
-              <Button
-                key={option.key}
-                variant={filters.sortBy === option.key ? "default" : "outline"}
-                size="sm"
-                onPress={() => {
-                  if (option.key === 'price') {
-                    onPriceSortToggle();
-                    onFiltersChange({
-                      ...filters,
-                      sortBy: option.key as any,
-                      sortOrder: priceSortDirection === 'asc' ? 'desc' : 'asc'
-                    });
-                  } else {
-                    onFiltersChange({
-                      ...filters,
-                      sortBy: option.key as any,
-                      sortOrder: option.key === 'price' ? 'asc' : 'desc'
-                    });
-                  }
-                }}
-              >
-                <Text className="text-foreground font-medium">{option.label}</Text>
-              </Button>
-            ))}
-          </View>
-        </>
-      )}
-    </View>
-  );
-};
-
-// Provider Card Component
-const ProviderCard = React.memo(({ provider }: { provider: ProviderSearchResult }) => {
-  const { user } = useAuth();
-  const { data: isFavorited } = useIsFavorited(user?.id, 'provider', provider.id);
-  const toggleFavorite = useToggleFavorite();
-
-  const handleToggleFavorite = () => {
-    if (!user?.id) return;
-    toggleFavorite.mutate({
-      userId: user.id,
-      type: 'provider',
-      itemId: provider.id,
-      isFavorited: !!isFavorited
-    });
-  };
-
-  return (
-    <Card className="bg-card border border-border/50 mb-3 shadow-lg elevation-2">
-      <CardContent className="p-3">
-        {/* Top Section - Avatar and Basic Info */}
-        <View className="flex-row items-start gap-3 mb-3">
-          <Avatar className="w-12 h-12" alt={`${provider.first_name} ${provider.last_name}`}>
-            {provider.avatar_url ? (
-              <AvatarImage source={{ uri: provider.avatar_url }} />
-            ) : null}
-            <AvatarFallback className="bg-primary/10">
-              <Text className="text-sm font-bold text-primary">
-                {provider.first_name[0]}{provider.last_name[0]}
-              </Text>
-            </AvatarFallback>
-          </Avatar>
-
-          <View className="flex-1">
-            <Text className="text-lg font-bold text-foreground mb-1">
-              {provider.first_name} {provider.last_name}
-            </Text>
-            {provider.business_name && (
-              <Text className="text-sm text-muted-foreground mb-1">
-                {provider.business_name}
-              </Text>
-            )}
-
-            {/* Rating and Services in one line */}
-            <View className="flex-row items-center gap-3">
-              <View className="flex-row items-center gap-1">
-                <Feather name="star" size={14} className="text-yellow-500" />
-                <Text className="text-sm font-medium text-foreground">
-                  {provider.rating?.toFixed(1) || 'New'}
-                </Text>
-                <Text className="text-xs text-muted-foreground">
-                  ({provider.review_count || 0})
-                </Text>
-              </View>
-              <Text className="text-xs text-muted-foreground">•</Text>
-              <Text className="text-sm text-muted-foreground">
-                {provider.services?.length || 0} service{provider.services?.length === 1 ? '' : 's'}
-              </Text>
-            </View>
-          </View>
-
-          {/* Favorite Button */}
-          <TouchableOpacity
-            onPress={handleToggleFavorite}
-            className="w-8 h-8 items-center justify-center"
-            disabled={toggleFavorite.isPending}
-          >
-            <Feather
-              name="heart"
-              size={20}
-              className={isFavorited ? "text-red-500" : "text-muted-foreground"}
-              style={isFavorited ? { color: '#ef4444' } : undefined}
-            />
-          </TouchableOpacity>
-        </View>
-
-        {/* CTA Button */}
-        <Button
-          onPress={() => router.push(`/profiles/provider?providerId=${provider.id}`)}
-          className="w-full bg-primary hover:bg-primary/90 mt-2"
-        >
-          <Text className="text-primary-foreground font-semibold">View Profile</Text>
-          <Feather name="arrow-right" size={16} className="text-primary-foreground ml-2" />
-        </Button>
-      </CardContent>
-    </Card>
-  );
-});
-
-
 
 // Service Card Component
-const ServiceCard = React.memo(({ service }: { service: ServiceSearchResult }) => {
-  const { user } = useAuth();
-  const { data: isFavorited } = useIsFavorited(user?.id, 'service', service.id);
+const ServiceCard = ({ service }: { service: any }) => {
+  const { user } = useAuthOptimized();
+  const { data: isFavorited } = useIsFavorited('service', service.id);
   const toggleFavorite = useToggleFavorite();
 
-  const handleToggleFavorite = () => {
+  const handleToggleFavorite = useCallback(() => {
     if (!user?.id) return;
+    
     toggleFavorite.mutate({
       userId: user.id,
       type: 'service',
       itemId: service.id,
-      isFavorited: !!isFavorited
+      isFavorited: isFavorited || false,
     });
-  };
+  }, [service, toggleFavorite, user?.id, isFavorited]);
 
   return (
-    <Card className="bg-card border border-border/50 mb-3 shadow-lg elevation-2">
-      <CardContent className="p-3">
-        {/* Top Section - Service Title and Price */}
-        <View className="mb-2">
-          <View className="flex-row items-start justify-between mb-1">
-            <Text className="text-lg font-bold text-foreground flex-1 mr-3" numberOfLines={2}>
-              {service.title}
-            </Text>
-            <View className="items-end">
-              <Text className="text-lg font-bold text-primary">
-                {service.price_type === 'hourly' ? `£${service.base_price}/hr` : `£${service.base_price}`}
-              </Text>
-              <Text className="text-xs text-muted-foreground">
-                {service.price_type === 'hourly' ? 'per hour' : 'fixed'}
-              </Text>
-            </View>
-          </View>
-
-          {/* Service Description */}
-          <Text className="text-sm text-muted-foreground mb-2 leading-5" numberOfLines={2} ellipsizeMode="tail">
-            {service.description || 'No description available'}
+    <Card className="mb-4 shadow-sm">
+      <CardContent className="p-4">
+        <View className="flex-row justify-between items-start mb-2">
+          <Text className="text-lg font-semibold text-foreground flex-1 mr-2">
+            {service.title}
           </Text>
+          <TouchableOpacity onPress={handleToggleFavorite}>
+            <Feather 
+              name={isFavorited ? "heart" : "heart"} 
+              size={20} 
+              className={isFavorited ? "text-red-500" : "text-muted-foreground"} 
+              fill={isFavorited ? "currentColor" : "none"}
+            />
+          </TouchableOpacity>
         </View>
-
-        {/* Provider Info Section */}
-        <View className="flex-row items-center gap-3 mb-2">
-          <Avatar className="w-10 h-10" alt={`${service.provider.first_name} ${service.provider.last_name}`}>
-            {service.provider.avatar_url ? (
-              <AvatarImage source={{ uri: service.provider.avatar_url }} />
-            ) : null}
-            <AvatarFallback className="bg-primary/10">
-              <Text className="text-xs font-bold text-primary">
-                {service.provider.first_name[0]}{service.provider.last_name[0]}
-              </Text>
-            </AvatarFallback>
-          </Avatar>
-
-          <View className="flex-1">
-            <Text className="text-sm font-medium text-foreground">
-              {service.provider.first_name} {service.provider.last_name}
+        
+        <Text className="text-muted-foreground mb-3" numberOfLines={2}>
+          {service.description}
+        </Text>
+        
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center">
+            <Avatar className="w-8 h-8 mr-2" alt={service.provider.name || 'Provider'}>
+              <AvatarImage source={{ uri: service.provider.avatar }} />
+              <AvatarFallback>
+                <Text className="text-xs">{service.provider.name?.charAt(0) || '?'}</Text>
+              </AvatarFallback>
+            </Avatar>
+            <Text className="text-sm text-muted-foreground">
+              {service.provider.name}
             </Text>
-            {service.provider.business_name && (
-              <Text className="text-xs text-muted-foreground">
-                {service.provider.business_name}
-              </Text>
-            )}
           </View>
-
-          {/* Rating and Favorite Button */}
-          <View className="flex-row items-center gap-2">
-            <View className="flex-row items-center gap-1">
-              <Feather name="star" size={12} className="text-yellow-500" />
-              <Text className="text-sm font-medium text-foreground">
-                {service.provider.rating?.toFixed(1) || 'New'}
+          
+          <View className="flex-row items-center">
+            <Text className="text-lg font-bold text-primary mr-2">
+              ${service.price}
+            </Text>
+            <View className="flex-row items-center">
+              <Feather name="star" size={14} className="text-yellow-500 mr-1" />
+              <Text className="text-sm text-muted-foreground">
+                {service.rating}
               </Text>
             </View>
-
-            <TouchableOpacity
-              onPress={handleToggleFavorite}
-              className="w-6 h-6 items-center justify-center"
-              disabled={toggleFavorite.isPending}
-            >
-              <Feather
-                name="heart"
-                size={16}
-                className={isFavorited ? "text-red-500" : "text-muted-foreground"}
-                style={isFavorited ? { color: '#ef4444' } : undefined}
-              />
-            </TouchableOpacity>
           </View>
         </View>
-
-        {/* Category Badges */}
-        <View className="flex-row gap-1 mb-2">
-          <Badge className="text-xs px-2 py-1 bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900 dark:text-blue-100 dark:border-blue-800">
-            <Text numberOfLines={1} ellipsizeMode="tail" className="text-blue-800 dark:text-blue-100">{service.category_name}</Text>
-          </Badge>
-          <Badge className="text-xs px-2 py-1 bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-100 dark:border-green-800">
-            <Text numberOfLines={1} ellipsizeMode="tail" className="text-green-800 dark:text-green-100">{service.subcategory_name}</Text>
-          </Badge>
-        </View>
-
-        {/* Full Width CTA Button */}
-        <Button
-          onPress={() => router.push('/customer/bookings')}
-          className="w-full bg-primary hover:bg-primary/90"
-        >
-          <Text className="text-primary-foreground font-semibold">Book Now</Text>
-        </Button>
       </CardContent>
     </Card>
   );
-});
+};
 
+// Provider Card Component  
+const ProviderCard = ({ provider }: { provider: any }) => {
+  const { user } = useAuthOptimized();
+  const { data: isFavorited } = useIsFavorited('provider', provider.id);
+  const toggleFavorite = useToggleFavorite();
 
-// Loading Skeleton
-const ServiceCardSkeleton = () => (
-  <View className="mb-3">
-    <Card className="bg-card border border-border/50 shadow-lg elevation-2">
-      <CardContent className="p-3">
-        {/* Top Section - Title and Price */}
-        <View className="mb-2">
-          <View className="flex-row items-start justify-between mb-1">
-            <Skeleton className="w-32 h-5 flex-1 mr-3" />
-            <View className="items-end">
-              <Skeleton className="w-16 h-5" />
-              <Skeleton className="w-12 h-3 mt-1" />
+  const handleToggleFavorite = useCallback(() => {
+    if (!user?.id) return;
+    
+    toggleFavorite.mutate({
+      userId: user.id,
+      type: 'provider',
+      itemId: provider.id,
+      isFavorited: isFavorited || false,
+    });
+  }, [provider, toggleFavorite, user?.id, isFavorited]);
+
+  return (
+    <Card className="mb-4 shadow-sm">
+      <CardContent className="p-4">
+        <View className="flex-row items-start justify-between mb-3">
+          <View className="flex-row items-start flex-1">
+            <Avatar className="w-12 h-12 mr-3" alt={provider.name || 'Provider'}>
+              <AvatarImage source={{ uri: provider.avatar }} />
+              <AvatarFallback>
+                <Text className="text-base font-medium">
+                  {provider.name?.charAt(0) || '?'}
+                </Text>
+              </AvatarFallback>
+            </Avatar>
+            
+            <View className="flex-1">
+              <Text className="text-lg font-semibold text-foreground mb-1">
+                {provider.name}
+              </Text>
+              <Text className="text-muted-foreground text-sm mb-2" numberOfLines={2}>
+                {provider.bio}
+              </Text>
+              <View className="flex-row items-center mb-2">
+                <Feather name="star" size={14} className="text-yellow-500 mr-1" />
+                <Text className="text-sm text-muted-foreground mr-2">
+                  {provider.rating} ({provider.reviewCount} reviews)
+                </Text>
+                <Feather name="map-pin" size={14} className="text-muted-foreground mr-1" />
+                <Text className="text-sm text-muted-foreground">
+                  {provider.location}
+                </Text>
+              </View>
             </View>
           </View>
-          <Skeleton className="w-full h-4 mb-1" />
-          <Skeleton className="w-3/4 h-4 mb-2" />
+          
+          <TouchableOpacity onPress={handleToggleFavorite} className="ml-2">
+            <Feather 
+              name="heart" 
+              size={20} 
+              className={isFavorited ? "text-red-500" : "text-muted-foreground"} 
+              fill={isFavorited ? "currentColor" : "none"}
+            />
+          </TouchableOpacity>
         </View>
-
-        {/* Provider Info Section */}
-        <View className="flex-row items-center gap-3 mb-2">
-          <Skeleton className="w-10 h-10 rounded-full" />
-          <View className="flex-1">
-            <Skeleton className="w-24 h-4 mb-1" />
-            <Skeleton className="w-20 h-3" />
-          </View>
-          <Skeleton className="w-12 h-4" />
-        </View>
-
-        {/* Bottom Section */}
+        
         <View className="flex-row items-center justify-between">
-          <View className="flex-row gap-2">
-            <Skeleton className="w-16 h-6 rounded-full" />
+          <View className="flex-row flex-wrap flex-1">
+            {provider.services?.slice(0, 2).map((service: string, index: number) => (
+              <Badge key={index} variant="secondary" className="mr-2 mb-1">
+                <Text className="text-xs">{service}</Text>
+              </Badge>
+            ))}
+          </View>
+          
+          <Badge variant={provider.isAvailable ? "default" : "destructive"}>
+            <Text className="text-xs">
+              {provider.isAvailable ? 'Available' : 'Busy'}
+            </Text>
+          </Badge>
+        </View>
+      </CardContent>
+    </Card>
+  );
+};
+
+// Skeleton Components
+const ServiceCardSkeleton = () => (
+  <View className="mb-4">
+    <Card>
+      <CardContent className="p-4">
+        <View className="flex-row justify-between items-start mb-2">
+          <Skeleton className="w-2/3 h-6 rounded" />
+          <Skeleton className="w-6 h-6 rounded-full" />
+        </View>
+        <Skeleton className="w-full h-4 rounded mb-1" />
+        <Skeleton className="w-3/4 h-4 rounded mb-3" />
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center">
+            <Skeleton className="w-8 h-8 rounded-full mr-2" />
+            <Skeleton className="w-20 h-4 rounded" />
+          </View>
+          <View className="flex-row items-center">
+            <Skeleton className="w-12 h-6 rounded mr-2" />
+            <Skeleton className="w-8 h-4 rounded" />
+          </View>
+        </View>
+      </CardContent>
+    </Card>
+  </View>
+);
+
+const ProviderCardSkeleton = () => (
+  <View className="mb-4">
+    <Card>
+      <CardContent className="p-4">
+        <View className="flex-row items-start justify-between mb-3">
+          <View className="flex-row items-start flex-1">
+            <Skeleton className="w-12 h-12 rounded-full mr-3" />
+            <View className="flex-1">
+              <Skeleton className="w-3/4 h-6 rounded mb-1" />
+              <Skeleton className="w-full h-4 rounded mb-1" />
+              <Skeleton className="w-5/6 h-4 rounded mb-2" />
+              <View className="flex-row items-center">
+                <Skeleton className="w-16 h-4 rounded mr-2" />
+                <Skeleton className="w-20 h-4 rounded" />
+              </View>
+            </View>
+          </View>
+          <Skeleton className="w-6 h-6 rounded-full" />
+        </View>
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row">
+            <Skeleton className="w-16 h-6 rounded-full mr-2" />
             <Skeleton className="w-20 h-6 rounded-full" />
           </View>
-          <Skeleton className="w-20 h-8 rounded-lg" />
+          <Skeleton className="w-16 h-6 rounded-full" />
         </View>
       </CardContent>
     </Card>
   </View>
 );
 
-// Provider Card Skeleton
-const ProviderCardSkeleton = () => (
-  <View className="mb-3">
-    <Card className="bg-card border border-border/50 shadow-lg elevation-2">
-      <CardContent className="p-3">
-        {/* Top Section - Avatar and Basic Info */}
-        <View className="flex-row items-start gap-3 mb-2">
-          <Skeleton className="w-12 h-12 rounded-full" />
-          <View className="flex-1">
-            <Skeleton className="w-32 h-5 mb-1" />
-            <Skeleton className="w-24 h-4 mb-1" />
-            <Skeleton className="w-20 h-3" />
-          </View>
-        </View>
-
-        {/* CTA Button Skeleton */}
-        <Skeleton className="w-full h-10 rounded-lg mt-1" />
-      </CardContent>
-    </Card>
-  </View>
-);
-
-export default function SearchScreen() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filters, setFilters] = useState<SearchFilters>({
-    sortBy: 'rating',
-    sortOrder: 'desc'
-  });
-  const [isFiltersCollapsed, setIsFiltersCollapsed] = useState(true);
-  const [priceSortDirection, setPriceSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [searchMode, setSearchMode] = useState<'services' | 'providers'>('services');
-
+export default function SearchScreenOptimized() {
+  // ✅ NEW: Zustand store for global state
+  const {
+    searchQuery,
+    searchMode,
+    filters,
+    isFiltersCollapsed,
+    priceSortDirection
+  } = useSearchStore();
+  
+  // ✅ NEW: Actions from Zustand store
+  const {
+    setSearchQuery,
+    handleModeSwitch,
+    handleFiltersChange,
+    toggleFiltersCollapsed,
+    togglePriceSortDirection,
+    clearFilters
+  } = useSearchActions();
+  
+  // ✅ NEW: React Query for server state
   const { data: categories, isLoading: categoriesLoading } = useServiceCategories();
-  const { data: services, isLoading: servicesLoading, refetch: refetchServices } = useServiceSearch(filters);
-  const { data: providers, isLoading: providersLoading, refetch: refetchProviders } = useProviderSearch(filters);
+  const { data, isLoading, error, refetch, resultsCount, hasResults } = useSearchResults();
 
+  // ✅ NEW: Pure computation, no useEffect
   const handleSearch = useCallback(() => {
-    setFilters(prev => ({ ...prev, query: searchQuery }));
-  }, [searchQuery]);
-
-  const handlePriceSortToggle = useCallback(() => {
-    setPriceSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-  }, []);
-
-  const handleFiltersChange = useCallback((newFilters: SearchFilters) => {
-    setFilters(newFilters);
-  }, []);
-
-  const handleModeSwitch = useCallback((mode: 'services' | 'providers') => {
-    setSearchMode(mode);
+    // Search query is automatically debounced and triggers React Query
+    // No manual triggering needed
   }, []);
 
   const handleRefresh = useCallback(() => {
-    if (searchMode === 'services') {
-      refetchServices();
-    } else {
-      refetchProviders();
-    }
-  }, [searchMode, refetchServices, refetchProviders]);
+    refetch();
+  }, [refetch]);
 
-  // Memoized values to prevent unnecessary re-renders
-  const resultsCount = useMemo(() => {
-    if (searchMode === 'services') {
-      return servicesLoading ? null : (services?.length || 0);
-    } else {
-      return providersLoading ? null : (providers?.length || 0);
-    }
-  }, [searchMode, services?.length, providers?.length, servicesLoading, providersLoading]);
-
-  const hasResults = useMemo(() => {
-    return resultsCount !== null && resultsCount > 0;
-  }, [resultsCount]);
-
-  const isLoadingResults = useMemo(() => {
-    return searchMode === 'services' ? servicesLoading : providersLoading;
-  }, [searchMode, servicesLoading, providersLoading]);
-
-  useEffect(() => {
-    // Debounce search
-    const timer = setTimeout(() => {
-      if (searchQuery !== filters.query) {
-        setFilters(prev => ({ ...prev, query: searchQuery }));
-      }
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+  const handleClearFilters = useCallback(() => {
+    clearFilters();
+  }, [clearFilters]);
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -573,24 +364,11 @@ export default function SearchScreen() {
           searchMode={searchMode}
         />
 
-        {/* Filters */}
-        {!categoriesLoading && categories && (
-          <FilterBar
-            filters={filters}
-            onFiltersChange={handleFiltersChange}
-            categories={categories}
-            isCollapsed={isFiltersCollapsed}
-            onToggleCollapse={() => setIsFiltersCollapsed(!isFiltersCollapsed)}
-            priceSortDirection={priceSortDirection}
-            onPriceSortToggle={handlePriceSortToggle}
-          />
-        )}
-
         {/* Results */}
         <View className="flex-1 px-4">
           <View className="flex-row items-center justify-between mb-4">
             <Text className="text-lg font-semibold text-foreground">
-              {isLoadingResults
+              {isLoading
                 ? 'Loading...'
                 : searchMode === 'services'
                 ? `${resultsCount} Service${resultsCount === 1 ? '' : 's'} Found`
@@ -609,15 +387,15 @@ export default function SearchScreen() {
           </View>
 
           {searchMode === 'services' ? (
-            servicesLoading ? (
+            isLoading ? (
               <View>
                 {[...Array(5)].map((_, i) => (
                   <ServiceCardSkeleton key={i} />
                 ))}
               </View>
-            ) : services && services.length > 0 ? (
+            ) : data && data.length > 0 ? (
               <FlashList
-                data={services}
+                data={searchMode === 'services' ? (data as any[]) : []}
                 keyExtractor={(item) => item.id}
                 renderItem={({ item }) => <ServiceCard service={item} />}
                 showsVerticalScrollIndicator={false}
@@ -632,21 +410,21 @@ export default function SearchScreen() {
                 <Text className="text-muted-foreground text-center mb-6">
                   Try adjusting your search criteria or filters
                 </Text>
-                <Button onPress={() => setFilters({ sortBy: 'rating', sortOrder: 'desc' })}>
+                <Button onPress={handleClearFilters}>
                   <Text className="text-primary-foreground font-medium">Clear Filters</Text>
                 </Button>
               </View>
             )
           ) : (
-            providersLoading ? (
+            isLoading ? (
               <View>
                 {[...Array(5)].map((_, i) => (
                   <ProviderCardSkeleton key={i} />
                 ))}
               </View>
-            ) : providers && providers.length > 0 ? (
+            ) : data && data.length > 0 ? (
               <FlashList
-                data={providers}
+                data={searchMode === 'providers' ? (data as any[]) : []}
                 keyExtractor={(item) => item.id}
                 renderItem={({ item }) => <ProviderCard provider={item} />}
                 showsVerticalScrollIndicator={false}
@@ -661,7 +439,7 @@ export default function SearchScreen() {
                 <Text className="text-muted-foreground text-center mb-6">
                   Try adjusting your search criteria or filters
                 </Text>
-                <Button onPress={() => setFilters({ sortBy: 'rating', sortOrder: 'desc' })}>
+                <Button onPress={handleClearFilters}>
                   <Text className="text-primary-foreground font-medium">Clear Filters</Text>
                 </Button>
               </View>

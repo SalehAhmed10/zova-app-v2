@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { View, ScrollView, Alert, Linking, Modal, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/lib/core/useColorScheme';
@@ -9,6 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/lib/core/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { usePaymentSetupStore } from '@/stores/verification/usePaymentSetupStore';
+import { useDeepLinkHandler } from '@/hooks/shared/useDeepLinkHandler';
 
 interface StripeAccountStatus {
   hasStripeAccount: boolean;
@@ -26,166 +29,88 @@ interface StripeIntegrationModalProps {
 
 export function StripeIntegrationModal({ visible, onClose }: StripeIntegrationModalProps) {
   const { isDarkColorScheme } = useColorScheme();
-  const [loading, setLoading] = useState(false);
-  const [checkingStatus, setCheckingStatus] = useState(false);
-  const [accountStatus, setAccountStatus] = useState<StripeAccountStatus | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  // Check account status when modal opens
-  useEffect(() => {
-    if (visible) {
-      checkStripeAccountStatus();
-    }
-  }, [visible]);
-
-  // Handle deep links when returning from Stripe onboarding
-  useEffect(() => {
-    const handleDeepLink = (event: { url: string }) => {
-      const url = event.url;
-      if (url.includes('stripe=complete') || url.includes('stripe=refresh')) {
-        console.log('Returned from Stripe onboarding, refreshing status...');
-        // Small delay to allow Stripe to process the onboarding completion
-        setTimeout(() => {
-          checkStripeAccountStatus(true);
-        }, 2000);
-      }
-    };
-
-    // Add event listener for deep links
-    const subscription = Linking.addEventListener('url', handleDeepLink);
-
-    return () => {
-      subscription?.remove();
-    };
-  }, []);
-
-  const checkStripeAccountStatus = async (silent = false) => {
-    try {
-      if (!silent) {
-        setCheckingStatus(true);
-      }
-      setError(null);
-
-      // First check database for any cached Stripe status
+  const queryClient = useQueryClient();
+  
+  // ✅ PURE ZUSTAND: Payment state management (replaces useState)
+  const {
+    stripeAccountId,
+    accountSetupComplete,
+    setStripeAccountId,
+    setAccountSetupComplete
+  } = usePaymentSetupStore();
+  
+  // ✅ REACT QUERY: Stripe status fetching (replaces useState + useEffect)
+  const {
+    data: accountStatus,
+    isLoading: checkingStatus,
+    error,
+    refetch
+  } = useQuery({
+    queryKey: ['stripe-status', visible],
+    queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase.from('profiles')
-          .select('stripe_account_id, stripe_charges_enabled, stripe_details_submitted, stripe_account_status')
-          .eq('id', user.id)
-          .single();
+      if (!user) throw new Error('Not authenticated');
 
-        if (profile?.stripe_account_id) {
-          // Update local store with database status
-          const accountData = {
-            stripeAccountId: profile.stripe_account_id,
-            accountSetupComplete: profile.stripe_details_submitted === true && profile.stripe_charges_enabled === true,
-          };
-        }
-      }
-
-      // Then call the edge function to check actual Stripe account status
-      const { data, error } = await supabase.functions.invoke('check-stripe-account-status');
-
-      if (error) {
-        console.error('Error checking Stripe status:', error);
-        setError('Failed to check account status');
-        return;
-      }
-
-      console.log('Stripe account status:', data);
-      setAccountStatus(data);
-    } catch (err) {
-      console.error('Error checking Stripe status:', err);
-      setError('Failed to check account status');
-    } finally {
-      setCheckingStatus(false);
-    }
-  };
-
-  const handleStripeSetup = async () => {
-    setLoading(true);
-    try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        Alert.alert('Error', 'You must be logged in to set up payments');
-        return;
-      }
-
-      // First check if user already has a Stripe account
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('stripe_account_id')
+      // First check database for cached status
+      const { data: profile } = await supabase.from('profiles')
+        .select('stripe_account_id, stripe_charges_enabled, stripe_details_submitted, stripe_account_status')
         .eq('id', user.id)
         .single();
 
-      console.log('Setting up Stripe account...');
-
-      // Always use the edge function to create/get onboarding URL
-      // This ensures proper account link generation for both new and existing accounts
-      const { data, error } = await supabase.functions.invoke('create-stripe-account', {
-        body: {
-          userId: user.id,
-          refreshUrl: 'zova://provider/profile', // Deep link back to profile
-          returnUrl: 'zova://provider/profile'   // Deep link back to profile
-        }
-      });
-
-      if (error) {
-        console.error('Error creating Stripe account:', error);
-        setError(error.message || 'Failed to create Stripe account');
-        return;
+      if (profile?.stripe_account_id) {
+        // Update Zustand store with database status
+        setStripeAccountId(profile.stripe_account_id);
+        setAccountSetupComplete(profile.stripe_details_submitted === true && profile.stripe_charges_enabled === true);
       }
 
-      console.log('Stripe account creation response:', data);
+      // Then call edge function for real-time status
+      const { data, error } = await supabase.functions.invoke('check-stripe-account-status');
+      if (error) throw new Error('Failed to check account status');
+      
+      console.log('Stripe account status:', data);
+      return data;
+    },
+    enabled: visible, // Only run when modal is visible
+    staleTime: 30 * 1000, // 30 seconds
+  });
+  
+  // ✅ REACT QUERY MUTATION: Stripe account creation (replaces manual state management)
+  const createAccountMutation = useMutation({
+    mutationFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
 
+      const { data, error } = await supabase.functions.invoke('create-stripe-account');
+      if (error) throw error;
+      
       if (data.error) {
-        setError(data.error);
-        return;
+        throw new Error(data.error);
       }
-
-      if (data.accountSetupComplete) {
-        // Account is already fully set up
-        Alert.alert(
-          'Account Already Set Up',
-          'Your Stripe account is already fully configured and ready to receive payments.',
-          [{ text: 'OK' }]
-        );
-
-        // Update local state to reflect completion
-        const accountData = {
-          stripeAccountId: data.accountId,
-          accountSetupComplete: true,
-        };
-
-        // Update database with latest Stripe status
-        if (user) {
-          await supabase.from('profiles').update({
-            stripe_charges_enabled: data.charges_enabled,
-            stripe_details_submitted: data.details_submitted,
-            stripe_account_status: data.charges_enabled ? 'active' : 'pending',
-            updated_at: new Date().toISOString()
-          }).eq('id', user.id);
-        }
-
-        // Only complete the step if account is actually set up
-        if (data.accountSetupComplete) {
-          setAccountStatus(prev => prev ? { ...prev, accountSetupComplete: true } : null);
-        }
-      } else if (data.accountLink) {
-        // Open Stripe onboarding in browser
-        console.log('Opening Stripe onboarding URL:', data.accountLink);
-        await Linking.openURL(data.accountLink);
-      } else {
-        setError('No onboarding URL received from Stripe');
+      
+      return data;
+    },
+    onSuccess: (data) => {
+      console.log('✅ Stripe account created successfully!', data);
+      queryClient.invalidateQueries({ queryKey: ['stripe-status'] });
+      
+      if (data.onboardingUrl) {
+        console.log('🔗 Opening Stripe onboarding URL:', data.onboardingUrl);
+        Linking.openURL(data.onboardingUrl).catch(() => {
+          Alert.alert('Error', 'Could not open Stripe setup page');
+        });
       }
-    } catch (err) {
-      console.error('Error setting up Stripe account:', err);
-      setError('Failed to set up Stripe account');
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    onError: (error) => {
+      console.error('❌ Failed to create Stripe account:', error);
+      Alert.alert('Error', error.message || 'Failed to set up Stripe account');
+    },
+  });
+  
+  // ✅ REACT QUERY: Handle deep links using custom hook (eliminates useEffect)
+  useDeepLinkHandler({
+    onStripeComplete: refetch,
+    onStripeRefresh: refetch,
+  });
 
   return (
     <Modal
@@ -231,9 +156,9 @@ export function StripeIntegrationModal({ visible, onClose }: StripeIntegrationMo
                 <CardHeader>
                   <CardTitle className="flex-row items-center">
                     <Ionicons
-                      name={accountStatus?.accountSetupComplete ? "checkmark-circle" : "alert-circle"}
+                      name={accountSetupComplete ? "checkmark-circle" : "alert-circle"}
                       size={20}
-                      color={accountStatus?.accountSetupComplete ? "#10B981" : "#F59E0B"}
+                      color={accountSetupComplete ? "#10B981" : "#F59E0B"}
                       style={{ marginRight: 8 }}
                     />
                     Account Status
@@ -245,7 +170,7 @@ export function StripeIntegrationModal({ visible, onClose }: StripeIntegrationMo
                       <Text className="text-sm text-muted-foreground mb-2">Checking status...</Text>
                       <View className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                     </View>
-                  ) : accountStatus?.accountSetupComplete ? (
+                  ) : accountSetupComplete ? (
                     <View>
                       <Text className="text-green-600 font-semibold mb-2">
                         ✅ Stripe Account Connected
@@ -263,9 +188,9 @@ export function StripeIntegrationModal({ visible, onClose }: StripeIntegrationMo
                         Your Stripe account exists but needs additional setup.
                       </Text>
                       <Text className="text-xs text-muted-foreground">
-                        Details submitted: {accountStatus.details_submitted ? 'Yes' : 'No'}
+                        Details submitted: {accountStatus?.details_submitted ? 'Yes' : 'No'}
                         {' • '}
-                        Charges enabled: {accountStatus.charges_enabled ? 'Yes' : 'No'}
+                        Charges enabled: {accountStatus?.charges_enabled ? 'Yes' : 'No'}
                       </Text>
                     </View>
                   ) : (
@@ -328,15 +253,15 @@ export function StripeIntegrationModal({ visible, onClose }: StripeIntegrationMo
 
             {/* Setup Button */}
             <Animated.View entering={SlideInDown.delay(600).springify()} className="mb-6">
-              {!accountStatus?.accountSetupComplete && (
+              {!accountSetupComplete && (
                 <Button
                   size="lg"
-                  onPress={handleStripeSetup}
-                  disabled={loading}
+                  onPress={() => createAccountMutation.mutate()}
+                  disabled={createAccountMutation.isPending}
                   className="w-full"
                 >
                   <Text className="font-semibold text-primary-foreground">
-                    {loading ? 'Setting up...' : accountStatus?.hasStripeAccount ? 'Complete Setup' : 'Connect Stripe Account'}
+                    {createAccountMutation.isPending ? 'Setting up...' : accountStatus?.hasStripeAccount ? 'Complete Setup' : 'Connect Stripe Account'}
                   </Text>
                 </Button>
               )}
@@ -347,7 +272,7 @@ export function StripeIntegrationModal({ visible, onClose }: StripeIntegrationMo
               <Animated.View entering={FadeIn.delay(600)}>
                 <Card className="mb-6 border-destructive">
                   <CardContent className="pt-4">
-                    <Text className="text-destructive text-sm">{error}</Text>
+                    <Text className="text-destructive text-sm">{error.message}</Text>
                   </CardContent>
                 </Card>
               </Animated.View>

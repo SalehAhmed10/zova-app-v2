@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { View, Alert, Linking } from 'react-native';
 import { router } from 'expo-router';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from '@/components/ui/text';
@@ -9,14 +10,13 @@ import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import * as WebBrowser from 'expo-web-browser';
 import * as Clipboard from 'expo-clipboard';
 import { supabase } from '@/lib/core/supabase';
-import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
-// import { StripeOnboardingComplete } from '@/components/providers';
+import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/verification/provider-verification';
+import { usePaymentSetupStore } from '@/stores/verification/usePaymentSetupStore';
 import { PaymentAnalyticsService } from '@/lib/payment/payment-analytics';
 
 export default function PaymentSetupScreen() {
-  const [loading, setLoading] = useState(false);
-  const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
-  const [accountSetupComplete, setAccountSetupComplete] = useState(false);
+  // ✅ PURE ZUSTAND: Global verification state (replaces useState)
+  const queryClient = useQueryClient();
   
   const { 
     completeStep,
@@ -28,166 +28,155 @@ export default function PaymentSetupScreen() {
     currentStep
   } = useProviderVerificationStore();
 
-  // Debug current verification state
-  useEffect(() => {
+  const isHydrated = useProviderVerificationHydration();
+  
+  // ✅ PURE ZUSTAND: Payment setup state (replaces useState)
+  const {
+    stripeAccountId,
+    accountSetupComplete,
+    setStripeAccountId,
+    setAccountSetupComplete
+  } = usePaymentSetupStore();
+
+  // Don't render until hydrated
+  if (!isHydrated) {
+    return (
+      <ScreenWrapper>
+        <View className="flex-1 items-center justify-center">
+          <Text>Loading...</Text>
+        </View>
+      </ScreenWrapper>
+    );
+  }
+
+  // ✅ PURE DEBUG: Log verification state when needed
+  if (process.env.NODE_ENV === 'development') {
     console.log('[Payment Screen] Current verification steps status:');
     for (let i = 1; i <= 9; i++) {
       const step = steps[i];
       console.log(`Step ${i} (${step?.title}): ${step?.isCompleted ? '✅ COMPLETED' : '❌ INCOMPLETE'}`);
     }
     console.log('[Payment Screen] Current step:', useProviderVerificationStore.getState().currentStep);
-  }, [steps]);
+  }
 
-  // Check account status when component mounts (user might be returning from Stripe)
-  useEffect(() => {
-    const checkForStripeReturn = async () => {
-      // Track that payment prompt was shown
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await PaymentAnalyticsService.trackPaymentPromptShown(user.id, 'verification_complete');
-      }
-
-      // Check if user is returning from Stripe onboarding via URL params
-      const url = await Linking.getInitialURL();
-      const hasStripeReturnParams = url?.includes('status=complete') || url?.includes('status=refresh') ||
-                                   url?.includes('complete') || url?.includes('refresh');
-
-      if (hasStripeReturnParams) {
-        // User is returning from Stripe onboarding, wait a bit for webhook processing then check account status
-        setTimeout(async () => {
-          await checkStripeAccountStatus(true, true); // Silent but show success if completed
-        }, 2000); // 2 second delay to allow webhook processing
-      } else {
-        // Always check status on mount to ensure we have the latest data
-        await checkStripeAccountStatus(true); // Silent check on mount
-      }
-    };
-
-    checkForStripeReturn();
-  }, []);
-
-  // Warm up WebBrowser for better mobile performance (development builds only)
-  useEffect(() => {
+  // ✅ PURE WEBBROWSER SETUP: One-time initialization
+  React.useMemo(() => {
+    if (!isHydrated) return;
+    
     const setupWebBrowser = async () => {
       try {
-        // Android only: Start loading the default browser app in the background to improve transition time
-        // Note: This only works in development builds, not Expo Go
         await WebBrowser.warmUpAsync();
       } catch (error) {
-        // Silently fail in Expo Go - this is expected behavior
         console.log('WebBrowser warmUp not available in Expo Go');
       }
     };
-
     setupWebBrowser();
+  }, [isHydrated]);
 
-    return () => {
-      const cleanup = async () => {
-        try {
-          // Android only: Cool down the browser when the component unmounts
-          await WebBrowser.coolDownAsync();
-        } catch (error) {
-          // Silently fail in Expo Go - this is expected behavior
-          console.log('WebBrowser coolDown not available in Expo Go');
-        }
-      };
-      cleanup();
-    };
-  }, []);
-
-  const checkStripeAccountStatus = async (silent = false, showSuccessOnChange = false) => {
-    try {
-      // First check database for any cached Stripe status
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase.from('profiles')
-          .select('stripe_account_id, stripe_charges_enabled, stripe_details_submitted, stripe_account_status')
-          .eq('id', user.id)
-          .single();
-
-        if (profile?.stripe_account_id) {
-          // Update local state with database status
-          setStripeAccountId(profile.stripe_account_id);
-          setAccountSetupComplete(profile.stripe_details_submitted === true && profile.stripe_charges_enabled === true);
-        }
-      }
-
-      // Then call the edge function to check actual Stripe account status
-      const { data, error } = await supabase.functions.invoke('check-stripe-account-status');
-
-      if (error) {
-        console.error('Error checking Stripe account status:', error);
-        return;
-      }
-
-      if (data?.hasStripeAccount) {
-        // Check if this is a status change (from incomplete to complete)
-        const wasPreviouslyComplete = accountSetupComplete;
-        const isNowComplete = data.accountSetupComplete;
-        const statusChanged = !wasPreviouslyComplete && isNowComplete;
-
-        // Update local state with real Stripe account status
-        setStripeAccountId(data.accountId);
-        setAccountSetupComplete(isNowComplete);
-
-        // Update database with latest Stripe status
+  // ✅ REACT QUERY MUTATION: Check Stripe account status
+  const checkStripeStatusMutation = useMutation({
+    mutationFn: async ({ showSuccessOnChange = false }: { showSuccessOnChange?: boolean } = {}) => {
+      try {
+        // Check database for any cached Stripe status first
+        const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          await supabase.from('profiles').update({
-            stripe_charges_enabled: data.charges_enabled,
-            stripe_details_submitted: data.details_submitted,
-            stripe_account_status: data.charges_enabled ? 'active' : 'pending',
-            updated_at: new Date().toISOString()
-          }).eq('id', user.id);
+          const { data: profile } = await supabase.from('profiles')
+            .select('stripe_account_id, stripe_charges_enabled, stripe_details_submitted, stripe_account_status')
+            .eq('id', user.id)
+            .single();
+
+          if (profile?.stripe_account_id) {
+            // Update local state with database status
+            setStripeAccountId(profile.stripe_account_id);
+            setAccountSetupComplete(profile.stripe_details_submitted === true && profile.stripe_charges_enabled === true);
+          }
         }
 
-        // Only complete the step if account is actually set up
-        if (isNowComplete) {
-          completeStep(9, {
-            stripeAccountId: data.accountId,
-            accountSetupComplete: true,
-          });
+        // Then call the edge function to check actual Stripe account status
+        const { data, error } = await supabase.functions.invoke('check-stripe-account-status');
 
-          // Track successful payment setup completion
-          await PaymentAnalyticsService.trackPaymentSetupCompleted(
-            user.id, 
-            data.accountId, 
-            'verification_complete'
-          );
+        if (error) {
+          console.error('Error checking Stripe account status:', error);
+          return null;
+        }
 
-          // Only show success alert if status changed OR if explicitly requested
-          if (!silent && (statusChanged || showSuccessOnChange)) {
-            Alert.alert(
-              'Success!',
-              'Your Stripe account has been successfully connected. You can now receive payments from customers.'
+        if (data?.hasStripeAccount) {
+          // Check if this is a status change (from incomplete to complete)
+          const wasPreviouslyComplete = accountSetupComplete;
+          const isNowComplete = data.accountSetupComplete;
+          const statusChanged = !wasPreviouslyComplete && isNowComplete;
+
+          // Update local state with real Stripe account status
+          setStripeAccountId(data.accountId);
+          setAccountSetupComplete(isNowComplete);
+
+          // Update database with latest Stripe status
+          if (user) {
+            await supabase.from('profiles').update({
+              stripe_charges_enabled: data.charges_enabled,
+              stripe_details_submitted: data.details_submitted,
+              stripe_account_status: data.charges_enabled ? 'active' : 'pending',
+              updated_at: new Date().toISOString()
+            }).eq('id', user.id);
+          }
+
+          // Only complete the step if account is actually set up
+          if (isNowComplete) {
+            completeStep(9, {
+              stripeAccountId: data.accountId,
+              accountSetupComplete: true,
+            });
+
+            // Track successful payment setup completion
+            await PaymentAnalyticsService.trackPaymentSetupCompleted(
+              user.id, 
+              data.accountId, 
+              'verification_complete'
             );
           }
-        } else {
-          // Account exists but not fully onboarded - don't mark as complete
-          if (!silent) {
-            console.log('Stripe account exists but onboarding not complete');
-          }
-        }
-      } else {
-        // No Stripe account found, reset local state
-        setStripeAccountId(null);
-        setAccountSetupComplete(false);
-      }
-    } catch (error) {
-      console.error('Error checking account status:', error);
-    }
-  };
 
-  const handleStripeSetup = async () => {
-    setLoading(true);
-    try {
+          return {
+            accountId: data.accountId,
+            accountSetupComplete: isNowComplete,
+            statusChanged,
+            showSuccessOnChange
+          };
+        } else {
+          // No Stripe account found, reset local state
+          setStripeAccountId(null);
+          setAccountSetupComplete(false);
+          return null;
+        }
+      } catch (error) {
+        console.error('Error checking account status:', error);
+        throw error;
+      }
+    },
+    onSuccess: (result) => {
+      if (result?.statusChanged && result?.showSuccessOnChange) {
+        Alert.alert(
+          'Success!',
+          'Your Stripe account has been successfully connected. You can now receive payments from customers.'
+        );
+      }
+      // Invalidate and refetch the stripe account query
+      queryClient.invalidateQueries({ queryKey: ['stripeAccount'] });
+    },
+    onError: (error: any) => {
+      console.error('Error checking Stripe status:', error);
+    }
+  });
+
+  // ✅ REACT QUERY MUTATION: Handle Stripe setup
+  const stripeSetupMutation = useMutation({
+    mutationFn: async () => {
       // First try to refresh the session to get a fresh JWT token
       console.log('🔄 Refreshing session...');
       const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
       
       if (refreshError) {
         console.error('❌ Refresh error:', refreshError);
-        Alert.alert('Authentication Error', 'Please sign in again to continue');
-        return;
+        throw new Error('Please sign in again to continue');
       }
 
       // Get current session and user (should be fresh now)
@@ -195,13 +184,11 @@ export default function PaymentSetupScreen() {
       
       if (sessionError) {
         console.error('❌ Session error:', sessionError);
-        Alert.alert('Authentication Error', 'Please sign in again to continue');
-        return;
+        throw new Error('Please sign in again to continue');
       }
 
       if (!session?.user) {
-        Alert.alert('Error', 'You must be logged in to set up payments');
-        return;
+        throw new Error('You must be logged in to set up payments');
       }
 
       const user = session.user;
@@ -236,25 +223,15 @@ export default function PaymentSetupScreen() {
         
         // Handle specific authentication errors
         if (error.message?.includes('Invalid JWT') || error.message?.includes('Authentication')) {
-          Alert.alert(
-            'Authentication Error', 
-            'Your session has expired. Please sign in again to continue.',
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  // You could navigate to login screen here if needed
-                  console.log('User needs to re-authenticate');
-                }
-              }
-            ]
-          );
+          throw new Error('Your session has expired. Please sign in again to continue.');
         } else {
-          Alert.alert('Setup Failed', `Failed to set up Stripe account: ${error.message || 'Unknown error'}`);
+          throw new Error(`Failed to set up Stripe account: ${error.message || 'Unknown error'}`);
         }
-        return;
       }
 
+      return data;
+    },
+    onSuccess: (data) => {
       if (data?.url) {
         // Give users options for how to complete Stripe onboarding
         Alert.alert(
@@ -290,7 +267,7 @@ export default function PaymentSetupScreen() {
                   // Wait a moment for potential webhook processing, then check status
                   setTimeout(async () => {
                     console.log('User returned from browser, checking account status...');
-                    await checkStripeAccountStatus(true, true); // Silent but show success if completed
+                    checkStripeStatusMutation.mutate({ showSuccessOnChange: true });
                   }, 1500);
                 }
               }
@@ -312,7 +289,7 @@ export default function PaymentSetupScreen() {
                     '3. Return to this screen and tap "Check Status"\n\n' +
                     'Your progress will sync automatically.',
                     [
-                      { text: 'Check Status Now', onPress: () => checkStripeAccountStatus(false, true) },
+                      { text: 'Check Status Now', onPress: () => checkStripeStatusMutation.mutate({ showSuccessOnChange: true }) },
                       { text: 'OK' }
                     ]
                   );
@@ -347,13 +324,33 @@ export default function PaymentSetupScreen() {
       } else {
         Alert.alert('Setup Failed', 'Failed to get Stripe onboarding URL. Please try again.');
       }
-    } catch (error) {
+    },
+    onError: (error: any) => {
       console.error('Error setting up payment:', error);
-      Alert.alert('Setup Failed', `Failed to set up payment account: ${error.message || 'Unknown error'}`);
-    } finally {
-      setLoading(false);
+      Alert.alert('Setup Failed', error.message || 'Failed to set up payment account. Please try again.');
     }
-  };
+  });
+
+  // ✅ PURE STRIPE RETURN CHECK: Handle Stripe onboarding return (after mutations declared)
+  React.useMemo(() => {
+    if (!isHydrated) return;
+    
+    const checkForStripeReturn = async () => {
+      // Check if user is returning from Stripe onboarding via URL params
+      const url = await Linking.getInitialURL();
+      const hasStripeReturnParams = url?.includes('status=complete') || url?.includes('status=refresh') ||
+                                   url?.includes('complete') || url?.includes('refresh');
+
+      if (hasStripeReturnParams) {
+        // User is returning from Stripe onboarding, wait a bit for webhook processing then check account status
+        setTimeout(async () => {
+          checkStripeStatusMutation.mutate({ showSuccessOnChange: true }); // Silent but show success if completed
+        }, 2000); // 2 second delay to allow webhook processing
+      }
+    };
+
+    checkForStripeReturn();
+  }, [isHydrated, checkStripeStatusMutation]);
 
   const getIncompleteSteps = () => {
     const incompleteSteps = [];
@@ -388,9 +385,9 @@ export default function PaymentSetupScreen() {
     }
   };
 
-  const handleCompleteVerification = async () => {
-    setLoading(true);
-    try {
+  // ✅ REACT QUERY MUTATION: Complete verification
+  const completeVerificationMutation = useMutation({
+    mutationFn: async () => {
       // Get current user
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) {
@@ -415,22 +412,23 @@ export default function PaymentSetupScreen() {
 
       if (updateError) {
         console.error('Error updating verification status:', updateError);
-        Alert.alert('Error', 'Failed to complete verification. Please try again.');
-        return;
+        throw new Error('Failed to complete verification. Please try again.');
       }
 
       console.log('[Payment] Successfully updated verification status to pending');
       console.log('[Payment] Navigating to complete screen');
 
+      return { success: true };
+    },
+    onSuccess: () => {
       // Navigate to complete screen
       router.push('/provider-verification/complete');
-    } catch (error) {
+    },
+    onError: (error: any) => {
       console.error('Error completing verification:', error);
-      Alert.alert('Error', 'Failed to complete verification. Please try again.');
-    } finally {
-      setLoading(false);
+      Alert.alert('Error', error.message || 'Failed to complete verification. Please try again.');
     }
-  };
+  });
 
   return (
     <ScreenWrapper scrollable={true} contentContainerClassName="px-6 py-4">
@@ -642,12 +640,12 @@ export default function PaymentSetupScreen() {
           <View>
             <Button
               size="lg"
-              onPress={handleStripeSetup}
-              disabled={loading}
+              onPress={() => stripeSetupMutation.mutate()}
+              disabled={stripeSetupMutation.isPending}
               className="w-full mb-4"
             >
               <Text className="font-semibold text-primary-foreground">
-                {loading ? 'Setting up...' : stripeAccountId ? 'Continue Stripe Setup' : 'Set up Stripe Account'}
+                {stripeSetupMutation.isPending ? 'Setting up...' : stripeAccountId ? 'Continue Stripe Setup' : 'Set up Stripe Account'}
               </Text>
             </Button>
             
@@ -660,14 +658,14 @@ export default function PaymentSetupScreen() {
               <Button
                 variant="secondary"
                 size="sm"
-                onPress={() => checkStripeAccountStatus(false, true)} // Not silent, show success if status changed
+                onPress={() => checkStripeStatusMutation.mutate({ showSuccessOnChange: true })}
                 className="w-full mb-3"
-                disabled={loading}
+                disabled={checkStripeStatusMutation.isPending}
               >
                 <View className="flex-row items-center">
                   <Ionicons name="refresh" size={16} color="#64748b" className="mr-2" />
                   <Text className="font-medium">
-                    {loading ? 'Checking...' : 'Check Account Status'}
+                    {checkStripeStatusMutation.isPending ? 'Checking...' : 'Check Account Status'}
                   </Text>
                 </View>
               </Button>
@@ -680,7 +678,7 @@ export default function PaymentSetupScreen() {
                     'Desktop Setup Available',
                     'You can complete Stripe setup on desktop:\n\n1. Visit stripe.com and log into your account\n2. Complete the Connect onboarding\n3. Return to this screen and tap "Check Status"\n\nYour account will sync automatically.',
                     [
-                      { text: 'Check Status Now', onPress: () => checkStripeAccountStatus(false, true) },
+                      { text: 'Check Status Now', onPress: () => checkStripeStatusMutation.mutate({ showSuccessOnChange: true }) },
                       { text: 'OK' }
                     ]
                   );
@@ -696,12 +694,12 @@ export default function PaymentSetupScreen() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onPress={handleCompleteVerification}
-                    disabled={loading}
+                    onPress={() => completeVerificationMutation.mutate()}
+                    disabled={completeVerificationMutation.isPending}
                     className="w-full mb-2"
                   >
                     <Text className="font-semibold">
-                      {loading ? 'Completing...' : 'Skip Stripe Setup (Not Recommended)'}
+                      {completeVerificationMutation.isPending ? 'Completing...' : 'Skip Stripe Setup (Not Recommended)'}
                     </Text>
                   </Button>
                   <Text className="text-xs text-muted-foreground text-center">
@@ -721,12 +719,12 @@ export default function PaymentSetupScreen() {
             </Text>
             <Button
               size="lg"
-              onPress={handleCompleteVerification}
-              disabled={loading || getIncompleteSteps().length > 0}
+              onPress={() => completeVerificationMutation.mutate()}
+              disabled={completeVerificationMutation.isPending || getIncompleteSteps().length > 0}
               className="w-full"
             >
               <Text className="font-semibold text-primary-foreground">
-                {loading ? 'Completing...' : getIncompleteSteps().length > 0 ? 'Complete Missing Steps First' : 'Complete Verification'}
+                {completeVerificationMutation.isPending ? 'Completing...' : getIncompleteSteps().length > 0 ? 'Complete Missing Steps First' : 'Complete Verification'}
               </Text>
             </Button>
           </View>

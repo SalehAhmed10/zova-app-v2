@@ -1,0 +1,6 @@
+# Supabase configuration file
+# https://supabase.com/docs/guides/cli/config
+
+# Disable JWT verification for Stripe webhook
+[functions.stripe-webhook]
+verify_jwt = false

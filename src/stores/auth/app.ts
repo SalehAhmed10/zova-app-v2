@@ -7,6 +7,7 @@ interface AppState {
   isAuthenticated: boolean;
   userRole: 'customer' | 'provider' | null;
   isLoading: boolean;
+  isLoggingOut: boolean;
 }
 
 interface AppActions {
@@ -14,6 +15,7 @@ interface AppActions {
   forceCompleteOnboarding: () => void;
   setAuthenticated: (authenticated: boolean, role?: 'customer' | 'provider') => void;
   setLoading: (loading: boolean) => void;
+  setLoggingOut: (loggingOut: boolean) => void;
   logout: () => void;
   reset: () => void;
 }
@@ -27,6 +29,7 @@ export const useAppStore = create<AppStore>((set) => ({
   isAuthenticated: false,
   userRole: null,
   isLoading: true,
+  isLoggingOut: false,
 
   // Actions
   completeOnboarding: () => {
@@ -56,15 +59,22 @@ export const useAppStore = create<AppStore>((set) => ({
     set({ isLoading: loading });
   },
 
+  setLoggingOut: (loggingOut: boolean) => {
+    set({ isLoggingOut: loggingOut });
+  },
+
   logout: () => {
-    // Only reset auth state, keep onboarding complete
+    // Clean logout - reset all auth state immediately
+    console.log('[AppStore] Executing clean logout');
+    
     set({
       isAuthenticated: false,
       userRole: null,
       isLoading: false,
+      // Keep isLoggingOut true - will be reset by logout component
     });
     
-    // Clear AsyncStorage auth data
+    // Clear AsyncStorage auth data immediately
     AsyncStorage.removeItem('user_role').catch(error => {
       console.warn('[AppStore] Failed to clear user_role from storage:', error);
     });
@@ -72,21 +82,32 @@ export const useAppStore = create<AppStore>((set) => ({
     // Reset initialization flags to allow re-initialization
     hasInitialized = false;
     isInitializing = false;
+    
+    console.log('[AppStore] Logout completed - auth state cleared');
   },
 
   reset: () => {
     // Full reset for testing/debug purposes
+    console.log('[AppStore] 🔄 Starting full reset...');
     set({
       isOnboardingComplete: false,
       isAuthenticated: false,
       userRole: null,
       isLoading: false,
+      isLoggingOut: false,
+    });
+    console.log('[AppStore] State reset to:', { 
+      isOnboardingComplete: false, 
+      isAuthenticated: false, 
+      userRole: null 
     });
     AsyncStorage.multiRemove(['onboarding_complete', 'user_role']);
+    console.log('[AppStore] Removed AsyncStorage keys');
     
     // Reset initialization flags
     hasInitialized = false;
     isInitializing = false;
+    console.log('[AppStore] ✅ Reset completed - ready for re-initialization');
   },
 }));
 
@@ -104,29 +125,36 @@ export const initializeApp = async () => {
   console.log('[AppStore] Starting initialization...');
   try {
     isInitializing = true;
-    const [onboardingComplete, userRole] = await AsyncStorage.multiGet([
-      'onboarding_complete',
-      'user_role'
+    
+    // Use parallel async storage reads for better performance
+    const storagePromises = Promise.allSettled([
+      AsyncStorage.getItem('onboarding_complete'),
+      AsyncStorage.getItem('user_role')
     ]);
 
+    const results = await storagePromises;
+    
+    const onboardingComplete = results[0].status === 'fulfilled' ? results[0].value : null;
+    const userRole = results[1].status === 'fulfilled' ? results[1].value : null;
+
     console.log('[AppStore] Retrieved from storage:', {
-      onboardingComplete: onboardingComplete[1],
-      userRole: userRole[1]
+      onboardingComplete,
+      userRole
     });
 
     const store = useAppStore.getState();
     
-    store.setLoading(false);
+    // Set loading to false immediately
     console.log('[AppStore] Set loading to false');
+    store.setLoading(false);
     
-    if (onboardingComplete[1] === 'true') {
+    // Apply stored state
+    if (onboardingComplete === 'true') {
       store.completeOnboarding();
-      console.log('[AppStore] Completed onboarding');
     }
     
-    if (userRole[1]) {
-      store.setAuthenticated(true, userRole[1] as 'customer' | 'provider');
-      console.log('[AppStore] Set authenticated with role:', userRole[1]);
+    if (userRole && (userRole === 'customer' || userRole === 'provider')) {
+      store.setAuthenticated(true, userRole as 'customer' | 'provider');
     }
     
     hasInitialized = true;
@@ -134,7 +162,9 @@ export const initializeApp = async () => {
     return true;
   } catch (error) {
     console.error('[AppStore] Failed to initialize app:', error);
+    // Always set loading to false, even on error
     useAppStore.getState().setLoading(false);
+    hasInitialized = true; // Prevent retries on error
     return false;
   } finally {
     isInitializing = false;

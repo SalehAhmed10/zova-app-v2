@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Alert, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
@@ -8,116 +8,75 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
-import { supabase } from '@/lib/core/supabase';
+import { useAuthOptimized } from '@/hooks';
+import { useSaveVerificationStep } from '@/hooks/provider/useProviderVerificationQueries';
 
 export default function BusinessTermsScreen() {
-  const [formData, setFormData] = useState({
-    depositPercentage: '',
-    cancellationFeePercentage: '',
-    cancellationPolicy: '',
-  });
-  const [loading, setLoading] = useState(false);
+  // ✅ MIGRATED: Using optimized auth hook and React Query + Zustand
+  const { user } = useAuthOptimized();
   
+  // ✅ ZUSTAND: Get terms data from store
   const { 
     termsData,
     updateTermsData,
-    completeStep,
     completeStepAndNext,
-    previousStep 
   } = useProviderVerificationStore();
+  
+  // ✅ REACT QUERY: Mutation for saving terms
+  const saveTermsMutation = useSaveVerificationStep();
 
-  // Initialize form with existing data
-  React.useEffect(() => {
-    if (termsData) {
-      setFormData({
-        depositPercentage: termsData.depositPercentage?.toString() || '',
-        cancellationFeePercentage: termsData.cancellationFeePercentage?.toString() || '',
-        cancellationPolicy: termsData.cancellationPolicy || '',
-      });
-    }
-  }, [termsData]);
-
+  // ✅ OPTIMIZED: Form validation using Zustand data
   const validateForm = () => {
-    const deposit = parseFloat(formData.depositPercentage);
-    const cancellationFee = parseFloat(formData.cancellationFeePercentage);
+    const deposit = termsData.depositPercentage;
+    const cancellationFee = termsData.cancellationFeePercentage;
+    const policy = termsData.cancellationPolicy;
 
-    if (!formData.depositPercentage.trim()) {
-      Alert.alert('Deposit Required', 'Please enter a deposit percentage.');
-      return false;
-    }
-    if (isNaN(deposit) || deposit < 0 || deposit > 100) {
+    if (!deposit || deposit < 0 || deposit > 100) {
       Alert.alert('Invalid Deposit', 'Deposit percentage must be between 0 and 100.');
       return false;
     }
-    if (!formData.cancellationFeePercentage.trim()) {
-      Alert.alert('Cancellation Fee Required', 'Please enter a cancellation fee percentage.');
-      return false;
-    }
-    if (isNaN(cancellationFee) || cancellationFee < 0 || cancellationFee > 100) {
+    if (!cancellationFee || cancellationFee < 0 || cancellationFee > 100) {
       Alert.alert('Invalid Cancellation Fee', 'Cancellation fee percentage must be between 0 and 100.');
       return false;
     }
-    if (!formData.cancellationPolicy.trim()) {
+    if (!policy?.trim()) {
       Alert.alert('Cancellation Policy Required', 'Please describe your cancellation policy.');
       return false;
     }
-    if (formData.cancellationPolicy.length < 50) {
+    if (policy.length < 50) {
       Alert.alert('Policy Too Short', 'Your cancellation policy should be at least 50 characters long.');
       return false;
     }
     return true;
   };
 
+  // ✅ REACT QUERY MUTATION: Handle form submission
   const handleSubmit = async () => {
-    if (!validateForm()) return;
+    if (!validateForm() || !user?.id) return;
 
-    setLoading(true);
     try {
-      // Get current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        throw new Error('User not authenticated');
-      }
+      // ✅ REACT QUERY: Use mutation to save data
+      await saveTermsMutation.mutateAsync({
+        providerId: user.id,
+        step: 'terms',
+        data: {
+          depositPercentage: termsData.depositPercentage,
+          cancellationFeePercentage: termsData.cancellationFeePercentage,
+          cancellationPolicy: termsData.cancellationPolicy,
+          termsAccepted: true,
+        },
+      });
 
-      // Prepare data for database
-      const data = {
-        depositPercentage: parseFloat(formData.depositPercentage),
-        cancellationFeePercentage: parseFloat(formData.cancellationFeePercentage),
-        cancellationPolicy: formData.cancellationPolicy.trim(),
-      };
-
-      // Save to database
-      const { error: dbError } = await supabase
-        .from('profiles')
-        .update({
-          deposit_percentage: data.depositPercentage,
-          cancellation_fee_percentage: data.cancellationFeePercentage,
-          cancellation_policy: data.cancellationPolicy,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', user.id);
-
-      if (dbError) {
-        console.error('Database error:', dbError);
-        // Check if it's a schema issue
-        if (dbError.message?.includes('column') && dbError.message?.includes('does not exist')) {
-          console.warn('Terms fields not found in profiles table schema - please add them');
-          Alert.alert('Database Schema Issue', 'Terms fields need to be added to the database schema. Data saved locally only.');
-        } else {
-          Alert.alert('Save Failed', 'Failed to save terms to database. Data saved locally.');
-        }
-      }
-
-      // Update verification store
-      updateTermsData(data);
-      completeStepAndNext(8, data);
-      
-      // Navigation will be handled by the provider layout
+      // ✅ ZUSTAND: Mark step as completed and move to next
+      completeStepAndNext(8, {
+        depositPercentage: termsData.depositPercentage,
+        cancellationFeePercentage: termsData.cancellationFeePercentage,
+        cancellationPolicy: termsData.cancellationPolicy,
+        termsAccepted: true,
+      });
     } catch (error) {
-      console.error('Error saving terms:', error);
-      Alert.alert('Save Failed', 'Failed to save your terms. Please try again.');
-    } finally {
-      setLoading(false);
+      console.error('[TermsScreen] Submit error:', error);
+      Alert.alert('Error', 'Failed to save terms. Please try again.');
     }
   };
 
@@ -149,11 +108,12 @@ export default function BusinessTermsScreen() {
           <View className="relative">
             <Input
               placeholder="Enter deposit percentage (e.g., 25)"
-              value={formData.depositPercentage}
+              value={termsData.depositPercentage?.toString() || ''}
               onChangeText={(text) => {
                 // Only allow numbers and decimal point
                 const numericText = text.replace(/[^0-9.]/g, '');
-                setFormData(prev => ({ ...prev, depositPercentage: numericText }));
+                const value = parseFloat(numericText) || 0;
+                updateTermsData({ depositPercentage: value });
               }}
               keyboardType="decimal-pad"
               maxLength={5}
@@ -176,11 +136,12 @@ export default function BusinessTermsScreen() {
           <View className="relative">
             <Input
               placeholder="Enter cancellation fee percentage (e.g., 50)"
-              value={formData.cancellationFeePercentage}
+              value={termsData.cancellationFeePercentage?.toString() || ''}
               onChangeText={(text) => {
                 // Only allow numbers and decimal point
                 const numericText = text.replace(/[^0-9.]/g, '');
-                setFormData(prev => ({ ...prev, cancellationFeePercentage: numericText }));
+                const value = parseFloat(numericText) || 0;
+                updateTermsData({ cancellationFeePercentage: value });
               }}
               keyboardType="decimal-pad"
               maxLength={5}
@@ -202,14 +163,14 @@ export default function BusinessTermsScreen() {
           </Text>
           <Textarea
             placeholder="Describe your cancellation policy, including notice requirements and any exceptions..."
-            value={formData.cancellationPolicy}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, cancellationPolicy: text }))}
+            value={termsData.cancellationPolicy || ''}
+            onChangeText={(text) => updateTermsData({ cancellationPolicy: text })}
             maxLength={500}
             className="min-h-[100px]"
             placeholderClassName="text-muted-foreground/30"
           />
           <Text className="text-xs text-muted-foreground mt-1">
-            {formData.cancellationPolicy.length}/500 characters (minimum 50)
+            {(termsData.cancellationPolicy || '').length}/500 characters (minimum 50)
           </Text>
         </View>
       </Animated.View>
@@ -254,11 +215,16 @@ export default function BusinessTermsScreen() {
         <Button
           size="lg"
           onPress={handleSubmit}
-          disabled={loading || !formData.depositPercentage.trim() || !formData.cancellationFeePercentage.trim() || !formData.cancellationPolicy.trim()}
+          disabled={
+            saveTermsMutation.isPending ||
+            !termsData.depositPercentage ||
+            !termsData.cancellationFeePercentage ||
+            !termsData.cancellationPolicy?.trim()
+          }
           className="w-full"
         >
           <Text className="font-semibold text-primary-foreground">
-            {loading ? 'Saving...' : 'Continue to Payment Setup'}
+            {saveTermsMutation.isPending ? 'Saving...' : 'Continue to Payment Setup'}
           </Text>
         </Button>
       </Animated.View>
@@ -268,7 +234,7 @@ export default function BusinessTermsScreen() {
         <Button
           variant="outline"
           size="lg"
-          onPress={previousStep}
+          onPress={() => router.back()}
           className="w-full"
         >
           <Text>Back to Business Bio</Text>

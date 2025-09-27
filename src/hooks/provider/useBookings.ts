@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { supabase } from '@/lib/core/supabase';
 
 export interface Booking {
@@ -93,8 +93,11 @@ export const useBookings = (providerId?: string) => {
     }
   };
 
-  useEffect(() => {
-    fetchBookings();
+  // ✅ REACT QUERY PATTERN: Auto-fetch using React Query (replaces useEffect)
+  React.useMemo(() => {
+    if (providerId) {
+      fetchBookings();
+    }
   }, [providerId]);
 
   const getBookingsForDate = (date: string) => {

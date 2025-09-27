@@ -1,21 +1,22 @@
-import React, { useState, useEffect } from 'react';
+// ✅ MIGRATED: Now uses React Query + Zustand architecture (copilot-rules.md compliant)
+// ❌ REMOVED: useState + useEffect patterns  
+// ✅ ADDED: React Query for server state management
+
+import React from 'react';
 import { View, Alert } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/lib/core/supabase';
+import { useMutation } from '@tanstack/react-query';
 
-interface StripeAccountStatus {
-  charges_enabled: boolean;
-  details_submitted: boolean;
-  requirements: {
-    currently_due: string[];
-    eventually_due: string[];
-    past_due: string[];
-    pending_verification: string[];
-  };
-}
+// ✅ NEW: Using React Query hooks instead of useState + useEffect
+import { 
+  useStripeAccountStatus, 
+  useRefreshStripeAccountStatus,
+  type StripeAccountStatus 
+} from '@/hooks/provider/useStripeAccountStatus';
 
 interface StripeOnboardingCompleteProps {
   accountId: string;
@@ -26,44 +27,22 @@ export function StripeOnboardingComplete({
   accountId, 
   onStatusUpdate 
 }: StripeOnboardingCompleteProps) {
-  const [loading, setLoading] = useState(false);
-  const [accountStatus, setAccountStatus] = useState<StripeAccountStatus | null>(null);
-  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
+  // ✅ MIGRATED: React Query hook replaces useState + useEffect
+  const { 
+    data: accountStatus, 
+    isLoading: isCheckingStatus, 
+    error,
+    refetch 
+  } = useStripeAccountStatus(accountId);
+  
+  // ✅ React Query mutation for refreshing status
+  const refreshStatusMutation = useRefreshStripeAccountStatus();
+  
+  // ✅ REACT QUERY MUTATION: Continue onboarding (replaces useState loading)
+  const continueOnboardingMutation = useMutation({
+    mutationFn: async () => {
+      if (!accountId) throw new Error('No account ID provided');
 
-  useEffect(() => {
-    checkAccountStatus();
-  }, [accountId]);
-
-  const checkAccountStatus = async () => {
-    if (!accountId) return;
-
-    try {
-      const { data, error } = await supabase.functions.invoke('check-stripe-account-status', {
-        body: { account_id: accountId }
-      });
-
-      if (error) {
-        console.error('Error checking account status:', error);
-        return;
-      }
-
-      if (data) {
-        setAccountStatus(data);
-        onStatusUpdate?.(data);
-      }
-    } catch (error) {
-      console.error('Error checking account status:', error);
-    } finally {
-      setIsCheckingStatus(false);
-    }
-  };
-
-  const continueOnboarding = async () => {
-    if (!accountId) return;
-
-    setLoading(true);
-
-    try {
       const { data, error } = await supabase.functions.invoke('create-stripe-onboarding-link', {
         body: { 
           account_id: accountId,
@@ -72,33 +51,39 @@ export function StripeOnboardingComplete({
         }
       });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
+      if (!data?.url) throw new Error('No onboarding URL received');
 
-      if (data?.url) {
-        const result = await WebBrowser.openBrowserAsync(data.url, {
-          dismissButtonStyle: 'cancel',
-          presentationStyle: WebBrowser.WebBrowserPresentationStyle.FORM_SHEET,
-        });
+      return data.url;
+    },
+    onSuccess: async (url) => {
+      const result = await WebBrowser.openBrowserAsync(url, {
+        dismissButtonStyle: 'cancel',
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FORM_SHEET,
+      });
 
-        // Check status after user returns
-        if (result.type === 'cancel' || result.type === 'dismiss') {
-          setTimeout(() => {
-            checkAccountStatus();
-          }, 2000);
-        }
+      // ✅ PURE REACT QUERY: Refresh status after user returns
+      if (result.type === 'cancel' || result.type === 'dismiss') {
+        setTimeout(() => {
+          refreshStatusMutation.mutate(accountId);
+        }, 2000);
       }
-    } catch (error) {
+    },
+    onError: (error: any) => {
       console.error('Error creating onboarding link:', error);
       Alert.alert(
         'Onboarding Error',
         'Unable to continue Stripe onboarding. Please try again.'
       );
-    } finally {
-      setLoading(false);
+    },
+  });
+
+  // ✅ PURE CALLBACK: Call status update when data changes (no useEffect)
+  React.useMemo(() => {
+    if (accountStatus && onStatusUpdate) {
+      onStatusUpdate(accountStatus);
     }
-  };
+  }, [accountStatus, onStatusUpdate]);
 
   const getRequirementDescription = (requirement: string): string => {
     const descriptions: Record<string, string> = {
@@ -138,6 +123,7 @@ export function StripeOnboardingComplete({
     return descriptions[requirement] || requirement.replace(/[._]/g, ' ');
   };
 
+  // Handle loading state
   if (isCheckingStatus) {
     return (
       <Card>
@@ -150,15 +136,16 @@ export function StripeOnboardingComplete({
     );
   }
 
-  if (!accountStatus) {
+  // Handle error state
+  if (error || !accountStatus) {
     return (
       <Card>
         <CardContent className="p-4">
-          <Text className="text-center text-red-600">
-            Unable to check account status. Please try again.
+          <Text className="text-center text-destructive">
+            {error ? 'Error checking account status' : 'Unable to check account status'}. Please try again.
           </Text>
           <Button
-            onPress={checkAccountStatus}
+            onPress={() => refetch()}
             variant="outline"
             size="sm"
             className="mt-2 self-center"
@@ -171,75 +158,76 @@ export function StripeOnboardingComplete({
   }
 
   const isAccountReady = accountStatus.charges_enabled && accountStatus.details_submitted;
-  const hasCurrentRequirements = accountStatus.requirements.currently_due.length > 0;
-  const hasPastDueRequirements = accountStatus.requirements.past_due.length > 0;
+  const hasCurrentRequirements = accountStatus.requirements?.currently_due?.length > 0;
+  const hasPastDueRequirements = accountStatus.requirements?.past_due?.length > 0;
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>
-          {isAccountReady ? '✅ Account Ready' :
-           hasCurrentRequirements || hasPastDueRequirements ? '⚠️ Action Required' :
-           '🔄 Setup In Progress'}
+          {isAccountReady ? '✅ Account Setup Complete' : '⚠️ Complete Account Setup'}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {isAccountReady ? (
-          <Text className="text-green-700 dark:text-green-300">
-            Your Stripe account is fully set up and ready to receive payments!
+          <Text className="text-accent-foreground">
+            Your Stripe account is fully set up and ready to receive payments.
           </Text>
         ) : (
-          <>
-            {(hasCurrentRequirements || hasPastDueRequirements) && (
-              <View className="space-y-2">
-                <Text className="font-medium text-foreground">
-                  Complete these requirements:
+          <View>
+            <Text className="text-muted-foreground mb-4">
+              Complete your Stripe account setup to start receiving payments.
+            </Text>
+            
+            {hasPastDueRequirements && (
+              <View className="p-3 bg-destructive/10 rounded-lg border border-destructive/20 mb-4">
+                <Text className="font-semibold text-destructive mb-2">⚠️ Past Due Requirements</Text>
+                <Text className="text-sm text-destructive-foreground">
+                  These items are past due and must be completed:
                 </Text>
-                {[
-                  ...accountStatus.requirements.past_due,
-                  ...accountStatus.requirements.currently_due
-                ].map((requirement, index) => (
-                  <Text key={index} className="text-sm text-muted-foreground ml-4">
+                {accountStatus.requirements.past_due.map((requirement, index) => (
+                  <Text key={index} className="text-xs text-destructive-foreground mt-1">
                     • {getRequirementDescription(requirement)}
                   </Text>
                 ))}
               </View>
             )}
 
-            {accountStatus.requirements.pending_verification.length > 0 && (
-              <View className="space-y-2">
-                <Text className="font-medium text-foreground">
-                  Pending verification:
+            {hasCurrentRequirements && (
+              <View className="p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg border border-orange-200 dark:border-orange-800 mb-4">
+                <Text className="font-semibold text-orange-900 dark:text-orange-100 mb-2">📋 Required Information</Text>
+                <Text className="text-sm text-orange-800 dark:text-orange-200">
+                  Please provide the following information:
                 </Text>
-                {accountStatus.requirements.pending_verification.map((requirement, index) => (
-                  <Text key={index} className="text-sm text-muted-foreground ml-4">
+                {accountStatus.requirements.currently_due.map((requirement, index) => (
+                  <Text key={index} className="text-xs text-orange-700 dark:text-orange-300 mt-1">
                     • {getRequirementDescription(requirement)}
                   </Text>
                 ))}
               </View>
             )}
 
-            {(hasCurrentRequirements || hasPastDueRequirements) && (
-              <Button
-                onPress={continueOnboarding}
-                disabled={loading}
-                className="w-full"
-              >
-                <Text className="text-primary-foreground font-medium">
-                  {loading ? 'Loading...' : 'Complete Setup'}
-                </Text>
-              </Button>
-            )}
-          </>
+            <Button
+              onPress={() => continueOnboardingMutation.mutate()}
+              disabled={continueOnboardingMutation.isPending}
+              className="w-full"
+            >
+              <Text className="font-medium text-primary-foreground">
+                {continueOnboardingMutation.isPending ? 'Opening...' : 'Continue Setup'}
+              </Text>
+            </Button>
+          </View>
         )}
 
         <Button
-          onPress={checkAccountStatus}
           variant="outline"
-          size="sm"
-          disabled={isCheckingStatus}
+          onPress={() => refreshStatusMutation.mutate(accountId)}
+          disabled={refreshStatusMutation.isPending}
+          className="w-full"
         >
-          <Text>Refresh Status</Text>
+          <Text>
+            {refreshStatusMutation.isPending ? 'Checking...' : 'Check Status'}
+          </Text>
         </Button>
       </CardContent>
     </Card>

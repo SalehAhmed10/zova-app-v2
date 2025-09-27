@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Alert, Image } from 'react-native';
 import { router } from 'expo-router';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import * as ImagePicker from 'expo-image-picker';
@@ -8,10 +9,9 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { useProviderVerificationStore, useProviderVerificationSelectors, useProviderVerificationHydration } from '@/stores/verification/provider-verification';
+import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/verification/provider-verification';
 import { supabase } from '@/lib/core/supabase';
 import { createStorageService } from '@/lib/storage/organized-storage';
-import { testStorageBuckets } from '@/utils/storage-test';
 import { useStripeVerificationIntegration } from '@/lib/payment/stripe-verification-integration';
 
 // Helper function to get signed URL using organized storage service
@@ -366,15 +366,8 @@ const DocumentUploadContent: React.FC<DocumentUploadContentProps> = ({
     </View>
   );
 };export default function DocumentVerificationScreen() {
-  const [loading, setLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [existingDocument, setExistingDocument] = useState<{
-    document_type: string;
-    document_url: string;
-    verification_status: string;
-    created_at: string;
-  } | null>(null);
-  const [fetchingExisting, setFetchingExisting] = useState(true);
+  const queryClient = useQueryClient();
   
   const { 
     documentData, 
@@ -386,7 +379,6 @@ const DocumentUploadContent: React.FC<DocumentUploadContentProps> = ({
     currentStep
   } = useProviderVerificationStore();
 
-  const { canGoBack, previousStep } = useProviderVerificationSelectors();
   const isHydrated = useProviderVerificationHydration();
   const { handleProviderVerificationComplete } = useStripeVerificationIntegration();
 
@@ -401,78 +393,352 @@ const DocumentUploadContent: React.FC<DocumentUploadContentProps> = ({
     );
   }
 
-  // Fetch existing verification documents
-  useEffect(() => {
-    const fetchExistingDocument = async () => {
-      if (!providerId || !isHydrated) return;
+  // ✅ REACT QUERY: Fetch existing verification documents
+  const { data: existingDocument, isLoading: fetchingExisting, error: documentError } = useQuery({
+    queryKey: ['existingDocument', providerId],
+    queryFn: async () => {
+      if (!providerId) throw new Error('Provider ID required');
+
+      console.log('[Documents] Fetching existing document for provider:', providerId);
+
+      const { data, error } = await supabase
+        .from('provider_verification_documents')
+        .select('document_type, document_url, verification_status, created_at')
+        .eq('provider_id', providerId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+        console.error('[Documents] Error fetching existing document:', error);
+        throw error;
+      }
+
+      if (!data) {
+        console.log('[Documents] No existing document found');
+        return null;
+      }
+
+      // Check if the file actually exists in storage
+      const fileExists = await checkDocumentFileExists(providerId, data.document_url);
+      
+      if (!fileExists) {
+        console.log('[Documents] Document file not found in storage, cleaning up database record');
+        // File doesn't exist in storage, clean up the database record
+        const { error: deleteError } = await supabase
+          .from('provider_verification_documents')
+          .delete()
+          .eq('provider_id', providerId)
+          .eq('document_url', data.document_url);
+
+        if (deleteError) {
+          console.error('[Documents] Error cleaning up orphaned document record:', deleteError);
+        }
+        return null;
+      }
 
       try {
-        setFetchingExisting(true);
-        const { data, error } = await supabase
-          .from('provider_verification_documents')
-          .select('document_type, document_url, verification_status, created_at')
-          .eq('provider_id', providerId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
-
-        if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
-          console.error('Error fetching existing document:', error);
-          return;
-        }
-
-        if (data) {
-          // Check if the file actually exists in storage
-          const fileExists = await checkDocumentFileExists(providerId, data.document_url);
-          
-          if (fileExists) {
-            try {
-              // Get a signed URL for the document
-              const signedUrl = await getDocumentSignedUrl(providerId, data.document_url);
-              setExistingDocument({
-                ...data,
-                document_url: signedUrl
-              });
-              // Update store with existing data
-              updateDocumentData({
-                documentType: data.document_type as any,
-                documentUrl: signedUrl,
-                verificationStatus: data.verification_status as any,
-              });
-            } catch (signedUrlError) {
-              console.error('Failed to get signed URL for document:', signedUrlError);
-              // Still set the document but with original URL as fallback
-              setExistingDocument(data);
-              updateDocumentData({
-                documentType: data.document_type as any,
-                documentUrl: data.document_url,
-                verificationStatus: data.verification_status as any,
-              });
-            }
-          } else {
-            // File doesn't exist in storage, clean up the database record
-            console.log('Document file not found in storage, cleaning up database record');
-            const { error: deleteError } = await supabase
-              .from('provider_verification_documents')
-              .delete()
-              .eq('provider_id', providerId)
-              .eq('document_url', data.document_url);
-
-            if (deleteError) {
-              console.error('Error cleaning up orphaned document record:', deleteError);
-            }
-            // Don't set existingDocument, so it shows upload interface
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching existing document:', error);
-      } finally {
-        setFetchingExisting(false);
+        // Get a signed URL for the document
+        const signedUrl = await getDocumentSignedUrl(providerId, data.document_url);
+        const documentWithSignedUrl = {
+          ...data,
+          document_url: signedUrl
+        };
+        
+        // Update store with existing data
+        updateDocumentData({
+          documentType: data.document_type as any,
+          documentUrl: signedUrl,
+          verificationStatus: data.verification_status as any,
+        });
+        
+        console.log('[Documents] Found existing document with signed URL');
+        return documentWithSignedUrl;
+      } catch (signedUrlError) {
+        console.error('[Documents] Failed to get signed URL for document:', signedUrlError);
+        // Still return the document but with original URL as fallback
+        updateDocumentData({
+          documentType: data.document_type as any,
+          documentUrl: data.document_url,
+          verificationStatus: data.verification_status as any,
+        });
+        return data;
       }
-    };
+    },
+    enabled: !!providerId && isHydrated,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
 
-    fetchExistingDocument();
-  }, [providerId, isHydrated, updateDocumentData]);
+  // ✅ REACT QUERY: Document upload mutation
+  const uploadDocumentMutation = useMutation({
+    mutationFn: async ({ image, documentType }: { image: any; documentType: string }) => {
+      console.log('[DocumentUpload] Starting document upload for provider:', providerId);
+      console.log('[DocumentUpload] Document type:', documentType);
+      console.log('[DocumentUpload] Image details:', {
+        uri: image.uri,
+        type: image.type,
+        fileName: image.fileName
+      });
+
+      if (!providerId) {
+        throw new Error('Provider ID is required for document upload');
+      }
+
+      const storage = createStorageService(providerId);
+      
+      // Create a consistent filename
+      const timestamp = new Date().getTime();
+      const fileName = `${documentType.toLowerCase()}_${timestamp}.jpg`;
+      const storagePath = `${providerId}/documents/${fileName}`;
+      
+      console.log('[DocumentUpload] Storage path:', storagePath);
+      
+      // Upload to storage
+      const uploadResult = await storage.uploadIdentityDocument(
+        image.uri, 
+        documentType.toLowerCase() as any,
+        timestamp
+      );
+      console.log('[DocumentUpload] Storage upload result:', uploadResult);
+      
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error || 'Failed to upload document to storage');
+      }
+
+      const actualStoragePath = uploadResult.filePath || `${providerId}/documents/${documentType.toLowerCase()}_${timestamp}.jpg`;
+
+      // Save to database
+      const { data, error } = await supabase
+        .from('provider_verification_documents')
+        .upsert(
+          {
+            provider_id: providerId,
+            document_type: documentType,
+            document_url: actualStoragePath,
+            verification_status: 'pending',
+            uploaded_at: new Date().toISOString()
+          },
+          { onConflict: 'provider_id' }
+        )
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[DocumentUpload] Database save error:', error);
+        throw error;
+      }
+
+      console.log('[DocumentUpload] Document uploaded successfully:', data);
+      
+      // Update store
+      updateDocumentData({
+        documentType: documentType as any,
+        documentUrl: actualStoragePath,
+        verificationStatus: 'pending',
+      });
+
+      return {
+        ...data,
+        document_url: actualStoragePath
+      };
+    },
+    onSuccess: (data) => {
+      console.log('[DocumentUpload] Upload successful:', data);
+      // Invalidate queries to refetch data
+      queryClient.invalidateQueries({ queryKey: ['existingDocument', providerId] });
+    },
+    onError: (error) => {
+      console.error('[DocumentUpload] Upload failed:', error);
+    },
+  });
+
+  // ✅ REACT QUERY: Document submission mutation
+  const submitDocumentMutation = useMutation({
+    mutationFn: async (formData: any) => {
+      console.log('[DocumentSubmission] Starting document submission for provider:', providerId);
+      
+      if (!providerId) {
+        throw new Error('Provider ID is required for document submission');
+      }
+
+      const documentType = formData.documentType;
+      const selectedImage = formData.selectedImage;
+      
+      console.log('[DocumentSubmission] Document type:', documentType);
+      console.log('[DocumentSubmission] Selected image:', selectedImage ? 'Yes' : 'No');
+      console.log('[DocumentSubmission] Existing document:', existingDocument ? 'Yes' : 'No');
+
+      let documentData = existingDocument;
+      
+      // Upload new document if image is selected
+      if (selectedImage) {
+        console.log('[DocumentSubmission] Uploading new document...');
+        documentData = await uploadDocumentMutation.mutateAsync({
+          image: selectedImage,
+          documentType
+        });
+      }
+
+      if (!documentData) {
+        throw new Error('No document available for submission');
+      }
+
+      // Update profile verification status
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          verification_status: 'pending',
+          is_verified: false,
+        })
+        .eq('id', providerId);
+
+      if (profileError) {
+        console.error('[DocumentSubmission] Profile update error:', profileError);
+        // Don't throw here as document was saved successfully
+      }
+
+      // Complete verification step
+      const { data: verificationData, error: verificationError } = await supabase
+        .from('provider_verification_status')
+        .upsert(
+          {
+            provider_id: providerId,
+            documents_verified: true,
+            updated_at: new Date().toISOString()
+          },
+          { onConflict: 'provider_id' }
+        )
+        .select()
+        .single();
+
+      if (verificationError) {
+        console.error('[DocumentSubmission] Verification update error:', verificationError);
+        throw verificationError;
+      }
+
+      console.log('[DocumentSubmission] Verification updated successfully:', verificationData);
+      
+      // Update store with completion
+      updateDocumentData({
+        documentType: documentType as any,
+        documentUrl: documentData.document_url,
+        verificationStatus: 'pending',
+      });
+      
+      return {
+        document: documentData,
+        verification: verificationData,
+        profile: { updated: !profileError }
+      };
+    },
+    onSuccess: async (data) => {
+      console.log('[DocumentSubmission] Submission successful:', data);
+      
+      // Complete step and move to next
+      completeStepAndNext(1, { 
+        documentType: data.document.document_type, 
+        documentUrl: data.document.document_url 
+      });
+      
+      // 🔗 Integrate with Stripe verification (PROVIDERS ONLY - NOT FOR CUSTOMERS)
+      // This automatically uploads provider documents to Stripe for payment compliance
+      // Customers have a simple booking experience without complex verification
+      try {
+        console.log('🔗 [Stripe Integration] Uploading provider document to Stripe for payment compliance...');
+        const stripeResult = await handleProviderVerificationComplete(providerId, {
+          documentType: data.document.document_type,
+          documentUrl: data.document.document_url
+        });
+        
+        if (stripeResult.success) {
+          console.log('✅ [Stripe Integration] Provider document uploaded to Stripe successfully');
+        } else {
+          console.log('⚠️ [Stripe Integration] Failed to upload to Stripe:', stripeResult.error);
+          // Don't fail the verification - this is additional integration
+        }
+      } catch (stripeError) {
+        console.log('⚠️ [Stripe Integration] Exception during Stripe upload:', stripeError);
+        // Don't fail the verification - this is additional integration
+      }
+      
+      // Show success alert
+      Alert.alert(
+        'Document Uploaded',
+        'Your document has been uploaded successfully and is pending verification.',
+        [
+          {
+            text: 'Continue',
+            onPress: () => {
+              // Navigation already handled by completeStepAndNext above
+              console.log('[DocumentSubmission] Document upload confirmation acknowledged');
+            },
+          },
+        ]
+      );
+      
+      // Invalidate related queries
+      queryClient.invalidateQueries({ queryKey: ['existingDocument', providerId] });
+      queryClient.invalidateQueries({ queryKey: ['providerVerificationStatus', providerId] });
+    },
+    onError: (error) => {
+      console.error('[DocumentSubmission] Submission failed:', error);
+      Alert.alert('Upload Failed', 'Failed to upload document. Please try again.');
+    },
+  });
+
+  // ✅ REACT QUERY: Delete existing document mutation
+  const deleteDocumentMutation = useMutation({
+    mutationFn: async (documentUrl: string) => {
+      console.log('[DocumentDelete] Deleting document:', documentUrl);
+      
+      if (!providerId) {
+        throw new Error('Provider ID is required');
+      }
+
+      // Delete from storage - for identity documents, we need to manually delete using file path
+      const { error: storageError } = await supabase.storage
+        .from('verification-documents')
+        .remove([documentUrl]);
+
+      if (storageError) {
+        console.warn('[DocumentDelete] Storage delete warning:', storageError);
+        // Don't throw here as the file might already be deleted
+      }
+
+      // Delete from database
+      const { error } = await supabase
+        .from('provider_verification_documents')
+        .delete()
+        .eq('provider_id', providerId)
+        .eq('document_url', documentUrl);
+
+      if (error) {
+        console.error('[DocumentDelete] Database delete error:', error);
+        throw error;
+      }
+
+      console.log('[DocumentDelete] Document deleted successfully');
+      return true;
+    },
+    onSuccess: () => {
+      console.log('[DocumentDelete] Delete successful');
+      // Invalidate queries to refetch data
+      queryClient.invalidateQueries({ queryKey: ['existingDocument', providerId] });
+      
+      // Clear store data
+      updateDocumentData({
+        documentType: undefined,
+        documentUrl: undefined,
+        verificationStatus: undefined,
+      });
+    },
+    onError: (error) => {
+      console.error('[DocumentDelete] Delete failed:', error);
+    },
+  });
+
+  // Derived loading state
+  const loading = uploadDocumentMutation.isPending || submitDocumentMutation.isPending || deleteDocumentMutation.isPending;
 
   const {
     control,
@@ -603,37 +869,21 @@ const DocumentUploadContent: React.FC<DocumentUploadContentProps> = ({
     return result.filePath || result.url!; // Return file path for signed URL generation
   };
 
-  const onSubmit = async (data: DocumentForm) => {
-    console.log('onSubmit called with data:', data);
-    console.log('existingDocument:', existingDocument);
-    console.log('selectedImage:', selectedImage);
+  const onSubmit = (data: DocumentForm) => {
+    console.log('[DocumentSubmission] onSubmit called with data:', data);
+    console.log('[DocumentSubmission] existingDocument:', existingDocument);
+    console.log('[DocumentSubmission] selectedImage:', selectedImage);
     
     // Check if we have an image to upload (either new selection or existing)
     if (!selectedImage && !existingDocument) {
-      console.log('No document available, showing alert');
+      console.log('[DocumentSubmission] No document available, showing alert');
       Alert.alert('Document Required', 'Please upload your document before continuing.');
       return;
     }
 
     // If we have an existing document and no new selection, just proceed
     if (existingDocument && !selectedImage) {
-      console.log('Using existing document, updating profile and completing step');
-      
-      // Update profile verification status if needed
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          verification_status: 'pending',
-          is_verified: false,
-        })
-        .eq('id', providerId);
-
-      if (profileError) {
-        console.error('Profile update error:', profileError);
-      }
-
-      // Mark step as completed and move to next in one atomic operation
-      console.log('Step 1 completed with existing document, proceeding to next step');
+      console.log('[DocumentSubmission] Using existing document, completing step');
       completeStepAndNext(1, { 
         documentType: existingDocument.document_type, 
         documentUrl: existingDocument.document_url 
@@ -641,125 +891,18 @@ const DocumentUploadContent: React.FC<DocumentUploadContentProps> = ({
       return;
     }
 
-    setLoading(true);
-    try {
-      // Upload document to storage
-      const documentUrl = await uploadDocument(selectedImage!, data.documentType);
-      
-      // Update verification store
-      updateDocumentData({
-        documentType: data.documentType,
-        documentUrl,
-        verificationStatus: 'pending',
-      });
+    // Submit with React Query mutation
+    submitDocumentMutation.mutate({
+      ...data,
+      selectedImage
+    });
+  };
 
-      // Save to database (delete existing, then insert new)
-      // First delete any existing document for this provider
-      const { error: deleteError } = await supabase
-        .from('provider_verification_documents')
-        .delete()
-        .eq('provider_id', providerId);
-
-      if (deleteError) {
-        console.error('Delete existing document error:', deleteError);
-        // Continue with insert even if delete fails
-      }
-
-      // Then insert the new document
-      const { error: dbError } = await supabase
-        .from('provider_verification_documents')
-        .insert({
-          provider_id: providerId,
-          document_type: data.documentType,
-          document_url: documentUrl,
-          verification_status: 'pending',
-        });
-
-      if (dbError) {
-        console.error('Database error:', dbError);
-        throw new Error('Failed to save document information');
-      }
-
-      // Update profile verification status
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          verification_status: 'pending',
-          is_verified: false,
-        })
-        .eq('id', providerId);
-
-      if (profileError) {
-        console.error('Profile update error:', profileError);
-        // Don't throw here as document was saved successfully
-      }
-
-      // Mark step as completed and move to next in one atomic operation
-      completeStepAndNext(1, { documentType: data.documentType, documentUrl });
-      
-      // 🔗 Integrate with Stripe verification (PROVIDERS ONLY - NOT FOR CUSTOMERS)
-      // This automatically uploads provider documents to Stripe for payment compliance
-      // Customers have a simple booking experience without complex verification
-      try {
-        console.log('🔗 [Stripe Integration] Uploading provider document to Stripe for payment compliance...');
-        const stripeResult = await handleProviderVerificationComplete(providerId, {
-          documentType: data.documentType,
-          documentUrl
-        });
-        
-        if (stripeResult.success) {
-          console.log('✅ [Stripe Integration] Provider document uploaded to Stripe successfully');
-        } else {
-          console.log('⚠️ [Stripe Integration] Failed to upload to Stripe:', stripeResult.error);
-          // Don't fail the verification - this is additional integration
-        }
-      } catch (stripeError) {
-        console.log('⚠️ [Stripe Integration] Exception during Stripe upload:', stripeError);
-        // Don't fail the verification - this is additional integration
-      }
-      
-      // Refetch existing document to update UI
-      const { data: refetchData, error: refetchError } = await supabase
-        .from('provider_verification_documents')
-        .select('document_type, document_url, verification_status, created_at')
-        .eq('provider_id', providerId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (!refetchError && refetchData) {
-        // Get a signed URL for the newly uploaded document
-        const signedUrl = await getDocumentSignedUrl(providerId, refetchData.document_url);
-        setExistingDocument({
-          ...refetchData,
-          document_url: signedUrl
-        });
-        updateDocumentData({
-          documentType: refetchData.document_type as any,
-          documentUrl: signedUrl,
-          verificationStatus: refetchData.verification_status as any,
-        });
-      }
-      
-      Alert.alert(
-        'Document Uploaded',
-        'Your document has been uploaded successfully and is pending verification.',
-        [
-          {
-            text: 'Continue',
-            onPress: () => {
-              // Navigation already handled by completeStepAndNext above
-              console.log('Document upload confirmation acknowledged');
-            },
-          },
-        ]
-      );
-    } catch (error) {
-      console.error('Error uploading document:', error);
-      Alert.alert('Upload Failed', 'Failed to upload document. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+  // Navigation state
+  const canGoBack = currentStep > 1;
+  const previousStep = () => {
+    console.log('[Navigation] Going back to previous step');
+    router.back();
   };
 
   const currentDocumentInfo = getDocumentTypeInfo(documentType);
@@ -853,8 +996,10 @@ const DocumentUploadContent: React.FC<DocumentUploadContentProps> = ({
           existingDocument={existingDocument}
           selectedImage={selectedImage}
           onReplaceDocument={() => {
-            console.log('Replacing document');
-            setExistingDocument(null);
+            console.log('[DocumentReplace] Replacing document');
+            if (existingDocument) {
+              deleteDocumentMutation.mutate(existingDocument.document_url);
+            }
             setSelectedImage(null);
           }}
           onRemoveImage={() => {
@@ -892,7 +1037,6 @@ const DocumentUploadContent: React.FC<DocumentUploadContentProps> = ({
           })()}
           continueLoading={loading}
           continueText={existingDocument && !selectedImage ? 'Use Existing' : 'Continue to Identity'}
-          onUpdateExistingDocument={setExistingDocument}
           handleSubmit={handleSubmit}
           onSubmit={onSubmit}
         />

@@ -1,18 +1,34 @@
+/**
+ * OTP Verification Screen
+ * 
+ * ✅ MIGRATED TO REACT QUERY + ZUSTAND ARCHITECTURE
+ * - Replaced useState + useEffect with React Query mutations
+ * - Using useAuthOptimized for better performance
+ * - Direct Supabase integration for OTP verification
+ * 
+ * Architecture Changes:
+ * - Removed: useState for loading/errors
+ * - Added: React Query mutations for OTP operations
+ * - Improved: Error handling and user feedback
+ */
 import React, { useState } from 'react';
 import { View, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
+import { useMutation } from '@tanstack/react-query';
 import { OtpInput } from 'react-native-otp-entry';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { useAuth } from '@/hooks';
+import { useAuthOptimized } from '@/hooks';
 import { useAppStore } from '@/stores/auth/app';
+import { supabase } from '@/lib/core/supabase';
 
 export default function OTPVerificationScreen() {
   const [otp, setOtp] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { verifyOTP, resendOTP } = useAuth();
+  
+  // ✅ OPTIMIZED: Using useAuthOptimized for better performance
+  const { refetchSession } = useAuthOptimized();
   const { setAuthenticated } = useAppStore();
 
   // Get parameters from registration
@@ -22,105 +38,124 @@ export default function OTPVerificationScreen() {
 
   console.log('[OTP] Screen loaded with params:', { email, role });
 
+  // ✅ REACT QUERY MUTATION: OTP verification
+  const verifyOTPMutation = useMutation({
+    mutationFn: async ({ email, otp }: { email: string; otp: string }) => {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token: otp,
+        type: 'signup'
+      });
+
+      if (error) {
+        if (error.message.includes('expired')) {
+          throw { code: 'OTP_EXPIRED', message: error.message };
+        } else if (error.message.includes('invalid')) {
+          throw { code: 'INVALID_OTP', message: error.message };
+        } else {
+          throw { code: 'NETWORK_ERROR', message: error.message };
+        }
+      }
+
+      return { user: data.user, session: data.session };
+    },
+    onSuccess: (data) => {
+      console.log('[OTP] Verification successful', data);
+      // Refetch session to update auth state
+      refetchSession();
+    },
+    onError: (error: any) => {
+      console.error('[OTP] Verification failed:', error);
+    }
+  });
+
+  // ✅ REACT QUERY MUTATION: Resend OTP
+  const resendOTPMutation = useMutation({
+    mutationFn: async (email: string) => {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+      });
+
+      if (error) throw error;
+      return true;
+    },
+    onSuccess: () => {
+      Alert.alert('Success', 'OTP sent successfully!');
+    },
+    onError: (error: any) => {
+      Alert.alert('Error', error.message || 'Failed to resend OTP');
+    }
+  });
+
+  // ✅ OPTIMIZED: Handle OTP verification with React Query mutation
   const handleVerifyOTP = async () => {
-    // onFilled callback should guarantee all 6 digits are entered
     console.log('[OTP] Starting verification process');
     console.log('[OTP] Verification data:', { email, otp: '***' + otp.slice(-2), role });
 
-    setLoading(true);
     try {
-      const result = await verifyOTP(email, otp, role);
+      const result = await verifyOTPMutation.mutateAsync({ email, otp });
+      
+      console.log('[OTP] Verification successful');
+      console.log('[OTP] Preparing navigation for role:', role);
 
-      console.log('[OTP] Verification result:', result);
-
-      if (result.success) {
-        console.log('[OTP] Verification successful');
-        console.log('[OTP] Preparing navigation for role:', role);
-
-        Alert.alert(
-          'Success',
-          'Email verified successfully!',
-          [
-            {
-              text: 'Continue',
-              onPress: () => {
-                console.log('[OTP] User pressed Continue, navigating...');
-                setTimeout(() => {
-                  if (role === 'customer') {
-                    console.log('[OTP] Navigating to customer dashboard');
-                    router.replace('/customer/' as any);
-                  } else if (role === 'provider') {
-                    console.log('[OTP] Navigating to provider verification');
-                    router.replace('/provider-verification/' as any);
-                  }
-                }, 1000);
-              }
+      Alert.alert(
+        'Success',
+        'Email verified successfully!',
+        [
+          {
+            text: 'Continue',
+            onPress: () => {
+              console.log('[OTP] User pressed Continue, navigating...');
+              setTimeout(() => {
+                if (role === 'customer') {
+                  console.log('[OTP] Navigating to customer dashboard');
+                  router.replace('/customer');
+                } else if (role === 'provider') {
+                  console.log('[OTP] Navigating to provider verification');
+                  router.replace('/provider-verification');
+                } else {
+                  console.warn('[OTP] Unknown role, navigating to auth');
+                  router.replace('/auth');
+                }
+              }, 500);
             }
-          ]
-        );
-      } else {
-        console.error('[OTP] Verification failed:', result.error);
-        
-        // Handle specific error codes with appropriate actions
-        if (result.code === 'OTP_EXPIRED') {
-          Alert.alert(
-            'Code Expired',
-            result.error,
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { 
-                text: 'Send New Code', 
-                onPress: handleResendOTP 
-              }
-            ]
-          );
-        } else if (result.code === 'NETWORK_ERROR') {
-          Alert.alert(
-            'Connection Error',
-            result.error,
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { 
-                text: 'Try Again', 
-                onPress: () => handleVerifyOTP() 
-              }
-            ]
-          );
-        } else {
-          // Generic error handling
-          Alert.alert('Verification Failed', result.error || 'Invalid OTP. Please try again.');
-        }
+          }
+        ]
+      );
+    } catch (error: any) {
+      console.error('[OTP] Verification failed:', error);
+      
+      let errorMessage = 'Verification failed. Please try again.';
+      
+      if (error.code === 'OTP_EXPIRED') {
+        errorMessage = 'Your verification code has expired. Please request a new one.';
+      } else if (error.code === 'INVALID_OTP') {
+        errorMessage = 'Invalid verification code. Please check and try again.';
+      } else if (error.code === 'NETWORK_ERROR') {
+        errorMessage = 'Network error. Please check your connection and try again.';
       }
-    } catch (error) {
-      console.error('[OTP] Unexpected error during verification:', error);
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
-    } finally {
-      console.log('[OTP] Verification process completed, loading:', false);
-      setLoading(false);
+
+      Alert.alert('Verification Failed', errorMessage);
+      setOtp(''); // Clear the OTP input
     }
   };
 
+  // ✅ OPTIMIZED: Handle OTP resend with React Query mutation
   const handleResendOTP = async () => {
     console.log('[OTP] Resending OTP to:', email);
-    setLoading(true);
+    
     try {
-      const result = await resendOTP(email);
-      console.log('[OTP] Resend result:', result);
-      if (result.success) {
-        console.log('[OTP] OTP resent successfully');
-        Alert.alert('Success', 'OTP has been resent to your email');
-        // Reset OTP input
-        setOtp('');
-      } else {
-        console.error('[OTP] Resend failed:', result.error);
-        Alert.alert('Error', result.error || 'Failed to resend OTP');
-      }
-    } catch (error) {
-      console.error('[OTP] Unexpected error during resend:', error);
-      Alert.alert('Error', 'An unexpected error occurred');
-    } finally {
-      console.log('[OTP] Resend process completed');
-      setLoading(false);
+      await resendOTPMutation.mutateAsync(email);
+      
+      console.log('[OTP] OTP resent successfully');
+      Alert.alert('Success', 'A new verification code has been sent to your email.');
+      
+      // Clear current OTP
+      setOtp('');
+    } catch (error: any) {
+      console.error('[OTP] Resend failed:', error);
+      Alert.alert('Error', error.message || 'Failed to send verification code. Please try again.');
     }
   };
 
@@ -200,11 +235,11 @@ export default function OTPVerificationScreen() {
       >
         <Button
           onPress={handleVerifyOTP}
-          disabled={loading || otp.length !== 6}
+          disabled={verifyOTPMutation.isPending || otp.length !== 6}
           className="w-full"
         >
           <Text className="text-primary-foreground font-semibold">
-            {loading ? 'Verifying...' : 'Verify Email'}
+            {verifyOTPMutation.isPending ? 'Verifying...' : 'Verify Email'}
           </Text>
         </Button>
       </Animated.View>
@@ -220,7 +255,7 @@ export default function OTPVerificationScreen() {
         <Button
           variant="link"
           onPress={handleResendOTP}
-          disabled={loading}
+          disabled={resendOTPMutation.isPending}
         >
           <Text className="text-primary font-semibold">
             Resend Code

@@ -7,3 +7,11 @@ export {
   type ProviderSearchResult,
   type ServiceSearchResult
 } from './useSearch';
+
+// ✅ Optimized search hooks following copilot-rules.md
+export {
+  useOptimizedServiceSearch,
+  useOptimizedProviderSearch,
+  useSearchResults,
+  useSearchActions
+} from './useSearchOptimized';

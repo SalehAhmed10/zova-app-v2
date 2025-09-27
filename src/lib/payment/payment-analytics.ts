@@ -267,54 +267,56 @@ export class PaymentAnalyticsService {
 }
 
 /**
- * React hook for payment analytics
+ * React hook for payment analytics - DEPRECATED
+ * This hook uses useState + useEffect anti-patterns and is not used anywhere in the app
+ * TODO: Replace with React Query hook if analytics are needed in the future
  */
-import { useState, useEffect } from 'react';
+// import { useState, useEffect } from 'react';
 
-export const usePaymentAnalytics = (userId?: string) => {
-  const [metrics, setMetrics] = useState<PaymentConversionMetrics | null>(null);
-  const [loading, setLoading] = useState(false);
+// export const usePaymentAnalytics = (userId?: string) => {
+//   const [metrics, setMetrics] = useState<PaymentConversionMetrics | null>(null);
+//   const [loading, setLoading] = useState(false);
 
-  const trackPaymentPrompt = async (context: 'dashboard' | 'verification_complete' | 'nudge' = 'dashboard') => {
-    if (userId) {
-      await PaymentAnalyticsService.trackPaymentPromptShown(userId, context);
-    }
-  };
+//   const trackPaymentPrompt = async (context: 'dashboard' | 'verification_complete' | 'nudge' = 'dashboard') => {
+//     if (userId) {
+//       await PaymentAnalyticsService.trackPaymentPromptShown(userId, context);
+//     }
+//   };
 
-  const trackPaymentStarted = async (context: 'dashboard' | 'verification_complete' | 'nudge' | 'manual' = 'manual') => {
-    if (userId) {
-      await PaymentAnalyticsService.trackPaymentSetupStarted(userId, context);
-    }
-  };
+//   const trackPaymentStarted = async (context: 'dashboard' | 'verification_complete' | 'nudge' | 'manual' = 'manual') => {
+//     if (userId) {
+//       await PaymentAnalyticsService.trackPaymentSetupStarted(userId, context);
+//     }
+//   };
 
-  const trackPaymentCompleted = async (stripeAccountId: string, context?: string) => {
-    if (userId) {
-      await PaymentAnalyticsService.trackPaymentSetupCompleted(userId, stripeAccountId, context);
-    }
-  };
+//   const trackPaymentCompleted = async (stripeAccountId: string, context?: string) => {
+//     if (userId) {
+//       await PaymentAnalyticsService.trackPaymentSetupCompleted(userId, stripeAccountId, context);
+//     }
+//   };
 
-  const loadMetrics = async () => {
-    setLoading(true);
-    try {
-      const data = await PaymentAnalyticsService.getConversionMetrics();
-      setMetrics(data);
-    } catch (error) {
-      console.error('Failed to load payment metrics:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+//   const loadMetrics = async () => {
+//     setLoading(true);
+//     try {
+//       const data = await PaymentAnalyticsService.getConversionMetrics();
+//       setMetrics(data);
+//     } catch (error) {
+//       console.error('Failed to load payment metrics:', error);
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
 
-  useEffect(() => {
-    loadMetrics();
-  }, []);
+//   useEffect(() => {
+//     loadMetrics();
+//   }, []);
 
-  return {
-    metrics,
-    loading,
-    trackPaymentPrompt,
-    trackPaymentStarted,
-    trackPaymentCompleted,
-    loadMetrics
-  };
-};
+//   return {
+//     metrics,
+//     loading,
+//     trackPaymentPrompt,
+//     trackPaymentStarted,
+//     trackPaymentCompleted,
+//     loadMetrics
+//   };
+// };

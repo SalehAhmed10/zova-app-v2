@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Alert } from 'react-native';
 import { router } from 'expo-router';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
@@ -11,11 +12,7 @@ import { useProviderVerificationStore } from '@/stores/verification/provider-ver
 import { supabase } from '@/lib/core/supabase';
 
 export default function BusinessBioScreen() {
-  const [formData, setFormData] = useState({
-    businessDescription: '',
-    yearsOfExperience: '',
-  });
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
   
   const { 
     bioData,
@@ -23,60 +20,18 @@ export default function BusinessBioScreen() {
     completeStep,
     completeStepAndNext,
     nextStep,
-    previousStep 
+    previousStep,
+    providerId 
   } = useProviderVerificationStore();
 
-  // Initialize form with existing data
-  React.useEffect(() => {
-    if (bioData) {
-      setFormData({
-        businessDescription: bioData.businessDescription || '',
-        yearsOfExperience: bioData.yearsOfExperience !== null ? bioData.yearsOfExperience.toString() : '',
-      });
-    }
-  }, [bioData]);
-
-  const validateForm = () => {
-    if (!formData.businessDescription.trim()) {
-      Alert.alert('Description Required', 'Please write a brief description about your business.');
-      return false;
-    }
-    if (formData.businessDescription.length < 50) {
-      Alert.alert('Description Too Short', 'Your business description should be at least 50 characters long.');
-      return false;
-    }
-    if (formData.businessDescription.length > bioData.maxDescriptionLength) {
-      Alert.alert('Description Too Long', `Your description should be no more than ${bioData.maxDescriptionLength} characters.`);
-      return false;
-    }
-    if (!formData.yearsOfExperience.trim()) {
-      Alert.alert('Experience Required', 'Please enter your years of experience.');
-      return false;
-    }
-    const years = parseInt(formData.yearsOfExperience);
-    if (isNaN(years) || years < 0 || years > 50) {
-      Alert.alert('Invalid Experience', 'Please enter a valid number of years (0-50).');
-      return false;
-    }
-    return true;
-  };
-
-  const handleSubmit = async () => {
-    if (!validateForm()) return;
-
-    setLoading(true);
-    try {
-      // Get current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        throw new Error('User not authenticated');
+  // ✅ REACT QUERY: Bio submission mutation
+  const submitBioMutation = useMutation({
+    mutationFn: async (data: { businessDescription: string; yearsOfExperience: number }) => {
+      console.log('[Bio] Starting bio submission for provider:', providerId);
+      
+      if (!providerId) {
+        throw new Error('Provider ID is required');
       }
-
-      // Prepare data for database
-      const data = {
-        businessDescription: formData.businessDescription.trim(),
-        yearsOfExperience: parseInt(formData.yearsOfExperience),
-      };
 
       // Save to database
       const { error: dbError } = await supabase
@@ -86,22 +41,76 @@ export default function BusinessBioScreen() {
           years_of_experience: data.yearsOfExperience,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', user.id);
+        .eq('id', providerId);
 
       if (dbError) {
-        console.error('Database error:', dbError);
+        console.error('[Bio] Database error:', dbError);
         throw new Error('Failed to save to database');
       }
 
-      // Update verification store
+      console.log('[Bio] Bio saved successfully');
+      return data;
+    },
+    onSuccess: (data) => {
+      console.log('[Bio] Submission successful:', data);
+      // Update store
       updateBioData(data);
       completeStepAndNext(7, data);
-    } catch (error) {
-      console.error('Error saving bio:', error);
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ['providerProfile', providerId] });
+    },
+    onError: (error) => {
+      console.error('[Bio] Submission failed:', error);
       Alert.alert('Save Failed', 'Failed to save your information. Please try again.');
-    } finally {
-      setLoading(false);
+    },
+  });
+
+  // ✅ REACT QUERY: Form state managed by Zustand store (no local useState needed)
+  const businessDescription = bioData?.businessDescription || '';
+  const yearsOfExperience = bioData?.yearsOfExperience !== null ? bioData?.yearsOfExperience?.toString() || '' : '';
+
+  // ✅ Store update handlers (replacing local setState)
+  const handleBusinessDescriptionChange = (text: string) => {
+    updateBioData({ businessDescription: text });
+  };
+
+  const handleYearsOfExperienceChange = (text: string) => {
+    const years = parseInt(text) || null;
+    updateBioData({ yearsOfExperience: years });
+  };
+
+  const validateForm = () => {
+    if (!businessDescription.trim()) {
+      Alert.alert('Description Required', 'Please write a brief description about your business.');
+      return false;
     }
+    if (businessDescription.length < 50) {
+      Alert.alert('Description Too Short', 'Your business description should be at least 50 characters long.');
+      return false;
+    }
+    if (businessDescription.length > (bioData?.maxDescriptionLength || 500)) {
+      Alert.alert('Description Too Long', `Your description should be no more than ${bioData?.maxDescriptionLength || 500} characters.`);
+      return false;
+    }
+    if (!yearsOfExperience.trim()) {
+      Alert.alert('Experience Required', 'Please enter your years of experience.');
+      return false;
+    }
+    const years = parseInt(yearsOfExperience);
+    if (isNaN(years) || years < 0 || years > 50) {
+      Alert.alert('Invalid Experience', 'Please enter a valid number of years (0-50).');
+      return false;
+    }
+    return true;
+  };
+
+  const handleSubmit = () => {
+    if (!validateForm()) return;
+
+    submitBioMutation.mutate({
+      businessDescription: businessDescription.trim(),
+      yearsOfExperience: parseInt(yearsOfExperience),
+    });
   };
 
   return (
@@ -131,14 +140,14 @@ export default function BusinessBioScreen() {
           </Text>
           <Textarea
             placeholder="Tell customers about your business, your approach to service, and what makes you unique..."
-            value={formData.businessDescription}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, businessDescription: text }))}
+            value={businessDescription}
+            onChangeText={handleBusinessDescriptionChange}
             numberOfLines={6}
-            maxLength={bioData.maxDescriptionLength}
+            maxLength={bioData?.maxDescriptionLength || 500}
             className="min-h-[120px] placeholder:text-muted-foreground"
           />
           <Text className="text-xs text-muted-foreground mt-1">
-            {formData.businessDescription.length}/{bioData.maxDescriptionLength} characters (minimum 50)
+            {businessDescription.length}/{bioData?.maxDescriptionLength || 500} characters (minimum 50)
           </Text>
         </View>
 
@@ -149,11 +158,11 @@ export default function BusinessBioScreen() {
           </Text>
           <Input
             placeholder="Years of experience"
-            value={formData.yearsOfExperience}
+            value={yearsOfExperience}
             onChangeText={(text) => {
               // Only allow numbers
               const numericText = text.replace(/[^0-9]/g, '');
-              setFormData(prev => ({ ...prev, yearsOfExperience: numericText }));
+              handleYearsOfExperienceChange(numericText);
             }}
             keyboardType="numeric"
             maxLength={2}
@@ -193,11 +202,11 @@ export default function BusinessBioScreen() {
         <Button
           size="lg"
           onPress={handleSubmit}
-          disabled={loading || !formData.businessDescription.trim() || !formData.yearsOfExperience.trim()}
+          disabled={submitBioMutation.isPending || !businessDescription.trim() || !yearsOfExperience.trim()}
           className="w-full"
         >
           <Text className="font-semibold text-primary-foreground">
-            {loading ? 'Saving...' : 'Continue to Terms'}
+            {submitBioMutation.isPending ? 'Saving...' : 'Continue to Terms'}
           </Text>
         </Button>
       </Animated.View>

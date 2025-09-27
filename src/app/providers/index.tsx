@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Ionicons } from '@expo/vector-icons';
 import { useTrustedProviders } from '@/hooks';
 import { ProviderCard } from '@/components/providers';
+import { useProviderSearchStore, useFilteredProviders } from '@/stores/providers/useProviderSearchStore';
 
 // Loading Skeleton
 const ProviderCardSkeleton = () => (
@@ -33,26 +34,14 @@ const ProviderCardSkeleton = () => (
 );
 
 export default function ProvidersScreen() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filteredProviders, setFilteredProviders] = useState<any[]>([]);
-
-  const { data: providers, isLoading, error, refetch } = useTrustedProviders(50); // Get more providers
-
-  // Filter providers based on search query
-  React.useEffect(() => {
-    if (!providers) return;
-
-    if (!searchQuery.trim()) {
-      setFilteredProviders(providers);
-    } else {
-      const filtered = providers.filter(provider =>
-        `${provider.first_name} ${provider.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (provider.business_name && provider.business_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (provider.city && provider.city.toLowerCase().includes(searchQuery.toLowerCase()))
-      );
-      setFilteredProviders(filtered);
-    }
-  }, [providers, searchQuery]);
+  // ✅ ZUSTAND: Search state management (replaces useState + useEffect)
+  const { searchQuery, setSearchQuery, clearSearch } = useProviderSearchStore();
+  
+  // ✅ PURE REACT QUERY: Server state management
+  const { data: providers, isLoading, error, refetch } = useTrustedProviders(50);
+  
+  // ✅ COMPUTED: Filtered providers using custom hook (replaces useEffect + useState)
+  const filteredProviders = useFilteredProviders(providers, searchQuery);
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -79,7 +68,7 @@ export default function ProvidersScreen() {
               className="flex-1 border-0 p-0 text-base"
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} className="ml-2">
+              <TouchableOpacity onPress={() => clearSearch()} className="ml-2">
                 <Text className="text-muted-foreground">✕</Text>
               </TouchableOpacity>
             )}
@@ -124,7 +113,7 @@ export default function ProvidersScreen() {
           ) : filteredProviders && filteredProviders.length > 0 ? (
             <FlashList
               data={filteredProviders}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item: any) => item.id}
               renderItem={({ item }) => <ProviderCard provider={item} />}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 100 }}
@@ -142,7 +131,7 @@ export default function ProvidersScreen() {
                 }
               </Text>
               {searchQuery && (
-                <Button onPress={() => setSearchQuery('')}>
+                <Button onPress={() => clearSearch()}>
                   <Text className="text-primary-foreground font-medium">Clear Search</Text>
                 </Button>
               )}

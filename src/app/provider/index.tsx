@@ -12,13 +12,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { THEME } from '@/lib/core/theme';
 import {
-  useAuth,
+  useAuthOptimized as useAuth,
   useProfile,
   useProviderStats,
   useUserBookings,
   useBusinessAvailability,
   useUpdateBusinessAvailability,
-  usePaymentSetupNudge
+  useIsPaymentSetupComplete,
 } from '@/hooks';
 import { cn } from '@/lib/core/utils';
 import { PaymentSetupStatusCard } from '@/components/providers/PaymentSetupStatusCard';
@@ -83,25 +83,8 @@ export default function ProviderDashboard() {
   const [selectedDate, setSelectedDate] = React.useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)); // Default to 1 week from now
   const [isIndefinitePause, setIsIndefinitePause] = React.useState(false);
 
-  // Payment setup nudge functionality
-  const { 
-    shouldShowNudge, 
-    isPaymentComplete, 
-    showPaymentNudge,
-    checkNudgeStatus 
-  } = usePaymentSetupNudge();
-
-  // Show payment nudge if needed
-  React.useEffect(() => {
-    if (shouldShowNudge && !isPaymentComplete) {
-      // Small delay to ensure dashboard has loaded
-      const timer = setTimeout(() => {
-        showPaymentNudge();
-      }, 2000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [shouldShowNudge, isPaymentComplete, showPaymentNudge]);
+  // ✅ REACT QUERY: Payment setup status check (replaces usePaymentSetupNudge)
+  const { isComplete: isPaymentComplete } = useIsPaymentSetupComplete(user?.id || '');
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -338,7 +321,7 @@ export default function ProviderDashboard() {
               <Text className="text-lg font-bold text-foreground mb-4">🔧 Development Tools</Text>
               <View className="gap-3">
                 <TouchableOpacity onPress={() => {
-                  router.push('/stripe-test');
+                  router.push('/provider-verification/payment');
                 }}>
                   <Card className='bg-card border-yellow-200'>
                     <CardContent className="p-4 flex-row items-center">

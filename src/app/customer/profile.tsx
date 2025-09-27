@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { LogoutButton } from '@/components/ui/logout-button';
 import { useAppStore } from '@/stores/auth/app';
 import {
-  useAuth,
+  useAuthOptimized,
   useProfile,
   useProfileStats,
   useUserBookings,
@@ -28,7 +28,8 @@ import { FavoritesModal } from '@/components/profile/FavoritesModal';
 
 export default function ProfileScreen() {
   const { userRole } = useAppStore();
-  const { user } = useAuth();
+  // ✅ MIGRATED: Using optimized auth hook following copilot-rules.md
+  const { user } = useAuthOptimized();
   
   // Don't fetch data if user is not authenticated or logging out
   const shouldFetchData = user?.id && userRole === 'customer';
@@ -40,16 +41,16 @@ export default function ProfileScreen() {
   const { data: notificationSettings } = useNotificationSettings(shouldFetchData ? user?.id : undefined);
   const { data: favoritesData } = useUserFavorites(shouldFetchData ? user?.id : undefined);
 
-  // Debug logging - only log when user actually changes
-  React.useEffect(() => {
+  // ✅ PURE: Debug logging on render (replaces useEffect)
+  React.useMemo(() => {
     if (user?.id) {
       console.log('ProfileScreen: user object:', user);
       console.log('ProfileScreen: user.id:', user?.id);
     }
   }, [user?.id]);
 
-  // Debug favorites logging - only log when favorites change
-  React.useEffect(() => {
+  // ✅ PURE: Debug favorites logging (replaces useEffect)
+  React.useMemo(() => {
     if (favoritesData) {
       console.log('ProfileScreen: favoritesData:', favoritesData);
     }

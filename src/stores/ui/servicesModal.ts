@@ -14,8 +14,9 @@ interface ServicesModalState {
   deleteDialogOpen: boolean;
   serviceToDelete: string | null;
 
-  // Toggle state
+  // Toggle and delete state tracking
   serviceBeingToggled: string | null;
+  serviceBeingDeleted: string | null; // Track which service is being deleted
 
   // Actions
   openModal: () => void;
@@ -27,6 +28,7 @@ interface ServicesModalState {
   openDeleteDialog: (serviceId: string) => void;
   closeDeleteDialog: () => void;
   setServiceBeingToggled: (serviceId: string | null) => void;
+  setServiceBeingDeleted: (serviceId: string | null) => void; // New action
   reset: () => void;
 
   // Hydration
@@ -46,6 +48,7 @@ export const useServicesModalStore = create<ServicesModalState>()(
       deleteDialogOpen: false,
       serviceToDelete: null,
       serviceBeingToggled: null,
+      serviceBeingDeleted: null, // Initial state for tracking deleted service
       _hasHydrated: false,
 
       // Actions
@@ -111,6 +114,11 @@ export const useServicesModalStore = create<ServicesModalState>()(
         set({ serviceBeingToggled: serviceId });
       },
 
+      setServiceBeingDeleted: (serviceId: string | null) => {
+        console.log('[ServicesModalStore] Setting service being deleted:', serviceId);
+        set({ serviceBeingDeleted: serviceId });
+      },
+
       reset: () => {
         console.log('[ServicesModalStore] Resetting modal state');
         set({
@@ -120,7 +128,8 @@ export const useServicesModalStore = create<ServicesModalState>()(
           selectedCategory: 'All',
           showActiveOnly: false,
           deleteDialogOpen: false,
-          serviceToDelete: null
+          serviceToDelete: null,
+          serviceBeingDeleted: null,
         });
       },
 

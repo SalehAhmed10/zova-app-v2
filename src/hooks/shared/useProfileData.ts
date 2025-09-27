@@ -997,6 +997,153 @@ export const useDeleteService = () => {
   });
 };
 
+// Mutation to toggle service status (activate/deactivate)
+export const useToggleServiceStatus = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      provider_id,
+      is_active
+    }: {
+      id: string;
+      provider_id: string;
+      is_active: boolean;
+    }) => {
+      const { data, error } = await supabase.functions.invoke('manage-services', {
+        body: {
+          service_id: id,
+          provider_id,
+          is_active,
+          action: 'toggle_status'
+        }
+      });
+
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || 'Failed to toggle service status');
+
+      return data.data;
+    },
+    onSuccess: (data, variables) => {
+      // Invalidate and refetch provider services
+      queryClient.invalidateQueries({ queryKey: ['providerServices', variables.provider_id] });
+    },
+  });
+};
+
+// Mutation to create a new service
+export const useCreateService = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (serviceData: {
+      provider_id: string;
+      subcategory_id: string;
+      title: string;
+      description: string;
+      base_price: number;
+      duration_minutes: number;
+      price_type: string;
+      is_active?: boolean;
+      deposit_percentage?: number;
+      cancellation_policy?: string;
+      house_call_available?: boolean;
+      house_call_extra_fee?: number;
+      allows_sos_booking?: boolean;
+    }) => {
+      const { data, error } = await supabase
+        .from('provider_services')
+        .insert([{
+          provider_id: serviceData.provider_id,
+          subcategory_id: serviceData.subcategory_id,
+          title: serviceData.title,
+          description: serviceData.description,
+          base_price: serviceData.base_price,
+          duration_minutes: serviceData.duration_minutes,
+          price_type: serviceData.price_type || 'fixed',
+          is_active: serviceData.is_active ?? true,
+          // Business terms - using custom fields for now
+          custom_deposit_percentage: serviceData.deposit_percentage,
+          custom_cancellation_policy: serviceData.cancellation_policy,
+          house_call_available: serviceData.house_call_available,
+          house_call_extra_fee: serviceData.house_call_extra_fee,
+          allows_sos_booking: serviceData.allows_sos_booking,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data, variables) => {
+      // Invalidate and refetch provider services
+      queryClient.invalidateQueries({ queryKey: ['providerServices', variables.provider_id] });
+    },
+  });
+};
+
+// Mutation to update an existing service
+export const useUpdateService = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (serviceData: {
+      id: string;
+      provider_id: string;
+      subcategory_id?: string;
+      title?: string;
+      description?: string;
+      base_price?: number;
+      duration_minutes?: number;
+      price_type?: string;
+      is_active?: boolean;
+      deposit_percentage?: number;
+      cancellation_policy?: string;
+      house_call_available?: boolean;
+      house_call_extra_fee?: number;
+      allows_sos_booking?: boolean;
+    }) => {
+      const updateData: any = {
+        updated_at: new Date().toISOString(),
+      };
+
+      // Only include fields that are provided
+      if (serviceData.subcategory_id !== undefined) updateData.subcategory_id = serviceData.subcategory_id;
+      if (serviceData.title !== undefined) updateData.title = serviceData.title;
+      if (serviceData.description !== undefined) updateData.description = serviceData.description;
+      if (serviceData.base_price !== undefined) updateData.base_price = serviceData.base_price;
+      if (serviceData.duration_minutes !== undefined) updateData.duration_minutes = serviceData.duration_minutes;
+      if (serviceData.price_type !== undefined) updateData.price_type = serviceData.price_type;
+      if (serviceData.is_active !== undefined) updateData.is_active = serviceData.is_active;
+      
+      // Business terms - using custom fields for now
+      if (serviceData.deposit_percentage !== undefined) updateData.custom_deposit_percentage = serviceData.deposit_percentage;
+      if (serviceData.cancellation_policy !== undefined) updateData.custom_cancellation_policy = serviceData.cancellation_policy;
+      if (serviceData.house_call_available !== undefined) updateData.house_call_available = serviceData.house_call_available;
+      if (serviceData.house_call_extra_fee !== undefined) updateData.house_call_extra_fee = serviceData.house_call_extra_fee;
+      if (serviceData.allows_sos_booking !== undefined) updateData.allows_sos_booking = serviceData.allows_sos_booking;
+
+      const { data, error } = await supabase
+        .from('provider_services')
+        .update(updateData)
+        .eq('id', serviceData.id)
+        .eq('provider_id', serviceData.provider_id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data, variables) => {
+      // Invalidate and refetch provider services
+      queryClient.invalidateQueries({ queryKey: ['providerServices', variables.provider_id] });
+    },
+  });
+};
+
 // Helper function to get next Monday
 function getNextMonday(): Date {
   const today = new Date();

@@ -1,44 +1,34 @@
-import React, { useEffect } from 'react';
-import { Tabs, router } from 'expo-router';
+import React from 'react';
+import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { useAppStore } from '@/stores/auth/app';
 import { THEME } from '@/lib/core/theme';
+import { Redirect } from 'expo-router';
+import { useNavigationDecision } from '@/hooks/shared/useNavigationDecision';
 
 export default function CustomerLayout() {
   const { isDarkColorScheme } = useColorScheme();
   const insets = useSafeAreaInsets();
-  const { userRole, isAuthenticated } = useAppStore();
+  const { isLoggingOut } = useAppStore();
+  const navigationDecision = useNavigationDecision();
 
-  // Role-based access control - use a timeout to ensure navigation is ready
-  useEffect(() => {
-    const checkAccess = () => {
-      console.log('[Customer Layout] Checking access - Auth:', isAuthenticated, 'Role:', userRole);
+  console.log('[Customer Layout] Navigation decision:', navigationDecision);
 
-      if (!isAuthenticated) {
-        console.log('[Customer Layout] Not authenticated, redirecting to auth');
-        router.replace('/auth');
-        return;
-      }
+  // ✅ CRITICAL: Hide layout during logout to prevent flash
+  if (isLoggingOut) {
+    console.log('[Customer Layout] Logout in progress, hiding layout');
+    return null;
+  }
 
-      if (userRole !== 'customer') {
-        console.log('[Customer Layout] Access denied for role:', userRole);
-        if (userRole === 'provider') {
-          router.replace('/provider');
-        } else {
-          router.replace('/auth');
-        }
-        return;
-      }
+  // ✅ PURE: Use centralized navigation decisions
+  if (navigationDecision.shouldRedirect) {
+    console.log(`[Customer Layout] Redirecting to ${navigationDecision.targetRoute} - ${navigationDecision.reason}`);
+    return <Redirect href={navigationDecision.targetRoute as any} />;
+  }
 
-      console.log('[Customer Layout] Access granted for customer');
-    };
-
-    // Small delay to ensure navigation system is ready
-    const timer = setTimeout(checkAccess, 100);
-    return () => clearTimeout(timer);
-  }, [userRole, isAuthenticated]);
+  console.log('[Customer Layout] Access granted for customer');
 
   return (
     <Tabs
@@ -83,6 +73,15 @@ export default function CustomerLayout() {
           title: 'Bookings',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="subscriptions"
+        options={{
+          title: 'SOS',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="shield-checkmark" size={size} color={color} />
           ),
         }}
       />

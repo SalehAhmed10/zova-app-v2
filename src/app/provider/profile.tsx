@@ -13,7 +13,7 @@ import { LogoutButton } from '@/components/ui/logout-button';
 import { useAppStore } from '@/stores/auth/app';
 import { useProfileModalStore } from '@/stores/ui/profileModal';
 import {
-  useAuth,
+  useAuthOptimized,
   useProfile,
   useProviderStats,
   useUserBookings,
@@ -33,8 +33,12 @@ import { StripeIntegrationModal } from '@/components/profile/StripeIntegrationMo
 
 export default React.memo(function ProfileScreen() {
   const { userRole } = useAppStore();
-  const { user } = useAuth();
+  // ✅ MIGRATED: Using optimized auth hook following copilot-rules.md
+  const { user } = useAuthOptimized();
   const { colorScheme } = useColorScheme();
+  
+  // Don't fetch data if user is not authenticated or logging out
+  const shouldFetchData = user?.id && userRole === 'provider';
 
   // Use Zustand store for modal state management
   const {
@@ -56,11 +60,11 @@ export default React.memo(function ProfileScreen() {
     _hasHydrated
   } = useProfileModalStore();
 
-  // Data fetching hooks with user ID - React Query for server state
-  const { data: profileData, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useProfile(user?.id);
-  const { data: statsData, isLoading: statsLoading } = useProviderStats(user?.id);
-  const { data: bookingsData, isLoading: bookingsLoading } = useUserBookings(user?.id);
-  const { data: notificationSettings } = useNotificationSettings(user?.id);
+  // Data fetching hooks with user ID - only call when user is authenticated
+  const { data: profileData, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useProfile(shouldFetchData ? user?.id : undefined);
+  const { data: statsData, isLoading: statsLoading } = useProviderStats(shouldFetchData ? user?.id : undefined);
+  const { data: bookingsData, isLoading: bookingsLoading } = useUserBookings(shouldFetchData ? user?.id : undefined);
+  const { data: notificationSettings } = useNotificationSettings(shouldFetchData ? user?.id : undefined);
 
   // Wait for Zustand store hydration before rendering
   if (!_hasHydrated) {
@@ -245,7 +249,7 @@ export default React.memo(function ProfileScreen() {
   ));
 
   // Loading state (wait for user and profile data)
-  if (!user || profileLoading) {
+  if (!shouldFetchData || profileLoading) {
     return (
       <SafeAreaView className="flex-1 bg-background" edges={['top']}>
         <ScrollView className="flex-1">
@@ -481,36 +485,46 @@ export default React.memo(function ProfileScreen() {
         <View className={cn("h-6", Platform.OS === 'ios' && "h-24")} />
       </ScrollView>
 
-      {/* Modals */}
-      <PersonalInfoModal
-        visible={personalInfoModalVisible}
-        onClose={closePersonalInfoModal}
-        profileData={profileData}
-      />
+      {/* Modals - Lazy Loading for Performance */}
+      {personalInfoModalVisible && (
+        <PersonalInfoModal
+          visible={personalInfoModalVisible}
+          onClose={closePersonalInfoModal}
+          profileData={profileData}
+        />
+      )}
 
-      <NotificationSettingsModal
-        visible={notificationModalVisible}
-        onClose={closeNotificationModal}
-        settings={notificationSettings}
-        userId={user?.id || ''}
-      />
+      {notificationModalVisible && (
+        <NotificationSettingsModal
+          visible={notificationModalVisible}
+          onClose={closeNotificationModal}
+          settings={notificationSettings}
+          userId={user?.id || ''}
+        />
+      )}
 
-      <BookingHistoryModal
-        visible={bookingHistoryModalVisible}
-        onClose={closeBookingHistoryModal}
-        bookings={bookingsData}
-        isLoading={bookingsLoading}
-      />
+      {bookingHistoryModalVisible && (
+        <BookingHistoryModal
+          visible={bookingHistoryModalVisible}
+          onClose={closeBookingHistoryModal}
+          bookings={bookingsData}
+          isLoading={bookingsLoading}
+        />
+      )}
 
-      <StripeIntegrationModal
-        visible={stripeIntegrationModalVisible}
-        onClose={closeStripeIntegrationModal}
-      />
+      {stripeIntegrationModalVisible && (
+        <StripeIntegrationModal
+          visible={stripeIntegrationModalVisible}
+          onClose={closeStripeIntegrationModal}
+        />
+      )}
 
-      <ServicesModal
-        visible={servicesModalVisible}
-        onClose={closeServicesModal}
-      />
+      {servicesModalVisible && (
+        <ServicesModal
+          visible={servicesModalVisible}
+          onClose={closeServicesModal}
+        />
+      )}
     </SafeAreaView>
   );
 });

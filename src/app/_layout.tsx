@@ -5,6 +5,7 @@ import { Slot } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as React from 'react';
 import { Platform, LogBox, View } from 'react-native';
+import { LogoutLoadingScreen } from '@/components/ui/logout-loading-screen';
 
 // Ignore warnings immediately after imports
 LogBox.ignoreLogs([
@@ -73,6 +74,7 @@ import { colorScheme } from 'nativewind';
 import { SessionProvider, useSession } from '@/lib/auth';
 import { useAppStore } from '@/stores/auth/app';
 import { useThemeHydration } from '@/stores/ui/theme';
+import { useAuthListener } from '@/hooks/shared/useAuthListener';
 import { cssInterop } from 'nativewind';
 import * as Icons from '@expo/vector-icons';
 import { Text } from '@/components/ui/text';
@@ -121,19 +123,11 @@ export default function RootLayout() {
   const { colorScheme: scheme, isDarkColorScheme } = useColorScheme();
   const isThemeHydrated = useThemeHydration();
 
-  React.useEffect(() => {
-    console.log('[RootLayout] Theme state:', {
-      scheme,
-      isDarkColorScheme,
-      isThemeHydrated
-    });
-    
-    // Set the initial color scheme for nativewind only after theme is hydrated
-    if (isThemeHydrated) {
-      console.log('[RootLayout] Setting NativeWind color scheme to:', scheme);
-      colorScheme.set(scheme);
-    }
-  }, [scheme, isDarkColorScheme, isThemeHydrated]);
+  // ✅ Set color scheme immediately when hydrated - no useEffect needed
+  if (isThemeHydrated && colorScheme.get() !== scheme) {
+    console.log('[RootLayout] Setting NativeWind color scheme to:', scheme);
+    colorScheme.set(scheme);
+  }
 
   // Wait for theme hydration before rendering
   if (!isThemeHydrated) {
@@ -164,21 +158,20 @@ export default function RootLayout() {
 
 function RootNavigator() {
   const { session } = useSession();
-  const { userRole, isAuthenticated } = useAppStore();
+  const { userRole, isAuthenticated, isLoggingOut } = useAppStore();
 
-  // Memoize the state to prevent unnecessary re-renders
-  const navigationState = React.useMemo(() => ({
-    session,
-    isAuthenticated,
-    userRole
-  }), [session, isAuthenticated, userRole]);
+  // ✅ SYSTEM INTEGRATION: Set up Supabase auth listener
+  useAuthListener();
 
-  // Only log when state actually changes
-  React.useEffect(() => {
-    console.log('[RootNavigator] State:', navigationState);
-  }, [navigationState]);
+  // ✅ Log state changes immediately - no useEffect needed
+  const currentState = { session: !!session, isAuthenticated, userRole };
+  console.log('[RootNavigator] State:', currentState);
 
-  // Use Slot to let Expo Router handle navigation naturally
-  // The individual route files will handle their own navigation logic
-  return <Slot />;
+  return (
+    <>
+      <Slot />
+      {/* ✅ App-level logout loading screen - persists during layout changes */}
+      <LogoutLoadingScreen visible={isLoggingOut} />
+    </>
+  );
 }
