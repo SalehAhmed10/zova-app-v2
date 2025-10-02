@@ -1,6 +1,5 @@
 import React, { useMemo, useCallback } from 'react';
 import { View, Pressable } from 'react-native';
-import { router } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { FlashList } from '@shopify/flash-list';
@@ -8,10 +7,14 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
+import { VerificationHeader } from '@/components/verification/VerificationHeader';
 import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/verification/provider-verification';
 import { useCategorySearchStore, useCategorySearchResults } from '@/stores/ui';
 import { supabase } from '@/lib/core/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSaveVerificationStep } from '@/hooks/provider/useProviderVerificationQueries';
+import { useVerificationNavigation } from '@/hooks/provider';
+import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';
 
 interface ServiceCategory {
   id: string;
@@ -90,16 +93,15 @@ CategoryItem.displayName = 'CategoryItem';
 export default function CategorySelectionScreen() {
   const insets = useSafeAreaInsets();
 
-  const {
+  const { 
     categoryData,
     updateCategoryData,
     completeStep,
-    completeStepAndNext,
-    nextStep,
-    previousStep,
-    providerId
+    completeStepSimple,
+    providerId 
   } = useProviderVerificationStore();
-
+  
+  const { navigateNext, navigateBack } = useVerificationNavigation();
   const isHydrated = useProviderVerificationHydration();
 
   // ✅ ZUSTAND: Search state management (replaces useState + useEffect)
@@ -111,23 +113,6 @@ export default function CategorySelectionScreen() {
     clearSearch 
   } = useCategorySearchStore();
   
-  // ✅ PURE SYNC: Initialize selected category from verification store if needed
-  if (categoryData.selectedCategoryId && selectedCategoryId !== categoryData.selectedCategoryId) {
-    console.log('[Categories] Syncing selected category from store:', categoryData.selectedCategoryId);
-    setSelectedCategoryId(categoryData.selectedCategoryId);
-  }
-
-  // Don't render until hydrated
-  if (!isHydrated) {
-    return (
-      <ScreenWrapper>
-        <View className="flex-1 items-center justify-center">
-          <Text>Loading...</Text>
-        </View>
-      </ScreenWrapper>
-    );
-  }
-
   // ✅ REACT QUERY: Fetch service categories
   const { data: categories = [], isLoading: loading, error: categoriesError } = useQuery({
     queryKey: ['serviceCategories'],
@@ -152,34 +137,16 @@ export default function CategorySelectionScreen() {
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
-  // ✅ REACT QUERY MUTATION: Submit category selection
-  const submitCategoryMutation = useMutation({
-    mutationFn: async (categoryId: string) => {
-      if (!categoryId) throw new Error('No category selected');
-
-      const selectedCategoryData = categories.find(cat => cat.id === categoryId);
-      if (!selectedCategoryData) throw new Error('Selected category not found');
-
-      console.log('[Categories] Submitting category selection:', selectedCategoryData.name);
-      
-      return {
-        categoryId,
-        categoryName: selectedCategoryData.name
-      };
-    },
-    onSuccess: ({ categoryId, categoryName }) => {
-      console.log('[Categories] Category selection successful:', categoryName);
-      
-      // Mark step as completed and move to next
-      completeStepAndNext(4, {
-        categoryId,
-        categoryName,
-      });
-    },
-    onError: (error: any) => {
-      console.error('[Categories] Category submission failed:', error);
+  // ✅ SYNC: Initialize selected category from verification store (using useEffect, not render)
+  React.useEffect(() => {
+    if (categoryData.selectedCategoryId && selectedCategoryId !== categoryData.selectedCategoryId) {
+      console.log('[Categories] Syncing selected category from store:', categoryData.selectedCategoryId);
+      setSelectedCategoryId(categoryData.selectedCategoryId);
     }
-  });
+  }, [categoryData.selectedCategoryId, selectedCategoryId]);
+
+  // ✅ REACT QUERY: Use centralized mutation for saving category selection
+  const saveCategoryMutation = useSaveVerificationStep();
 
   // ✅ COMPUTED CATEGORIES: Using Zustand selector (replaces useMemo + useState)
   const filteredCategories = useCategorySearchResults(categories);
@@ -194,10 +161,36 @@ export default function CategorySelectionScreen() {
 
   // ✅ OPTIMIZED: Handle form submission with React Query mutation
   const handleSubmit = useCallback(async () => {
-    if (!selectedCategoryId) return;
+    if (!selectedCategoryId || !providerId) return;
     
-    submitCategoryMutation.mutate(selectedCategoryId);
-  }, [selectedCategoryId, submitCategoryMutation]);
+    const selectedCategoryData = categories.find(cat => cat.id === selectedCategoryId);
+    if (!selectedCategoryData) return;
+    
+    // ✅ REACT QUERY: Use mutation to save data and progress
+    await saveCategoryMutation.mutateAsync({
+      providerId,
+      step: 'category',
+      data: {
+        categoryId: selectedCategoryId,
+        categoryName: selectedCategoryData.name,
+      },
+    });
+
+    // ✅ EXPLICIT: Complete step 4 and navigate using flow manager
+    const result = VerificationFlowManager.completeStepAndNavigate(
+      4, // Always step 4 for category selection
+      {
+        categoryId: selectedCategoryId,
+        categoryName: selectedCategoryData.name,
+      },
+      (step, stepData) => {
+        // Update Zustand store
+        completeStepSimple(step, stepData);
+      }
+    );
+    
+    console.log('[Category] Navigation result:', result);
+  }, [selectedCategoryId, providerId, categories, saveCategoryMutation]);
 
   const renderCategoryItem = useCallback(({ item, index }: { item: ServiceCategory; index: number }) => (
     <CategoryItem
@@ -210,24 +203,12 @@ export default function CategorySelectionScreen() {
   ), [selectedCategoryId, handleCategorySelect]);
 
   return (
-    <View className="flex-1">
+    <View className="flex-1 bg-background">
+      <VerificationHeader 
+        step={4} 
+        title="Select Category" 
+      />
       <ScreenWrapper contentContainerClassName="px-5 pb-4" className="flex-1">
-        {/* Header */}
-        <Animated.View
-          entering={FadeIn.delay(200).springify()}
-          className="items-center mb-1"
-        >
-          <View className="w-10 h-10 bg-primary/10 rounded-xl justify-center items-center mb-1">
-            <Text className="text-lg">📋</Text>
-          </View>
-          <Text className="text-base font-bold text-foreground mb-0.5">
-            Service Category
-          </Text>
-          <Text className="text-xs text-muted-foreground text-center leading-4 px-4">
-            Choose your main service category to get started
-          </Text>
-        </Animated.View>
-
         {/* Info Note */}
         <Animated.View entering={SlideInDown.delay(250).springify()} className="mb-2">
           <View className="p-2 bg-gradient-to-r from-primary/5 to-primary/10 rounded-lg border border-primary/20">
@@ -318,11 +299,11 @@ export default function CategorySelectionScreen() {
           <Button
             size="lg"
             onPress={handleSubmit}
-            disabled={!selectedCategoryId || submitCategoryMutation.isPending}
+            disabled={!selectedCategoryId || saveCategoryMutation.isPending}
             className="w-full"
           >
             <Text className="font-semibold text-primary-foreground">
-              {submitCategoryMutation.isPending ? 'Saving...' : 'Continue to Service Selection'}
+              {saveCategoryMutation.isPending ? 'Saving...' : 'Continue to Service Selection'}
             </Text>
           </Button>
         </Animated.View>
@@ -332,7 +313,7 @@ export default function CategorySelectionScreen() {
           <Button
             variant="outline"
             size="lg"
-            onPress={previousStep}
+            onPress={navigateBack}
             className="w-full"
           >
             <Text>Back to Business Information</Text>

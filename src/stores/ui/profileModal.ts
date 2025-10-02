@@ -9,6 +9,7 @@ interface ProfileModalState {
   bookingHistoryModalVisible: boolean;
   stripeIntegrationModalVisible: boolean;
   servicesModalVisible: boolean;
+  favoritesModalVisible: boolean;
 
   // Actions
   openPersonalInfoModal: () => void;
@@ -21,6 +22,8 @@ interface ProfileModalState {
   closeStripeIntegrationModal: () => void;
   openServicesModal: () => void;
   closeServicesModal: () => void;
+  openFavoritesModal: () => void;
+  closeFavoritesModal: () => void;
 
   // Reset all modals
   closeAllModals: () => void;
@@ -39,6 +42,7 @@ export const useProfileModalStore = create<ProfileModalState>()(
       bookingHistoryModalVisible: false,
       stripeIntegrationModalVisible: false,
       servicesModalVisible: false,
+      favoritesModalVisible: false,
       _hasHydrated: false,
 
       // Actions
@@ -92,6 +96,16 @@ export const useProfileModalStore = create<ProfileModalState>()(
         set({ servicesModalVisible: false });
       },
 
+      openFavoritesModal: () => {
+        console.log('[ProfileModalStore] Opening favorites modal');
+        set({ favoritesModalVisible: true });
+      },
+
+      closeFavoritesModal: () => {
+        console.log('[ProfileModalStore] Closing favorites modal');
+        set({ favoritesModalVisible: false });
+      },
+
       closeAllModals: () => {
         console.log('[ProfileModalStore] Closing all modals');
         set({
@@ -100,6 +114,7 @@ export const useProfileModalStore = create<ProfileModalState>()(
           bookingHistoryModalVisible: false,
           stripeIntegrationModalVisible: false,
           servicesModalVisible: false,
+          favoritesModalVisible: false,
         });
       },
 

@@ -7,9 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
+import { VerificationHeader } from '@/components/verification/VerificationHeader';
 import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
-import { useAuthOptimized } from '@/hooks';
 import { useSaveVerificationStep } from '@/hooks/provider/useProviderVerificationQueries';
+import { useAuthOptimized } from '@/hooks';
+import { useVerificationNavigation } from '@/hooks/provider';
+import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';
 
 export default function BusinessTermsScreen() {
   // ✅ MIGRATED: Using optimized auth hook and React Query + Zustand
@@ -19,11 +22,14 @@ export default function BusinessTermsScreen() {
   const { 
     termsData,
     updateTermsData,
-    completeStepAndNext,
+    completeStepSimple,
   } = useProviderVerificationStore();
   
   // ✅ REACT QUERY: Mutation for saving terms
   const saveTermsMutation = useSaveVerificationStep();
+  
+  // ✅ CENTRALIZED NAVIGATION: Replace manual routing
+  const { navigateBack } = useVerificationNavigation();
 
   // ✅ OPTIMIZED: Form validation using Zustand data
   const validateForm = () => {
@@ -67,13 +73,22 @@ export default function BusinessTermsScreen() {
         },
       });
 
-      // ✅ ZUSTAND: Mark step as completed and move to next
-      completeStepAndNext(8, {
-        depositPercentage: termsData.depositPercentage,
-        cancellationFeePercentage: termsData.cancellationFeePercentage,
-        cancellationPolicy: termsData.cancellationPolicy,
-        termsAccepted: true,
-      });
+      // ✅ EXPLICIT: Complete step 8 and navigate using flow manager
+      const result = VerificationFlowManager.completeStepAndNavigate(
+        8, // Always step 8 for terms
+        {
+          depositPercentage: termsData.depositPercentage,
+          cancellationFeePercentage: termsData.cancellationFeePercentage,
+          cancellationPolicy: termsData.cancellationPolicy,
+          termsAccepted: true,
+        },
+        (step, stepData) => {
+          // Update Zustand store
+          completeStepSimple(step, stepData);
+        }
+      );
+      
+      console.log('[Terms] Navigation result:', result);
     } catch (error) {
       console.error('[TermsScreen] Submit error:', error);
       Alert.alert('Error', 'Failed to save terms. Please try again.');
@@ -81,23 +96,12 @@ export default function BusinessTermsScreen() {
   };
 
   return (
-    <ScreenWrapper scrollable={true} contentContainerClassName="px-6 py-4">
-      {/* Header */}
-      <Animated.View 
-        entering={FadeIn.delay(200).springify()}
-        className="items-center mb-8"
-      >
-        <View className="w-16 h-16 bg-primary rounded-2xl justify-center items-center mb-4">
-          <Text className="text-2xl">📋</Text>
-        </View>
-        <Text className="text-2xl font-bold text-foreground mb-2">
-          Business Terms
-        </Text>
-        <Text className="text-base text-muted-foreground text-center">
-          Set your payment terms and cancellation policies
-        </Text>
-      </Animated.View>
-
+    <View className="flex-1 bg-background">
+      <VerificationHeader 
+        step={8} 
+        title="Terms & Conditions" 
+      />
+      <ScreenWrapper scrollable={true} contentContainerClassName="px-6 py-4">
       {/* Form */}
       <Animated.View entering={SlideInDown.delay(400).springify()}>
         {/* Deposit Percentage */}
@@ -234,12 +238,13 @@ export default function BusinessTermsScreen() {
         <Button
           variant="outline"
           size="lg"
-          onPress={() => router.back()}
+          onPress={navigateBack}
           className="w-full"
         >
           <Text>Back to Business Bio</Text>
         </Button>
       </Animated.View>
     </ScreenWrapper>
+    </View>
   );
 }

@@ -9,15 +9,16 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { LogoutButton } from '@/components/ui/logout-button';
 import { useAppStore } from '@/stores/auth/app';
+import { useProfileModalStore } from '@/stores/ui/profileModal';
+import { useAuthOptimized } from '@/hooks';
 import {
-  useAuthOptimized,
   useProfile,
   useProfileStats,
   useUserBookings,
-  useNotificationSettings,
-  useUserFavorites
-} from '@/hooks';
-import { cn } from '@/lib/core/utils';
+  useNotificationSettings
+} from '@/hooks/shared/useProfileData';
+import { useUserFavorites } from '@/hooks/customer';
+import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 
 // Import modals
@@ -56,11 +57,21 @@ export default function ProfileScreen() {
     }
   }, [favoritesData]);
 
-  // Modal states
-  const [personalInfoModalVisible, setPersonalInfoModalVisible] = React.useState(false);
-  const [notificationModalVisible, setNotificationModalVisible] = React.useState(false);
-  const [bookingHistoryModalVisible, setBookingHistoryModalVisible] = React.useState(false);
-  const [favoritesModalVisible, setFavoritesModalVisible] = React.useState(false);
+  // ✅ PURE ZUSTAND: Modal state management (replaces useState)
+  const {
+    personalInfoModalVisible,
+    notificationModalVisible,
+    bookingHistoryModalVisible,
+    favoritesModalVisible,
+    openPersonalInfoModal,
+    closePersonalInfoModal,
+    openNotificationModal,
+    closeNotificationModal,
+    openBookingHistoryModal,
+    closeBookingHistoryModal,
+    openFavoritesModal,
+    closeFavoritesModal,
+  } = useProfileModalStore();
 
   // Helper functions
   const getDisplayName = () => {
@@ -207,7 +218,7 @@ export default function ProfileScreen() {
             <View className="gap-2">
               <TouchableOpacity 
                 className="bg-card rounded-xl p-4 shadow-sm border border-border"
-                onPress={() => setPersonalInfoModalVisible(true)}
+                onPress={openPersonalInfoModal}
               >
                 <View className="flex-row items-center">
                   <View className="w-10 h-10 bg-primary/10 rounded-xl items-center justify-center mr-4">
@@ -223,7 +234,7 @@ export default function ProfileScreen() {
 
               <TouchableOpacity 
                 className="bg-card rounded-xl p-4 shadow-sm border border-border"
-                onPress={() => setNotificationModalVisible(true)}
+                onPress={openNotificationModal}
               >
                 <View className="flex-row items-center">
                   <View className="w-10 h-10 bg-secondary/20 rounded-xl items-center justify-center mr-4">
@@ -245,7 +256,7 @@ export default function ProfileScreen() {
             <View className="gap-2">
               <TouchableOpacity 
                 className="bg-card rounded-xl p-4 shadow-sm border border-border"
-                onPress={() => setFavoritesModalVisible(true)}
+                onPress={openFavoritesModal}
               >
                 <View className="flex-row items-center">
                   <View className="w-10 h-10 bg-destructive/10 rounded-xl items-center justify-center mr-4">
@@ -276,7 +287,7 @@ export default function ProfileScreen() {
 
               <TouchableOpacity 
                 className="bg-card rounded-xl p-4 shadow-sm border border-border"
-                onPress={() => setBookingHistoryModalVisible(true)}
+                onPress={openBookingHistoryModal}
               >
                 <View className="flex-row items-center">
                   <View className="w-10 h-10 bg-secondary/20 rounded-xl items-center justify-center mr-4">
@@ -382,32 +393,35 @@ export default function ProfileScreen() {
         <View className={cn("h-6", Platform.OS === 'ios' && "h-24")} />
       </ScrollView>
 
-      {/* Modals */}
-      <PersonalInfoModal
-        visible={personalInfoModalVisible}
-        onClose={() => setPersonalInfoModalVisible(false)}
-        profileData={profileData}
-      />
+      {/* Modals - Lazy Loading for Performance */}
+      {personalInfoModalVisible && (
+        <PersonalInfoModal
+          visible={personalInfoModalVisible}
+          onClose={closePersonalInfoModal}
+          profileData={profileData}
+        />
+      )}
       
-      <NotificationSettingsModal
-        visible={notificationModalVisible}
-        onClose={() => setNotificationModalVisible(false)}
-        settings={notificationSettings}
-        userId={user?.id || ''}
-      />
+      {notificationModalVisible && (
+        <NotificationSettingsModal
+          visible={notificationModalVisible}
+          onClose={closeNotificationModal}
+          settings={notificationSettings}
+          userId={user?.id || ''}
+        />
+      )}
       
-      <BookingHistoryModal
-        visible={bookingHistoryModalVisible}
-        onClose={() => setBookingHistoryModalVisible(false)}
-        bookings={bookingsData}
-        isLoading={bookingsLoading}
-      />
+      {bookingHistoryModalVisible && (
+        <BookingHistoryModal />
+      )}
 
-      <FavoritesModal
-        visible={favoritesModalVisible}
-        onClose={() => setFavoritesModalVisible(false)}
-        userId={user?.id || ''}
-      />
+      {favoritesModalVisible && (
+        <FavoritesModal
+          visible={favoritesModalVisible}
+          onClose={closeFavoritesModal}
+          userId={user?.id || ''}
+        />
+      )}
     </SafeAreaView>
   );
 }

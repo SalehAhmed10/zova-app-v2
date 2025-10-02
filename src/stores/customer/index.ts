@@ -5,3 +5,4 @@
 
 export * from './customer-store';
 export * from './search-store';
+export * from './useBookingStore';

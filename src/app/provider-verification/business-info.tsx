@@ -1,15 +1,17 @@
 import React from 'react';
 import { View } from 'react-native';
-import { router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
+import { VerificationHeader } from '@/components/verification/VerificationHeader';
 import { useProviderVerificationStore, useProviderVerificationSelectors } from '@/stores/verification/provider-verification';
 import { useAuthOptimized } from '@/hooks';
 import { useSaveVerificationStep } from '@/hooks/provider/useProviderVerificationQueries';
+import { useVerificationNavigation } from '@/hooks/provider';
+import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';
 
 interface BusinessInfoForm {
   businessName: string;
@@ -27,11 +29,14 @@ export default function BusinessInfoScreen() {
   const { 
     businessData, 
     updateBusinessData, 
-    completeStepAndNext,
+    completeStepSimple,
   } = useProviderVerificationStore();
   
   // ✅ REACT QUERY: Mutation for saving business info
   const saveBusinessInfoMutation = useSaveVerificationStep();
+  
+  // ✅ CENTRALIZED NAVIGATION: Replace manual routing
+  const { navigateNext, navigateBack } = useVerificationNavigation();
 
   // ✅ OPTIMIZED: React Hook Form with Zustand integration
   const {
@@ -80,9 +85,17 @@ export default function BusinessInfoScreen() {
         },
       });
 
-      // ✅ ZUSTAND: Mark step as completed and move to next
-      completeStepAndNext(3, data);
+      // ✅ EXPLICIT: Complete step 3 and navigate using flow manager
+      const result = VerificationFlowManager.completeStepAndNavigate(
+        3, // Always step 3 for business info
+        data,
+        (step, stepData) => {
+          // Update Zustand store
+          completeStepSimple(step, stepData);
+        }
+      );
       
+      console.log('[Business Info] Navigation result:', result);
       console.log('[Business Info] Submission completed successfully');
     } catch (error) {
       console.error('[Business Info] Error saving business info:', error);
@@ -91,22 +104,29 @@ export default function BusinessInfoScreen() {
   };
 
   return (
-    <ScreenWrapper scrollable={true} contentContainerClassName="px-6 py-4">
-      {/* Header */}
-      <Animated.View 
-        entering={FadeIn.delay(200).springify()}
-        className="items-center mb-8"
-      >
-        <View className="w-16 h-16 bg-primary rounded-2xl justify-center items-center mb-4">
-          <Text className="text-2xl">🏢</Text>
-        </View>
-        <Text className="text-2xl font-bold text-foreground mb-2">
-          Business Information
-        </Text>
-        <Text className="text-base text-muted-foreground text-center">
-          Tell us about your business details
-        </Text>
-      </Animated.View>
+    <View className="flex-1 bg-background">
+      {/* ✅ Screen-owned header - always accurate */}
+      <VerificationHeader
+        step={3}
+        title="Business Information"
+      />
+
+      <ScreenWrapper contentContainerClassName="px-6 py-4" className="flex-1">
+        {/* Header */}
+        <Animated.View 
+          entering={FadeIn.delay(200).springify()}
+          className="items-center mb-8"
+        >
+          <View className="w-16 h-16 bg-primary rounded-2xl justify-center items-center mb-4">
+            <Text className="text-2xl">🏢</Text>
+          </View>
+          <Text className="text-2xl font-bold text-foreground mb-2">
+            Business Information
+          </Text>
+          <Text className="text-base text-muted-foreground text-center">
+            Tell us about your business details
+          </Text>
+        </Animated.View>
 
       {/* Form */}
       <Animated.View entering={SlideInDown.delay(400).springify()} className="gap-4">
@@ -330,12 +350,13 @@ export default function BusinessInfoScreen() {
         <Button
           variant="outline"
           size="lg"
-          onPress={() => router.back()}
+          onPress={navigateBack}
           className="w-full"
         >
           <Text>Back to Identity Verification</Text>
         </Button>
       </Animated.View>
-    </ScreenWrapper>
+      </ScreenWrapper>
+    </View>
   );
 }

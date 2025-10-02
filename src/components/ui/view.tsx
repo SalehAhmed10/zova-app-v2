@@ -1,4 +1,4 @@
-import { cn } from '@/lib/core/utils';
+import { cn } from '@/lib/utils';
 import * as React from 'react';
 import { View as RNView, type ViewProps } from 'react-native';
 

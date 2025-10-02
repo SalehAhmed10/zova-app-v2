@@ -1,5 +1,5 @@
 /**
- * Search Store - Global search state management
+ * Search Store - Zustand store for search state management
  * ✅ Follows copilot-rules.md - Zustand for global app state
  */
 
@@ -7,101 +7,159 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type SearchMode = 'services' | 'providers';
-export type SortBy = 'rating' | 'price' | 'distance' | 'popularity';
-export type SortOrder = 'asc' | 'desc';
-
 export interface SearchFilters {
-  query?: string;
   category?: string;
   subcategory?: string;
   minPrice?: number;
   maxPrice?: number;
-  rating?: number;
-  distance?: number;
-  availability?: 'available' | 'unavailable' | 'all';
-  sortBy?: SortBy;
-  sortOrder?: SortOrder;
+  fiveStarOnly?: boolean;
+  houseCallOnly?: boolean;
+  remoteServiceOnly?: boolean;
+  requiresDeposit?: boolean;
+  locationRadius?: number;
+  sortBy?: 'price' | 'rating' | 'popularity';
+  sortOrder?: 'asc' | 'desc';
+  query?: string;
 }
 
 export interface SearchState {
-  // Search state
+  // Hydration
+  _hasHydrated: boolean;
+
+  // Search input
   searchQuery: string;
-  searchMode: SearchMode;
+  searchMode: 'services' | 'providers';
+
+  // Filters
   filters: SearchFilters;
   isFiltersCollapsed: boolean;
   priceSortDirection: 'asc' | 'desc';
-  
+
   // Actions
   setSearchQuery: (query: string) => void;
-  setSearchMode: (mode: SearchMode) => void;
-  setFilters: (filters: SearchFilters | ((prev: SearchFilters) => SearchFilters)) => void;
+  setSearchMode: (mode: 'services' | 'providers') => void;
+  handleModeSwitch: (mode: 'services' | 'providers') => void;
+  handleFiltersChange: (filters: Partial<SearchFilters>) => void;
   toggleFiltersCollapsed: () => void;
   togglePriceSortDirection: () => void;
   clearFilters: () => void;
-  reset: () => void;
+  resetSearch: () => void;
 }
 
-const initialFilters: SearchFilters = {
+const defaultFilters: SearchFilters = {
   sortBy: 'rating',
   sortOrder: 'desc',
+  fiveStarOnly: false,
+  houseCallOnly: false,
+  remoteServiceOnly: false,
+  requiresDeposit: false,
+  locationRadius: 50,
+  query: '',
 };
 
 export const useSearchStore = create<SearchState>()(
   persist(
     (set, get) => ({
       // Initial state
+      _hasHydrated: false,
       searchQuery: '',
       searchMode: 'services',
-      filters: initialFilters,
+      filters: { ...defaultFilters },
       isFiltersCollapsed: true,
       priceSortDirection: 'asc',
 
       // Actions
-      setSearchQuery: (query) => set({ searchQuery: query }),
-      
-      setSearchMode: (mode) => set({ searchMode: mode }),
-      
-      setFilters: (filters) => {
+      setSearchQuery: (query: string) => {
+        console.log(`[SearchStore] Setting search query: "${query}"`);
+        set({ searchQuery: query });
+      },
+
+      setSearchMode: (mode: 'services' | 'providers') => {
+        console.log(`[SearchStore] Setting search mode: ${mode}`);
+        set({ searchMode: mode });
+      },
+
+      handleModeSwitch: (mode: 'services' | 'providers') => {
+        console.log(`[SearchStore] Switching to mode: ${mode}`);
+        set({ searchMode: mode });
+      },
+
+      handleFiltersChange: (newFilters: Partial<SearchFilters>) => {
+        console.log(`[SearchStore] Updating filters:`, newFilters);
         set((state) => ({
-          filters: typeof filters === 'function' ? filters(state.filters) : filters,
+          filters: { ...state.filters, ...newFilters },
         }));
       },
-      
+
       toggleFiltersCollapsed: () => {
-        set((state) => ({ isFiltersCollapsed: !state.isFiltersCollapsed }));
+        set((state) => ({
+          isFiltersCollapsed: !state.isFiltersCollapsed,
+        }));
       },
-      
+
       togglePriceSortDirection: () => {
         set((state) => ({
           priceSortDirection: state.priceSortDirection === 'asc' ? 'desc' : 'asc',
         }));
       },
-      
+
       clearFilters: () => {
-        set({ filters: initialFilters });
+        console.log(`[SearchStore] Clearing all filters`);
+        set({ filters: { ...defaultFilters } });
       },
-      
-      reset: () => {
+
+      resetSearch: () => {
+        console.log(`[SearchStore] Resetting search state`);
         set({
           searchQuery: '',
           searchMode: 'services',
-          filters: initialFilters,
+          filters: { ...defaultFilters },
           isFiltersCollapsed: true,
           priceSortDirection: 'asc',
         });
       },
     }),
     {
-      name: 'search-store',
+      name: 'search-storage',
       storage: createJSONStorage(() => AsyncStorage),
+      // Only persist certain fields
       partialize: (state) => ({
+        searchQuery: state.searchQuery,
         searchMode: state.searchMode,
         filters: state.filters,
-        isFiltersCollapsed: state.isFiltersCollapsed,
         priceSortDirection: state.priceSortDirection,
-        // Don't persist searchQuery - it should be fresh each time
       }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state._hasHydrated = true;
+        }
+      },
     }
   )
 );
+
+// Action hooks for cleaner usage
+export const useSearchActions = () => {
+  const {
+    setSearchQuery,
+    handleModeSwitch,
+    handleFiltersChange,
+    toggleFiltersCollapsed,
+    togglePriceSortDirection,
+    clearFilters,
+    resetSearch,
+  } = useSearchStore();
+
+  return {
+    setSearchQuery,
+    handleModeSwitch,
+    handleFiltersChange,
+    toggleFiltersCollapsed,
+    togglePriceSortDirection,
+    clearFilters,
+    resetSearch,
+  };
+};
+
+// Hydration hook
+export const useSearchHydration = () => useSearchStore((state) => state._hasHydrated);

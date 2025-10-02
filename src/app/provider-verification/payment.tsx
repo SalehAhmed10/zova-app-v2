@@ -7,12 +7,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
+import { VerificationHeader } from '@/components/verification/VerificationHeader';
 import * as WebBrowser from 'expo-web-browser';
 import * as Clipboard from 'expo-clipboard';
 import { supabase } from '@/lib/core/supabase';
 import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/verification/provider-verification';
-import { usePaymentSetupStore } from '@/stores/verification/usePaymentSetupStore';
 import { PaymentAnalyticsService } from '@/lib/payment/payment-analytics';
+import { useVerificationNavigation } from '@/hooks/provider';
 
 export default function PaymentSetupScreen() {
   // ✅ PURE ZUSTAND: Global verification state (replaces useState)
@@ -20,23 +21,22 @@ export default function PaymentSetupScreen() {
   
   const { 
     completeStep,
-    nextStep,
     previousStep,
     setVerificationStatus,
     steps,
     isStepCompleted,
-    currentStep
+    currentStep,
+    paymentData,
+    updatePaymentData
   } = useProviderVerificationStore();
 
   const isHydrated = useProviderVerificationHydration();
   
-  // ✅ PURE ZUSTAND: Payment setup state (replaces useState)
-  const {
-    stripeAccountId,
-    accountSetupComplete,
-    setStripeAccountId,
-    setAccountSetupComplete
-  } = usePaymentSetupStore();
+  // Extract payment data for easier access
+  const { stripeAccountId, accountSetupComplete } = paymentData;
+
+  // ✅ CENTRALIZED NAVIGATION: Replace manual routing
+  const { navigateBack } = useVerificationNavigation();
 
   // Don't render until hydrated
   if (!isHydrated) {
@@ -87,8 +87,10 @@ export default function PaymentSetupScreen() {
 
           if (profile?.stripe_account_id) {
             // Update local state with database status
-            setStripeAccountId(profile.stripe_account_id);
-            setAccountSetupComplete(profile.stripe_details_submitted === true && profile.stripe_charges_enabled === true);
+            updatePaymentData({
+              stripeAccountId: profile.stripe_account_id,
+              accountSetupComplete: profile.stripe_details_submitted === true && profile.stripe_charges_enabled === true
+            });
           }
         }
 
@@ -107,8 +109,10 @@ export default function PaymentSetupScreen() {
           const statusChanged = !wasPreviouslyComplete && isNowComplete;
 
           // Update local state with real Stripe account status
-          setStripeAccountId(data.accountId);
-          setAccountSetupComplete(isNowComplete);
+          updatePaymentData({
+            stripeAccountId: data.accountId,
+            accountSetupComplete: isNowComplete
+          });
 
           // Update database with latest Stripe status
           if (user) {
@@ -143,8 +147,10 @@ export default function PaymentSetupScreen() {
           };
         } else {
           // No Stripe account found, reset local state
-          setStripeAccountId(null);
-          setAccountSetupComplete(false);
+          updatePaymentData({
+            stripeAccountId: null,
+            accountSetupComplete: false
+          });
           return null;
         }
       } catch (error) {
@@ -276,11 +282,13 @@ export default function PaymentSetupScreen() {
               text: 'Copy Link & Use Desktop',
               onPress: async () => {
                 try {
-                  console.log('🔗 [Desktop Copy] URL to copy:', data.url);
-                  console.log('🔗 [Desktop Copy] URL length:', data.url?.length);
-                  console.log('🔗 [Desktop Copy] URL starts with https:', data.url?.startsWith('https://'));
+                  // Use desktop URL for desktop access, fallback to regular URL if not available
+                  const urlToCopy = data.desktopUrl || data.url;
+                  console.log('🔗 [Desktop Copy] URL to copy:', urlToCopy);
+                  console.log('🔗 [Desktop Copy] URL length:', urlToCopy?.length);
+                  console.log('🔗 [Desktop Copy] URL starts with https:', urlToCopy?.startsWith('https://'));
                   
-                  await Clipboard.setStringAsync(data.url);
+                  await Clipboard.setStringAsync(urlToCopy);
                   Alert.alert(
                     'Link Copied!',
                     'The Stripe onboarding link has been copied to your clipboard.\n\n' +
@@ -313,8 +321,10 @@ export default function PaymentSetupScreen() {
         );
 
         // Update local state to reflect completion
-        setStripeAccountId(data.accountId);
-        setAccountSetupComplete(true);
+        updatePaymentData({
+          stripeAccountId: data.accountId,
+          accountSetupComplete: true
+        });
 
         // Mark step as complete
         completeStep(9, {
@@ -431,23 +441,12 @@ export default function PaymentSetupScreen() {
   });
 
   return (
-    <ScreenWrapper scrollable={true} contentContainerClassName="px-6 py-4">
-      {/* Header */}
-      <Animated.View 
-        entering={FadeIn.delay(200).springify()}
-        className="items-center mb-8"
-      >
-        <View className="w-16 h-16 bg-primary rounded-2xl justify-center items-center mb-4">
-          <Ionicons name="card" size={32} color="white" />
-        </View>
-        <Text className="text-2xl font-bold text-foreground mb-2">
-          Payment Setup
-        </Text>
-        <Text className="text-base text-muted-foreground text-center">
-          Set up your Stripe account to receive payments from customers
-        </Text>
-      </Animated.View>
-
+    <View className="flex-1 bg-background">
+      <VerificationHeader 
+        step={9} 
+        title="Payment Setup" 
+      />
+      <ScreenWrapper scrollable={true} contentContainerClassName="px-6 py-4">
       {/* Current Status */}
       <Animated.View entering={SlideInDown.delay(300).springify()} className="mb-6">
         {accountSetupComplete ? (
@@ -762,12 +761,13 @@ export default function PaymentSetupScreen() {
         <Button
           variant="outline"
           size="lg"
-          onPress={previousStep}
+          onPress={navigateBack}
           className="w-full"
         >
           <Text>Back to Terms & Conditions</Text>
         </Button>
       </Animated.View>
     </ScreenWrapper>
+    </View>
   );
 }

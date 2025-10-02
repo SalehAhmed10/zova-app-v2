@@ -1,12 +1,10 @@
-// ✅ PURE Navigation Decision Hook - NO useEffect
-// ✅ React Query + Zustand ONLY
-// ✅ Centralized routing logic at app level
-
 import { useMemo } from 'react';
 import { useAppStore } from '@/stores/auth/app';
 import { useAuthPure } from './useAuthPure';
-import { useProfileStore } from '@/stores/verification/useProfileStore';
+import { useProfileStore, useProfileHydration } from '@/stores/verification/useProfileStore';
 import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
+import { useVerificationSessionRecovery } from '@/hooks/verification/useVerificationSessionRecovery';
+import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';
 
 export interface NavigationDecision {
   shouldRedirect: boolean;
@@ -21,6 +19,8 @@ export interface NavigationDecision {
  * - Auth state (Zustand)
  * - Session data (React Query) 
  * - Verification status (Zustand)
+ * - Session recovery (React Query)
+ * - VerificationFlowManager (single source of truth)
  * 
  * NO useEffect - pure computation only
  */
@@ -28,16 +28,55 @@ export const useNavigationDecision = (): NavigationDecision => {
   const { isAuthenticated, userRole, isLoggingOut } = useAppStore();
   const { user, profile, isLoading } = useAuthPure();
   const { verificationStatus } = useProfileStore();
+  const isProfileHydrated = useProfileHydration();
+  const { shouldResumeVerification, hasIncompleteSession, isLoading: recoveryLoading } = useVerificationSessionRecovery();
+  const {
+    documentData,
+    selfieData, 
+    businessData,
+    categoryData,
+    servicesData,
+    portfolioData,
+    bioData,
+    termsData
+  } = useProviderVerificationStore();
 
   console.log('[NavigationDecision] State check:', {
     isAuthenticated,
     userRole,
     user: !!user,
     profile: !!profile,
-    isLoading
+    isLoading,
+    verificationStatus,
+    isProfileHydrated,
+    shouldResumeVerification,
+    hasIncompleteSession,
+    recoveryLoading
   });
 
   return useMemo(() => {
+    /**
+     * ✅ CENTRALIZED: Get verification route using flow manager
+     * Uses actual data validation instead of completion flags
+     */
+    const getVerificationRoute = () => {
+      const verificationData = {
+        documentData,
+        selfieData,
+        businessData, 
+        categoryData,
+        servicesData,
+        portfolioData,
+        bioData,
+        termsData
+      };
+      
+      const firstIncompleteStep = VerificationFlowManager.findFirstIncompleteStep(verificationData);
+      const route = VerificationFlowManager.getRouteForStep(firstIncompleteStep as any);
+      
+      console.log(`[NavigationDecision] First incomplete step: ${firstIncompleteStep}, route: ${route}`);
+      return route;
+    };
     // ✅ During logout - no redirects, let loading screen handle
     if (isLoggingOut) {
       return {
@@ -47,8 +86,51 @@ export const useNavigationDecision = (): NavigationDecision => {
       };
     }
 
-    // ✅ Loading states - no redirects yet
+    // ✅ Loading states - be smart about when to wait
     if (isLoading) {
+      return {
+        shouldRedirect: false,
+        targetRoute: null,
+        reason: 'loading'
+      };
+    }
+
+    // ✅ SMART OPTIMIZATION: If we already know verification status from store,
+    // make immediate decisions without waiting for recovery loading
+    if (userRole === 'provider' && isProfileHydrated) {
+      if (verificationStatus === 'approved') {
+        // ✅ Only approved providers get dashboard access
+        return {
+          shouldRedirect: false,
+          targetRoute: null,
+          reason: 'access-granted'
+        };
+      } else if (verificationStatus === 'in_review' || verificationStatus === 'pending') {
+        // ⏳ Pending/In review providers go to status screen
+        return {
+          shouldRedirect: true,
+          targetRoute: '/provider-verification/verification-status',
+          reason: `provider-${verificationStatus}-waiting-approval`
+        };
+      } else if (verificationStatus === 'rejected') {
+        // ❌ Rejected providers go back to verification steps
+        return {
+          shouldRedirect: true,
+          targetRoute: getVerificationRoute(),
+          reason: 'provider-rejected'
+        };
+      } else {
+        // User has no verification status - redirect to verification at first incomplete step
+        return {
+          shouldRedirect: true,
+          targetRoute: getVerificationRoute(),
+          reason: 'verification-needed-immediate-redirect'
+        };
+      }
+    }
+
+    // ✅ Only wait for recovery loading if we don't have enough info to decide
+    if (recoveryLoading && !verificationStatus) {
       return {
         shouldRedirect: false,
         targetRoute: null,
@@ -66,13 +148,25 @@ export const useNavigationDecision = (): NavigationDecision => {
       };
     }
 
-    // ✅ Provider role but verification not approved
-    if (userRole === 'provider' && verificationStatus !== 'approved') {
-      return {
-        shouldRedirect: true,
-        targetRoute: '/provider-verification/verification-status',
-        reason: 'provider-not-verified'
-      };
+    // ✅ FALLBACK: If we reach here for providers, handle edge cases
+    if (userRole === 'provider') {
+      // If verification status is unknown but recovery loading is done
+      if (!recoveryLoading) {
+        if (shouldResumeVerification && hasIncompleteSession) {
+          return {
+            shouldRedirect: true,
+            targetRoute: getVerificationRoute(),
+            reason: 'resume-incomplete-verification'
+          };
+        }
+        
+        // Default to starting fresh verification for providers
+        return {
+          shouldRedirect: true,
+          targetRoute: getVerificationRoute(),
+          reason: 'start-fresh-verification'
+        };
+      }
     }
 
     // ✅ All checks passed - no redirect needed
@@ -81,34 +175,5 @@ export const useNavigationDecision = (): NavigationDecision => {
       targetRoute: null,
       reason: 'access-granted'
     };
-  }, [isAuthenticated, userRole, isLoggingOut, user, profile, isLoading, verificationStatus]);
-};
-
-/**
- * ✅ PURE Verification Navigation Hook - NO useEffect
- */
-export const useVerificationNavigation = () => {
-  const { currentStep, _isNavigating } = useProviderVerificationStore();
-  
-  return useMemo(() => {
-    const routeMap = {
-      1: '/provider-verification/',
-      2: '/provider-verification/selfie',
-      3: '/provider-verification/business-info',
-      4: '/provider-verification/category',
-      5: '/provider-verification/services',
-      6: '/provider-verification/portfolio',
-      7: '/provider-verification/bio',
-      8: '/provider-verification/terms',
-      9: '/provider-verification/payment',
-    };
-
-    const targetRoute = routeMap[currentStep as keyof typeof routeMap] || '/provider-verification/';
-    
-    return {
-      targetRoute,
-      shouldNavigate: _isNavigating, // Only when explicitly requested
-      reason: `step-${currentStep}`
-    };
-  }, [currentStep, _isNavigating]);
+  }, [isAuthenticated, userRole, isLoggingOut, user, profile, isLoading, verificationStatus, isProfileHydrated, shouldResumeVerification, hasIncompleteSession, recoveryLoading, documentData, selfieData, businessData, categoryData, servicesData, portfolioData, bioData, termsData]);
 };

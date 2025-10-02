@@ -12,24 +12,25 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { LogoutButton } from '@/components/ui/logout-button';
 import { useAppStore } from '@/stores/auth/app';
 import { useProfileModalStore } from '@/stores/ui/profileModal';
+import { useAuthOptimized } from '@/hooks';
 import {
-  useAuthOptimized,
   useProfile,
-  useProviderStats,
+  useProfileStats,
   useUserBookings,
   useNotificationSettings
-} from '@/hooks';
-import { cn } from '@/lib/core/utils';
+} from '@/hooks/shared/useProfileData';
+import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { THEME } from '@/lib/core/theme';
-import ServicesModal from '@/components/profile/ServicesModal';
+
 
 // Import modals
 import { PersonalInfoModal } from '@/components/profile/PersonalInfoModal';
 import { NotificationSettingsModal } from '@/components/profile/NotificationSettingsModal';
 import { BookingHistoryModal } from '@/components/profile/BookingHistoryModal';
 import { StripeIntegrationModal } from '@/components/profile/StripeIntegrationModal';
+import { ServicesModal } from '@/components';
 
 export default React.memo(function ProfileScreen() {
   const { userRole } = useAppStore();
@@ -62,7 +63,7 @@ export default React.memo(function ProfileScreen() {
 
   // Data fetching hooks with user ID - only call when user is authenticated
   const { data: profileData, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useProfile(shouldFetchData ? user?.id : undefined);
-  const { data: statsData, isLoading: statsLoading } = useProviderStats(shouldFetchData ? user?.id : undefined);
+  const { data: statsData, isLoading: statsLoading } = useProfileStats(shouldFetchData ? user?.id : undefined);
   const { data: bookingsData, isLoading: bookingsLoading } = useUserBookings(shouldFetchData ? user?.id : undefined);
   const { data: notificationSettings } = useNotificationSettings(shouldFetchData ? user?.id : undefined);
 
@@ -382,9 +383,9 @@ export default React.memo(function ProfileScreen() {
           <View className="flex-row gap-4">
             <View className="flex-1 bg-card rounded-2xl p-4 border border-border">
               <Text className="text-2xl text-center font-bold text-green-600 mb-1">
-                {statsLoading ? '...' : statsData?.this_month_earnings ? `$${statsData.this_month_earnings.toLocaleString()}` : '$0'}
+                {statsLoading ? '...' : statsData?.completed_bookings ? statsData.completed_bookings.toLocaleString() : '0'}
               </Text>
-              <Text className="text-muted-foreground text-center text-xs">This Month</Text>
+              <Text className="text-muted-foreground text-center text-xs">Completed Jobs</Text>
             </View>
             <View className="flex-1 bg-card rounded-2xl p-4 border border-border">
               <Text className="text-2xl text-center font-bold text-yellow-600 mb-1">
@@ -504,12 +505,7 @@ export default React.memo(function ProfileScreen() {
       )}
 
       {bookingHistoryModalVisible && (
-        <BookingHistoryModal
-          visible={bookingHistoryModalVisible}
-          onClose={closeBookingHistoryModal}
-          bookings={bookingsData}
-          isLoading={bookingsLoading}
-        />
+        <BookingHistoryModal />
       )}
 
       {stripeIntegrationModalVisible && (

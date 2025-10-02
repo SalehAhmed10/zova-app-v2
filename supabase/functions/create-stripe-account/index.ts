@@ -226,6 +226,7 @@ Deno.serve(async (req) => {
 
         return new Response(JSON.stringify({
           url: accountLink.url,
+          desktopUrl: `https://wezgwqqdlwybadtvripr.supabase.co/functions/v1/stripe-redirect?type=onboard&account=${stripeAccountId}&desktop=true`,
           accountId: stripeAccountId,
           accountSetupComplete: false,
           message: 'Existing Stripe account found. Complete onboarding to start receiving payments.'
@@ -368,6 +369,7 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({
       url: accountLink.url,
+      desktopUrl: `https://wezgwqqdlwybadtvripr.supabase.co/functions/v1/stripe-redirect?type=onboard&account=${stripeAccountId}&desktop=true`,
       accountId: stripeAccountId,
       accountSetupComplete: false,
       message: stripeAccountId === existingProfile?.stripe_account_id ? 'Existing Stripe account found. Complete onboarding to start receiving payments.' : 'Stripe account created successfully. Complete onboarding to start receiving payments.'

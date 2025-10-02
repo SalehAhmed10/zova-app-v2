@@ -66,15 +66,29 @@ export interface BookingData {
 export interface Service {
   id: string;
   provider_id: string;
-  name: string;
+  title: string;
+  name?: string; // Keep for backward compatibility
   description: string;
   category: string;
   price: number;
   duration: number;
   is_active: boolean;
+  isHomeService?: boolean;
+  isRemoteService?: boolean;
+  rating?: number;
   images: string[];
   created_at: string;
   updated_at: string;
+  provider?: {
+    id: string;
+    name: string;
+    avatar: string;
+    bio?: string;
+    location?: string;
+    rating?: number;
+    yearsOfExperience?: number;
+    years_of_experience?: number;
+  };
 }
 
 // Provider related types

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useUpdateNotificationSettings } from '@/hooks';
 import type { NotificationSettings } from '@/hooks';
-import { cn } from '@/lib/core/utils';
+import { cn } from '@/lib/utils';
 
 interface NotificationSettingsModalProps {
   visible: boolean;

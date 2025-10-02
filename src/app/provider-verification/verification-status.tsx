@@ -21,7 +21,6 @@
 import React from 'react';
 import { View, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
@@ -30,16 +29,18 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { THEME } from '@/lib/core/theme';
 
 // ✅ REACT QUERY + ZUSTAND: Following copilot-rules.md
 import { useAuthOptimized } from '@/hooks';
 import {
-  useVerificationStatus,
+  useVerificationStatusPure,
   useVerificationStatusSelector,
-  useRefreshVerificationStatus
+  useVerificationNavigationPure,
+  VerificationNavigationHandler
 } from '@/hooks/provider';
-import { useVerificationStatusHydration } from '@/stores/verification';
+import { SessionRecoveryBanner } from '@/components/verification/SessionRecoveryBanner';
+import { useAppStore } from '@/stores/auth/app';
+import { LogoutButton } from '@/components/ui/logout-button';
 
 type VerificationStatus = 'pending' | 'in_review' | 'approved' | 'rejected';
 
@@ -226,43 +227,56 @@ const statusConfigs: Record<VerificationStatus, StatusConfig> = {
 
 export default function VerificationStatusScreen() {
   const { isDarkColorScheme, colorScheme } = useColorScheme();
+  const { logout } = useAppStore();
   
   // ✅ REACT QUERY + ZUSTAND: Following copilot-rules.md  
-  const { user } = useAuthOptimized();
-  const isHydrated = useVerificationStatusHydration();
+  const { user, isAuthenticated } = useAuthOptimized();
+  const { isLoggingOut } = useAppStore();
   
-  // ✅ PURE REACT QUERY: Server state management (replaces useState + useEffect)
-  const {
-    data: verificationData,
-    isLoading,
-    error,
-    isFetching
-  } = useVerificationStatus(user?.id);
-
-  // ✅ ZUSTAND SELECTORS: Global state access (replaces useState)
-  const { status: storeStatus, lastUpdated, isSubscribed } = useVerificationStatusSelector();
+  // 🚨 CRITICAL: If logging out, don't render anything to prevent hook calls
+  // This prevents the "Loading verification..." state after logout
+  if (isLoggingOut) {
+    console.log('[VerificationStatus] Logging out, not rendering');
+    return null;
+  }
   
-  // ✅ PURE REACT QUERY MUTATION: Refresh pattern (replaces useState + async functions)
-  const refreshStatusMutation = useRefreshVerificationStatus(user?.id);
-
-  // ✅ COMPUTED PROPERTIES: Pure derivation (replaces useState)
-  const currentStatus = verificationData?.status || storeStatus;
-  const config = statusConfigs[currentStatus];
-  const isRefreshing = isFetching && !isLoading;
-
-  // Handle hydration
-  if (!isHydrated) {
+  // 🚨 CRITICAL: If user is not authenticated, they shouldn't be on this screen
+  // This prevents the loading state after logout
+  if (!isAuthenticated || !user) {
+    console.log('[VerificationStatus] Auth check failed, showing redirect screen');
     return (
       <SafeAreaView className="flex-1 bg-background">
         <ScreenWrapper>
           <View className="flex-1 justify-center items-center">
-            <Text className="text-muted-foreground">Loading verification status...</Text>
+            <Text className="text-muted-foreground">Redirecting to login...</Text>
           </View>
         </ScreenWrapper>
       </SafeAreaView>
     );
   }
 
+  // ✅ CONDITIONAL HOOKS: Only call React Query hooks when authenticated
+  // This prevents API calls during logout that cause loading states
+  const {
+    data: verificationData,
+    isLoading,
+    error,
+    isFetching,
+    refetch
+  } = useVerificationStatusPure(user.id);
+
+  // ✅ ZUSTAND SELECTORS: Global state access (replaces useState)
+  const { status: storeStatus, lastUpdated, isSubscribed } = useVerificationStatusSelector();
+
+  // ✅ COMPUTED PROPERTIES: Pure derivation (replaces useState)
+  const currentStatus = verificationData?.status || storeStatus || 'pending'; // Default to pending
+  const config = statusConfigs[currentStatus] || statusConfigs.pending; // Fallback to pending config
+  const isRefreshing = isFetching && !isLoading;
+
+  // ✅ PURE NAVIGATION: No useEffect in component - navigation logic is pure computation
+  const { shouldNavigateToProvider, shouldRedirectToAuth } = useVerificationNavigationPure(currentStatus, isLoading);
+
+  // ✅ REACT QUERY LOADING: Handle loading states properly
   if (isLoading && !currentStatus) {
     return (
       <SafeAreaView className="flex-1 bg-background">
@@ -291,7 +305,7 @@ export default function VerificationStatusScreen() {
             <Text className="text-muted-foreground text-center mb-6">
               We couldn't load your verification status. Please check your connection and try again.
             </Text>
-            <Button onPress={() => refreshStatusMutation.mutate()} variant="outline">
+            <Button onPress={() => refetch()} variant="outline">
               <Text>Try Again</Text>
             </Button>
           </View>
@@ -302,60 +316,51 @@ export default function VerificationStatusScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
+      {/* ✅ NAVIGATION HANDLER: Encapsulates useEffect for navigation side effects */}
+      <VerificationNavigationHandler
+        shouldNavigateToProvider={shouldNavigateToProvider}
+        shouldRedirectToAuth={shouldRedirectToAuth}
+      />
+      
       <ScrollView 
         className="flex-1"
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
-            onRefresh={() => refreshStatusMutation.mutate()}
+            onRefresh={() => refetch()}
             tintColor={isDarkColorScheme ? '#ffffff' : '#000000'}
           />
         }
       >
-        {/* Header with Status */}
-        <LinearGradient
-          colors={[THEME[colorScheme].gradientStart, THEME[colorScheme].gradientEnd]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          className="px-6 pt-6 pb-8"
-        >
-          <View className="flex-row items-center mb-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => router.back()}
-              className="mr-2 -ml-2"
-            >
-              <Ionicons name="arrow-back" size={24} color="#ffffff" />
-            </Button>
-            <Text className="text-white text-lg font-semibold flex-1">
-              Verification Status
-            </Text>
-            {isSubscribed && (
-              <View className="bg-white/20 rounded-full px-3 py-1">
-                <Text className="text-white text-xs">Live</Text>
-              </View>
-            )}
+        {/* Status Badge */}
+        <View className="items-center mb-6 px-6 pt-4">
+          <View className={`rounded-full p-4 mb-4 ${config.bgColor}`}>
+            <Ionicons 
+              name={config.icon as any} 
+              size={48} 
+              color={config.iconColor} 
+            />
           </View>
-
-          {/* Status Badge */}
-          <View className="items-center mb-6">
-            <View className={`rounded-full p-4 mb-4 ${config.bgColor}`}>
-              <Ionicons 
-                name={config.icon as any} 
-                size={48} 
-                color={config.iconColor} 
-              />
-            </View>
-            <View className={`rounded-full px-4 py-2 mb-2 ${config.badgeColor}`}>
-              <Text className="font-semibold text-sm">
-                {config.badgeText}
+          <View className={`rounded-full px-4 py-2 mb-2 ${config.badgeColor}`}>
+            <Text className="font-semibold text-sm">
+              {config.badgeText}
+            </Text>
+          </View>
+          {__DEV__ && lastUpdated && typeof lastUpdated === 'number' && lastUpdated > 0 && (
+            <View className="bg-muted rounded-full px-3 py-1 mt-2">
+              <Text className="text-muted-foreground text-xs">
+                Last updated: {new Date(lastUpdated).toLocaleTimeString()}
               </Text>
             </View>
-          </View>
-        </LinearGradient>
+          )}
+          {isSubscribed && (
+            <View className="bg-green-500/20 rounded-full px-3 py-1 mt-2">
+              <Text className="text-green-700 dark:text-green-300 text-xs">Live</Text>
+            </View>
+          )}
+        </View>
 
-        <ScreenWrapper className="flex-1 -mt-4">
+        <ScreenWrapper className="flex-1">
           {/* Status Details Card */}
           <Card className="mb-6">
             <CardHeader>
@@ -368,13 +373,16 @@ export default function VerificationStatusScreen() {
                 {config.subtitle}
               </Text>
               
-              {lastUpdated > 0 && (
+              {lastUpdated && typeof lastUpdated === 'number' && lastUpdated > 0 && (
                 <Text className="text-xs text-muted-foreground">
                   Last updated: {new Date(lastUpdated).toLocaleString()}
                 </Text>
               )}
             </CardContent>
           </Card>
+
+          {/* Session Recovery Banner - Shows if user has incomplete verification */}
+          <SessionRecoveryBanner className="mb-6" />
 
           {/* Timeline */}
           <Card className="mb-6">
@@ -438,7 +446,7 @@ export default function VerificationStatusScreen() {
 
             {currentStatus === 'approved' && (
               <Button
-                onPress={() => router.push('/provider')}
+                onPress={() => router.replace('/provider')}
                 className="w-full"
               >
                 <Text className="text-primary-foreground font-semibold">
@@ -451,7 +459,7 @@ export default function VerificationStatusScreen() {
               <Button
                 variant="outline"
                 onPress={() => {
-                  // TODO: Implement contact support
+                
                   console.log('Contact support tapped');
                 }}
                 className="w-full"
@@ -459,6 +467,28 @@ export default function VerificationStatusScreen() {
                 <Text className="text-foreground">Contact Support</Text>
               </Button>
             )}
+
+            {/* Development Refresh Button */}
+            {__DEV__ && (
+              <Button
+                variant="outline"
+                onPress={() => refetch()}
+                disabled={isRefreshing}
+                className="w-full border-dashed"
+              >
+                <Text className="text-muted-foreground">
+                  {isRefreshing ? 'Refreshing...' : '🔄 Refresh Status (Dev)'}
+                </Text>
+              </Button>
+            )}
+
+            {/* Logout Button */}
+            <LogoutButton
+              variant="outline"
+              className="w-full mt-4"
+            >
+              <Text className="text-foreground">Logout</Text>
+            </LogoutButton>
           </View>
         </ScreenWrapper>
       </ScrollView>

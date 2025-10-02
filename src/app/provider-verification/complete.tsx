@@ -6,9 +6,11 @@ import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
+import { VerificationHeader } from '@/components/verification/VerificationHeader';
 import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
 import { useAppStore } from '@/stores/auth/app';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useVerificationNavigation } from '@/hooks/provider';
 import { PaymentEmailCampaignService } from '@/lib/payment/payment-email-campaigns';
 import { PaymentAnalyticsService } from '@/lib/payment/payment-analytics';
 
@@ -19,6 +21,9 @@ export default function VerificationCompleteScreen() {
   const queryClient = useQueryClient();
   const { resetVerification, getCompletionPercentage, isStepCompleted, steps, providerId } = useProviderVerificationStore();
   const { setAuthenticated } = useAppStore();
+  
+  // ✅ CENTRALIZED NAVIGATION: Replace manual routing
+  const { navigateBack } = useVerificationNavigation();
   
   // Make completion percentage reactive by calculating it from steps
   const completedSteps = Object.values(steps).filter(step => step.isCompleted).length;
@@ -84,11 +89,16 @@ export default function VerificationCompleteScreen() {
     updateProviderStatusMutation.mutate();
     // Don't reset verification store - keep it for status tracking
     // resetVerification(); // Commented out - we want to keep the verification state
-    router.replace('/provider' as any);
+    // Navigate to verification status screen instead of provider dashboard
+    router.replace('/provider-verification/verification-status' as any);
   };
 
   return (
-    <View className="flex-1">
+    <View className="flex-1 bg-background">
+      <VerificationHeader 
+        step={10} 
+        title="Complete!" 
+      />
       <ScreenWrapper scrollable={true} contentContainerClassName="px-5 pb-4" className="flex-1">
         {/* Success Icon */}
         <Animated.View
@@ -197,7 +207,7 @@ export default function VerificationCompleteScreen() {
           <Button
             variant="outline"
             size="lg"
-            onPress={() => router.back()}
+            onPress={() => router.push('/provider-verification/payment')}
             className="w-full"
           >
             <Text className="font-medium">

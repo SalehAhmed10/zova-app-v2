@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Alert } from 'react-native';
+import { View } from 'react-native';
 import { router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,10 +12,22 @@ import { Text } from '@/components/ui/text';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { useAuthOptimized } from '@/hooks';
 import { useAppStore } from '@/stores/auth/app';
 import { loginSchema, type LoginFormData } from '@/lib/validation/authValidation';
 import { DebugPanel, StorageDebugPanel } from '@/components';
+import { Logo } from '@/components/branding';
 
 export default function LoginScreen() {
   // ✅ OPTIMIZED: React Query + Zustand + React Hook Form + Zod
@@ -24,6 +36,15 @@ export default function LoginScreen() {
   
   // ✅ Optimistic loading state for immediate UI feedback
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // ✅ Error dialog state for better UX
+  const [errorDialog, setErrorDialog] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    showVerification?: boolean;
+    email?: string;
+  }>({ open: false, title: '', message: '' });
 
   // ✅ React Hook Form with Zod validation - no manual state
   const {
@@ -43,20 +64,13 @@ export default function LoginScreen() {
 
   const formValues = watch();
 
-  // ✅ PURE: Auto-navigation logic using useMemo (replaces setTimeout in render)
+  // ✅ REMOVED: Manual navigation logic - let useAuthNavigation handle this
+  // The auth navigation hooks in the root layout will handle post-login navigation
   React.useMemo(() => {
     if (isAuthenticated && userRole) {
-      console.log('[Login] Auth state updated, navigating to:', userRole);
-      setIsSubmitting(false); // Reset optimistic state before navigation
-      
-      // Use queueMicrotask for clean navigation without render conflicts
-      queueMicrotask(() => {
-        if (userRole === 'customer') {
-          router.replace('/customer');
-        } else if (userRole === 'provider') {
-          router.replace('/provider');
-        }
-      });
+      console.log('[Login] Auth state updated - navigation will be handled by auth hooks');
+      setIsSubmitting(false); // Reset optimistic state
+      // Navigation is now handled by useAuthNavigation in the root layout
     }
   }, [isAuthenticated, userRole]);
 
@@ -77,44 +91,47 @@ export default function LoginScreen() {
         // Reset loading state for verification flow
         setIsSubmitting(false);
         
-        // User needs to verify their email
-        Alert.alert(
-          'Email Verification Required',
-          'Please verify your email before signing in.',
-          [
-            {
-              text: 'Verify Email',
-              onPress: () => {
-                router.push({
-                  pathname: '/auth/otp-verification',
-                  params: {
-                    email: result.email || data.email,
-                    role: 'customer', // Default to customer, will be updated after verification
-                  },
-                } as any);
-              }
-            },
-            {
-              text: 'Cancel',
-              style: 'cancel'
-            }
-          ]
-        );
+        // Show verification dialog
+        setErrorDialog({
+          open: true,
+          title: 'Email Verification Required',
+          message: 'Please verify your email before signing in.',
+          showVerification: true,
+          email: result.email || data.email
+        });
       } else {
         console.error('[Login] Login failed:', result.error);
         setIsSubmitting(false); // Reset loading state on error
         
-        // Set form-level error
+        // Set form-level error for invalid credentials
         if (result.error?.includes('Invalid credentials') || result.error?.includes('Invalid login')) {
           setError('password', { message: 'Invalid email or password' });
+          
+          // Also show user-friendly dialog
+          setErrorDialog({
+            open: true,
+            title: 'Login Failed',
+            message: 'The email or password you entered is incorrect. Please check your credentials and try again.'
+          });
         } else {
-          Alert.alert('Login Failed', result.error || 'An error occurred');
+          // Show generic error dialog for other errors
+          setErrorDialog({
+            open: true,
+            title: 'Login Failed', 
+            message: result.error || 'An error occurred while trying to sign in. Please try again.'
+          });
         }
       }
     } catch (error) {
       console.error('[Login] Unexpected error:', error);
       setIsSubmitting(false); // Reset loading state on error
-      Alert.alert('Login Error', 'An unexpected error occurred. Please try again.');
+      
+      // Show error dialog for unexpected errors
+      setErrorDialog({
+        open: true,
+        title: 'Login Error',
+        message: 'An unexpected error occurred. Please check your internet connection and try again.'
+      });
     }
   };
 
@@ -123,11 +140,9 @@ export default function LoginScreen() {
       {/* Header */}
       <Animated.View
         entering={FadeIn.delay(100).duration(800)}
-        className="items-center mb-8"
+        className="items-center mb-12"
       >
-        <View className="w-16 h-16 bg-primary rounded-2xl justify-center items-center mb-4">
-          <Text className="text-2xl font-bold text-primary-foreground">Z</Text>
-        </View>
+        <Logo size={64} style={{ marginBottom: 16 }} />
         <Text className="text-2xl font-bold text-foreground mb-2">
           Welcome Back
         </Text>
@@ -142,10 +157,6 @@ export default function LoginScreen() {
         className="px-2"
       >
         <View className="w-full max-w-md mx-auto mb-6">
-          <Text variant="h3" className="text-center mb-8">
-            Sign In
-          </Text>
-
           <View className="gap-6">
             {/* Email Field */}
             <View>
@@ -264,9 +275,48 @@ export default function LoginScreen() {
           entering={FadeIn.delay(900).duration(500)}
           className="mt-4"
         >
-      <StorageDebugPanel/>
+      {/* <StorageDebugPanel/> */}
         </Animated.View>
       )}
+
+      {/* Error Dialog */}
+      <AlertDialog open={errorDialog.open} onOpenChange={(open) => setErrorDialog(prev => ({ ...prev, open }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{errorDialog.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {errorDialog.message}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            {errorDialog.showVerification ? (
+              <>
+                <AlertDialogCancel onPress={() => setErrorDialog(prev => ({ ...prev, open: false }))}>
+                  <Text>Cancel</Text>
+                </AlertDialogCancel>
+                <AlertDialogAction 
+                  onPress={() => {
+                    setErrorDialog(prev => ({ ...prev, open: false }));
+                    router.push({
+                      pathname: '/auth/otp-verification',
+                      params: {
+                        email: errorDialog.email,
+                        role: 'customer', // Default to customer, will be updated after verification
+                      },
+                    } as any);
+                  }}
+                >
+                  <Text>Verify Email</Text>
+                </AlertDialogAction>
+              </>
+            ) : (
+              <AlertDialogAction onPress={() => setErrorDialog(prev => ({ ...prev, open: false }))}>
+                <Text>Try Again</Text>
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </ScreenWrapper>
   );
 }

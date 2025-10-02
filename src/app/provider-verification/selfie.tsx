@@ -1,17 +1,20 @@
 import React from 'react';
 import { View, Alert, Image } from 'react-native';
-import { router } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import * as ImagePicker from 'expo-image-picker';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
+import { VerificationHeader } from '@/components/verification/VerificationHeader';
 import { supabase } from '@/lib/core/supabase';
 import { createStorageService } from '@/lib/storage/organized-storage';
 import { StoragePathUtils } from '@/lib/storage/storage-paths';
 import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/verification/provider-verification';
 import { useImageHandlingStore } from '@/stores/ui';
+import { useSaveVerificationStep } from '@/hooks/provider/useProviderVerificationQueries';
+import { useVerificationNavigation } from '@/hooks/provider';
+import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';
 
 export default function SelfieVerificationScreen() {
   // ✅ ZUSTAND: Image handling state (replaces useState patterns)
@@ -32,15 +35,17 @@ export default function SelfieVerificationScreen() {
   const queryClient = useQueryClient();
   
   const { 
-    selfieData, 
-    updateSelfieData, 
+    selfieData,
+    updateSelfieData,
     completeStep,
-    completeStepAndNext, 
-    nextStep,
-    previousStep,
-    providerId
+    completeStepSimple,
+    providerId 
   } = useProviderVerificationStore();
-
+  
+  const { navigateNext, navigateBack } = useVerificationNavigation();
+  
+  // ✅ REACT QUERY: Use centralized mutation for saving selfie data
+  const saveSelfieMutation = useSaveVerificationStep();
   const isHydrated = useProviderVerificationHydration();
 
   // Don't render until hydrated
@@ -214,6 +219,16 @@ export default function SelfieVerificationScreen() {
           throw new Error('Failed to save selfie information');
         }
 
+        // ✅ SAVE PROGRESS: Use centralized mutation
+        await saveSelfieMutation.mutateAsync({
+          providerId,
+          step: 'selfie',
+          data: {
+            selfieUrl: signedUrl,
+            verificationStatus: 'pending',
+          },
+        });
+
         return { isNew: true, signedUrl };
       } else {
         // Already have an uploaded selfie, just use the existing one
@@ -222,8 +237,6 @@ export default function SelfieVerificationScreen() {
       }
     },
     onSuccess: ({ isNew, signedUrl }) => {
-      // Mark step as completed and move to next in one atomic operation
-      completeStepAndNext(2, { selfieUrl: signedUrl });
       queryClient.invalidateQueries({ queryKey: ['selfieData', providerId] });
       
       // Clear local image and show uploaded image
@@ -239,6 +252,18 @@ export default function SelfieVerificationScreen() {
             text: 'Continue',
             onPress: () => {
               console.log('Selfie verification confirmation acknowledged');
+              
+              // ✅ EXPLICIT: Complete step 2 and navigate using flow manager
+              const result = VerificationFlowManager.completeStepAndNavigate(
+                2, // Always step 2 for selfie
+                { selfieUrl: signedUrl },
+                (step, stepData) => {
+                  // Update Zustand store
+                  completeStepSimple(step, stepData);
+                }
+              );
+              
+              console.log('[Selfie] Navigation result:', result);
             },
           },
         ]
@@ -343,20 +368,23 @@ export default function SelfieVerificationScreen() {
   };
 
   return (
-    <ScreenWrapper 
-      scrollable={true} 
-      contentContainerClassName="px-6 py-4"
-      edges={['top', 'bottom']}
-    >
-      {/* Header */}
-      <Animated.View 
-        entering={FadeIn.delay(200).springify()}
-        className="items-center mb-8"
-      >
-        <View className="w-16 h-16 bg-primary rounded-2xl justify-center items-center mb-4">
-          <Text className="text-2xl">🤳</Text>
-        </View>
-        <Text className="text-2xl font-bold text-foreground mb-2">
+    <View className="flex-1 bg-background">
+      {/* ✅ Screen-owned header - always accurate */}
+      <VerificationHeader
+        step={2}
+        title="Identity Verification"
+      />
+
+      <ScreenWrapper contentContainerClassName="px-6 py-4" className="flex-1">
+        {/* Header */}
+        <Animated.View 
+          entering={FadeIn.delay(200).springify()}
+          className="items-center mb-8"
+        >
+          <View className="w-16 h-16 bg-primary rounded-2xl justify-center items-center mb-4">
+            <Text className="text-2xl">🤳</Text>
+          </View>
+          <Text className="text-2xl font-bold text-foreground mb-2">
           Identity Verification
         </Text>
         <Text className="text-base text-muted-foreground text-center">
@@ -375,6 +403,7 @@ export default function SelfieVerificationScreen() {
             <View className="relative">
               {!imageLoadError ? (
                 <Image 
+                  key={selectedImage || selfieData.selfieUrl} // Force re-mount when URL changes
                   source={{ uri: selectedImage || selfieData.selfieUrl }}
                   className="w-64 h-64 rounded-full border-4 border-primary"
                   resizeMode="cover"
@@ -526,12 +555,13 @@ export default function SelfieVerificationScreen() {
         <Button
           variant="outline"
           size="lg"
-          onPress={previousStep}
+          onPress={navigateBack}
           className="w-full"
         >
           <Text>Back to Document Upload</Text>
         </Button>
       </Animated.View>
-    </ScreenWrapper>
+      </ScreenWrapper>
+    </View>
   );
 }

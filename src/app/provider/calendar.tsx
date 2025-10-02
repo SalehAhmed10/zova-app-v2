@@ -19,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { cn } from '@/lib/core/utils';
+import { cn } from '@/lib/utils';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { THEME } from '@/lib/core/theme';
 import { useCalendarStore } from '@/stores/ui/calendar';
@@ -28,6 +28,7 @@ import {
   useCalendarTimeSlots,
   useCalendarWeekData
 } from '@/hooks/provider/useCalendarData';
+import { useAuthPure } from '@/hooks/shared/useAuthPure';
 import { Skeleton } from '@/components/ui/skeleton';
 
 // Calendar view types
@@ -300,6 +301,7 @@ function isValidWeeklySchedule(schedule: any): schedule is WeeklySchedule {
 
 export default function ProviderCalendar() {
   const { colorScheme } = useColorScheme();
+  const { user } = useAuthPure();
 
   // Zustand store for local state management
   const {
@@ -346,7 +348,7 @@ export default function ProviderCalendar() {
 
   // Handle working hours update with optimistic updates
   const handleUpdateWorkingHours = useCallback(async (day: keyof WeeklySchedule, hours: WorkingHours) => {
-    if (!weeklySchedule) return;
+    if (!weeklySchedule || !user?.id) return;
 
     const newSchedule = {
       ...weeklySchedule,
@@ -355,13 +357,13 @@ export default function ProviderCalendar() {
 
     try {
       await updateScheduleMutation.mutateAsync({
-        provider_id: 'current-user-id', // This will be handled by the hook
+        provider_id: user.id,
         schedule_data: newSchedule
       });
     } catch (error) {
       console.error('Error updating schedule:', error);
     }
-  }, [weeklySchedule, updateScheduleMutation]);
+  }, [weeklySchedule, user?.id, updateScheduleMutation]);
 
   // Time picker helper functions
   const timeStringToDate = useCallback((timeString: string) => {

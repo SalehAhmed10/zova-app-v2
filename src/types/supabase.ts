@@ -264,24 +264,6 @@ export type Database = {
           },
         ]
       }
-      logs: {
-        Row: {
-          created_at: string | null
-          id: number
-          message: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          id?: number
-          message?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          id?: number
-          message?: string | null
-        }
-        Relationships: []
-      }
       messages: {
         Row: {
           content: string
@@ -326,6 +308,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notification_history: {
+        Row: {
+          body: string
+          created_at: string | null
+          data: Json | null
+          id: string
+          status: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string | null
+          data?: Json | null
+          id?: string
+          status: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string | null
+          data?: Json | null
+          id?: string
+          status?: string
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       notification_settings: {
         Row: {
@@ -602,24 +617,24 @@ export type Database = {
           cancellation_fee_percentage: number | null
           cancellation_policy: string | null
           city: string | null
-          coordinates: unknown | null
           country: string | null
           country_code: string | null
           created_at: string | null
           deposit_percentage: number | null
           document_url: string | null
           email: string
+          expo_push_token: string | null
           first_name: string
+          has_premium_subscription: boolean | null
           has_sos_access: boolean | null
+          has_sos_subscription: boolean | null
           id: string
           is_business_visible: boolean | null
-          is_verified: boolean | null
           last_name: string
+          notification_preferences: Json | null
           pause_until: string | null
-          phone: string | null
           phone_number: string | null
           postal_code: string | null
-          push_token: string | null
           role: Database["public"]["Enums"]["user_role"]
           selfie_verification_url: string | null
           service_radius: number | null
@@ -658,24 +673,24 @@ export type Database = {
           cancellation_fee_percentage?: number | null
           cancellation_policy?: string | null
           city?: string | null
-          coordinates?: unknown | null
           country?: string | null
           country_code?: string | null
           created_at?: string | null
           deposit_percentage?: number | null
           document_url?: string | null
           email: string
+          expo_push_token?: string | null
           first_name?: string
+          has_premium_subscription?: boolean | null
           has_sos_access?: boolean | null
+          has_sos_subscription?: boolean | null
           id: string
           is_business_visible?: boolean | null
-          is_verified?: boolean | null
           last_name?: string
+          notification_preferences?: Json | null
           pause_until?: string | null
-          phone?: string | null
           phone_number?: string | null
           postal_code?: string | null
-          push_token?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           selfie_verification_url?: string | null
           service_radius?: number | null
@@ -714,24 +729,24 @@ export type Database = {
           cancellation_fee_percentage?: number | null
           cancellation_policy?: string | null
           city?: string | null
-          coordinates?: unknown | null
           country?: string | null
           country_code?: string | null
           created_at?: string | null
           deposit_percentage?: number | null
           document_url?: string | null
           email?: string
+          expo_push_token?: string | null
           first_name?: string
+          has_premium_subscription?: boolean | null
           has_sos_access?: boolean | null
+          has_sos_subscription?: boolean | null
           id?: string
           is_business_visible?: boolean | null
-          is_verified?: boolean | null
           last_name?: string
+          notification_preferences?: Json | null
           pause_until?: string | null
-          phone?: string | null
           phone_number?: string | null
           postal_code?: string | null
-          push_token?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           selfie_verification_url?: string | null
           service_radius?: number | null
@@ -757,47 +772,6 @@ export type Database = {
           years_of_experience?: number | null
         }
         Relationships: []
-      }
-      provider_availability: {
-        Row: {
-          created_at: string | null
-          day_of_week: number | null
-          end_time: string
-          id: string
-          is_active: boolean | null
-          provider_id: string | null
-          start_time: string
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          day_of_week?: number | null
-          end_time: string
-          id?: string
-          is_active?: boolean | null
-          provider_id?: string | null
-          start_time: string
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          day_of_week?: number | null
-          end_time?: string
-          id?: string
-          is_active?: boolean | null
-          provider_id?: string | null
-          start_time?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "provider_availability_provider_id_fkey"
-            columns: ["provider_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       provider_blackouts: {
         Row: {
@@ -887,47 +861,87 @@ export type Database = {
       provider_onboarding_progress: {
         Row: {
           approved_at: string | null
+          auto_resume_enabled: boolean | null
           completed_at: string | null
           created_at: string | null
+          cross_device_access_count: number | null
+          current_session_id: string | null
           current_step: number | null
           id: string
+          last_session_activity: string | null
+          metadata: Json | null
+          notification_preferences: Json | null
           provider_id: string
           rejected_at: string | null
           rejection_reason: string | null
+          smart_retry_enabled: boolean | null
           started_at: string | null
           steps_completed: Json | null
+          stripe_last_validated_at: string | null
+          stripe_validation_errors: Json | null
+          stripe_validation_status: string | null
+          total_sessions_count: number | null
           updated_at: string | null
           verification_status: string | null
         }
         Insert: {
           approved_at?: string | null
+          auto_resume_enabled?: boolean | null
           completed_at?: string | null
           created_at?: string | null
+          cross_device_access_count?: number | null
+          current_session_id?: string | null
           current_step?: number | null
           id?: string
+          last_session_activity?: string | null
+          metadata?: Json | null
+          notification_preferences?: Json | null
           provider_id: string
           rejected_at?: string | null
           rejection_reason?: string | null
+          smart_retry_enabled?: boolean | null
           started_at?: string | null
           steps_completed?: Json | null
+          stripe_last_validated_at?: string | null
+          stripe_validation_errors?: Json | null
+          stripe_validation_status?: string | null
+          total_sessions_count?: number | null
           updated_at?: string | null
           verification_status?: string | null
         }
         Update: {
           approved_at?: string | null
+          auto_resume_enabled?: boolean | null
           completed_at?: string | null
           created_at?: string | null
+          cross_device_access_count?: number | null
+          current_session_id?: string | null
           current_step?: number | null
           id?: string
+          last_session_activity?: string | null
+          metadata?: Json | null
+          notification_preferences?: Json | null
           provider_id?: string
           rejected_at?: string | null
           rejection_reason?: string | null
+          smart_retry_enabled?: boolean | null
           started_at?: string | null
           steps_completed?: Json | null
+          stripe_last_validated_at?: string | null
+          stripe_validation_errors?: Json | null
+          stripe_validation_status?: string | null
+          total_sessions_count?: number | null
           updated_at?: string | null
           verification_status?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "provider_onboarding_progress_current_session_id_fkey"
+            columns: ["current_session_id"]
+            isOneToOne: false
+            referencedRelation: "provider_verification_sessions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "provider_onboarding_progress_provider_id_fkey"
             columns: ["provider_id"]
@@ -1160,6 +1174,7 @@ export type Database = {
           base_price: number
           cancellation_fee_percentage: number | null
           cancellation_policy: string | null
+          category_id: string | null
           created_at: string | null
           custom_cancellation_fee_percentage: number | null
           custom_cancellation_policy: string | null
@@ -1186,6 +1201,7 @@ export type Database = {
           base_price: number
           cancellation_fee_percentage?: number | null
           cancellation_policy?: string | null
+          category_id?: string | null
           created_at?: string | null
           custom_cancellation_fee_percentage?: number | null
           custom_cancellation_policy?: string | null
@@ -1212,6 +1228,7 @@ export type Database = {
           base_price?: number
           cancellation_fee_percentage?: number | null
           cancellation_policy?: string | null
+          category_id?: string | null
           created_at?: string | null
           custom_cancellation_fee_percentage?: number | null
           custom_cancellation_policy?: string | null
@@ -1234,6 +1251,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "provider_services_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "service_categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "provider_services_provider_id_fkey"
             columns: ["provider_id"]
@@ -1304,6 +1328,219 @@ export type Database = {
           },
         ]
       }
+      provider_verification_notifications: {
+        Row: {
+          channel: string
+          created_at: string
+          data: Json | null
+          delivered_at: string | null
+          failed_at: string | null
+          failure_reason: string | null
+          id: string
+          max_retries: number | null
+          message: string
+          notification_type: string
+          provider_id: string
+          read_at: string | null
+          retry_count: number | null
+          sent_at: string | null
+          session_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          data?: Json | null
+          delivered_at?: string | null
+          failed_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          max_retries?: number | null
+          message: string
+          notification_type: string
+          provider_id: string
+          read_at?: string | null
+          retry_count?: number | null
+          sent_at?: string | null
+          session_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          data?: Json | null
+          delivered_at?: string | null
+          failed_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          max_retries?: number | null
+          message?: string
+          notification_type?: string
+          provider_id?: string
+          read_at?: string | null
+          retry_count?: number | null
+          sent_at?: string | null
+          session_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_verification_notifications_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_verification_notifications_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "provider_verification_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      provider_verification_sessions: {
+        Row: {
+          created_at: string
+          device_fingerprint: string | null
+          expires_at: string
+          id: string
+          ip_address: unknown | null
+          is_active: boolean
+          last_activity_at: string
+          provider_id: string
+          session_id: string
+          started_at: string
+          updated_at: string
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          device_fingerprint?: string | null
+          expires_at?: string
+          id?: string
+          ip_address?: unknown | null
+          is_active?: boolean
+          last_activity_at?: string
+          provider_id: string
+          session_id: string
+          started_at?: string
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          device_fingerprint?: string | null
+          expires_at?: string
+          id?: string
+          ip_address?: unknown | null
+          is_active?: boolean
+          last_activity_at?: string
+          provider_id?: string
+          session_id?: string
+          started_at?: string
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_verification_sessions_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      provider_verification_step_progress: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          data: Json | null
+          failed_at: string | null
+          id: string
+          lock_expires_at: string | null
+          locked_at: string | null
+          locked_by_session: string | null
+          max_retries: number | null
+          provider_id: string
+          retry_count: number | null
+          session_id: string
+          started_at: string | null
+          status: string
+          step_name: string
+          step_number: number
+          updated_at: string
+          validation_errors: Json | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          data?: Json | null
+          failed_at?: string | null
+          id?: string
+          lock_expires_at?: string | null
+          locked_at?: string | null
+          locked_by_session?: string | null
+          max_retries?: number | null
+          provider_id: string
+          retry_count?: number | null
+          session_id: string
+          started_at?: string | null
+          status?: string
+          step_name: string
+          step_number: number
+          updated_at?: string
+          validation_errors?: Json | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          data?: Json | null
+          failed_at?: string | null
+          id?: string
+          lock_expires_at?: string | null
+          locked_at?: string | null
+          locked_by_session?: string | null
+          max_retries?: number | null
+          provider_id?: string
+          retry_count?: number | null
+          session_id?: string
+          started_at?: string | null
+          status?: string
+          step_name?: string
+          step_number?: number
+          updated_at?: string
+          validation_errors?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_verification_step_progress_locked_by_session_fkey"
+            columns: ["locked_by_session"]
+            isOneToOne: false
+            referencedRelation: "provider_verification_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_verification_step_progress_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_verification_step_progress_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "provider_verification_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reviews: {
         Row: {
           booking_id: string | null
@@ -1364,51 +1601,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      scheduled_emails: {
-        Row: {
-          cancelled_at: string | null
-          created_at: string | null
-          html_body: string
-          id: string
-          provider_id: string
-          recipient_email: string
-          scheduled_for: string
-          sent_at: string | null
-          status: string
-          subject: string
-          template_id: string
-          text_body: string
-        }
-        Insert: {
-          cancelled_at?: string | null
-          created_at?: string | null
-          html_body: string
-          id?: string
-          provider_id: string
-          recipient_email: string
-          scheduled_for: string
-          sent_at?: string | null
-          status?: string
-          subject: string
-          template_id: string
-          text_body: string
-        }
-        Update: {
-          cancelled_at?: string | null
-          created_at?: string | null
-          html_body?: string
-          id?: string
-          provider_id?: string
-          recipient_email?: string
-          scheduled_for?: string
-          sent_at?: string | null
-          status?: string
-          subject?: string
-          template_id?: string
-          text_body?: string
-        }
-        Relationships: []
       }
       service_categories: {
         Row: {
@@ -1628,20 +1820,64 @@ export type Database = {
           },
         ]
       }
+      user_subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean | null
+          created_at: string | null
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          price_id: string | null
+          status: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string
+          trial_end: string | null
+          type: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          price_id?: string | null
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id: string
+          trial_end?: string | null
+          type: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          price_id?: string | null
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string
+          trial_end?: string | null
+          type?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
-      email_campaign_stats: {
-        Row: {
-          cancelled_count: number | null
-          delivery_rate: number | null
-          failed_count: number | null
-          scheduled_count: number | null
-          sent_count: number | null
-          template_id: string | null
-          total_emails: number | null
-        }
-        Relationships: []
-      }
       geography_columns: {
         Row: {
           coord_dimension: number | null
@@ -1812,6 +2048,14 @@ export type Database = {
         Args: { geom1: unknown; geom2: unknown }
         Returns: boolean
       }
+      acquire_step_lock: {
+        Args: {
+          p_lock_duration_minutes?: number
+          p_session_id: string
+          p_step_number: number
+        }
+        Returns: boolean
+      }
       addauth: {
         Args: { "": string }
         Returns: boolean
@@ -1911,6 +2155,14 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      cleanup_expired_step_locks: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      cleanup_expired_verification_sessions: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       create_notification_secure: {
         Args: {
           p_data?: Json
@@ -1918,6 +2170,18 @@ export type Database = {
           p_title: string
           p_type: string
           p_user_id: string
+        }
+        Returns: string
+      }
+      create_verification_notification: {
+        Args: {
+          p_channel: string
+          p_data: Json
+          p_message: string
+          p_provider_id: string
+          p_session_id: string
+          p_title: string
+          p_type: string
         }
         Returns: string
       }
@@ -2256,6 +2520,14 @@ export type Database = {
         Args: { "": unknown }
         Returns: unknown
       }
+      increment_cross_device_access: {
+        Args: { p_provider_id: string }
+        Returns: undefined
+      }
+      is_step_locked_by_other_session: {
+        Args: { p_session_id: string; p_step_number: number }
+        Returns: boolean
+      }
       json: {
         Args: { "": unknown }
         Returns: Json
@@ -2267,6 +2539,14 @@ export type Database = {
       longtransactionsenabled: {
         Args: Record<PropertyKey, never>
         Returns: boolean
+      }
+      mark_notification_read: {
+        Args: { p_notification_id: string }
+        Returns: undefined
+      }
+      mark_notification_sent: {
+        Args: { p_notification_id: string }
+        Returns: undefined
       }
       path: {
         Args: { "": unknown }
@@ -2466,6 +2746,10 @@ export type Database = {
           provider_id: string
           status: string
         }[]
+      }
+      release_step_lock: {
+        Args: { p_session_id: string; p_step_number: number }
+        Returns: undefined
       }
       spheroid_in: {
         Args: { "": unknown }
@@ -3543,6 +3827,18 @@ export type Database = {
       unlockrows: {
         Args: { "": string }
         Returns: number
+      }
+      update_onboarding_session_activity: {
+        Args: { p_provider_id: string; p_session_id: string }
+        Returns: undefined
+      }
+      update_stripe_validation_status: {
+        Args: { p_errors?: Json; p_provider_id: string; p_status: string }
+        Returns: undefined
+      }
+      update_verification_session_activity: {
+        Args: { session_uuid: string }
+        Returns: undefined
       }
       updategeometrysrid: {
         Args: {

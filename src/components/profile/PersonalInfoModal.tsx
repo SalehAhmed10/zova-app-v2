@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useForm, Controller } from 'react-hook-form';
 import { useUpdateProfile } from '@/hooks';
 import type { ProfileData } from '@/hooks';
-import { cn } from '@/lib/core/utils';
+import { cn } from '@/lib/utils';
 
 interface PersonalInfoModalProps {
   visible: boolean;

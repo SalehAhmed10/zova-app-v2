@@ -2,6 +2,7 @@ import "~/global.css";
 
 import { Theme, ThemeProvider } from '@react-navigation/native';
 import { Slot } from 'expo-router';
+import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as React from 'react';
 import { Platform, LogBox, View } from 'react-native';
@@ -70,9 +71,10 @@ import { PortalHost } from '@rn-primitives/portal';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { colorScheme } from 'nativewind';
 import { SessionProvider, useSession } from '@/lib/auth';
-import { useAppStore } from '@/stores/auth/app';
+import { useAppStore, initializeApp } from '@/stores/auth/app';
 import { useThemeHydration } from '@/stores/ui/theme';
 import { useAuthListener } from '@/hooks/shared/useAuthListener';
 import { cssInterop } from 'nativewind';
@@ -80,6 +82,7 @@ import * as Icons from '@expo/vector-icons';
 import { Text } from '@/components/ui/text';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { StripeProvider } from '@/app-providers/stripe-provider';
+import { useAuthStateNavigation, useAuthNavigation } from '@/hooks/shared/useAuthNavigation';
 
 // Apply cssInterop to all Expo Vector Icons globally
 Object.keys(Icons).forEach((iconKey) => {
@@ -123,6 +126,11 @@ export default function RootLayout() {
   const { colorScheme: scheme, isDarkColorScheme } = useColorScheme();
   const isThemeHydrated = useThemeHydration();
 
+  // ✅ Initialize app store on app start
+  React.useEffect(() => {
+    initializeApp();
+  }, []);
+
   // ✅ Set color scheme immediately when hydrated - no useEffect needed
   if (isThemeHydrated && colorScheme.get() !== scheme) {
     console.log('[RootLayout] Setting NativeWind color scheme to:', scheme);
@@ -143,9 +151,11 @@ export default function RootLayout() {
             <QueryClientProvider client={queryClient}>
               <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
                 <StatusBar style={isDarkColorScheme ? 'light' : 'dark'} />
-                <SessionProvider>
-                  <RootNavigator />
-                </SessionProvider>
+                <BottomSheetModalProvider>
+                  <SessionProvider>
+                    <RootNavigator />
+                  </SessionProvider>
+                </BottomSheetModalProvider>
                 <PortalHost />
               </ThemeProvider>
             </QueryClientProvider>
@@ -158,14 +168,58 @@ export default function RootLayout() {
 
 function RootNavigator() {
   const { session } = useSession();
-  const { userRole, isAuthenticated, isLoggingOut } = useAppStore();
+  const { userRole, isAuthenticated, isLoggingOut, isOnboardingComplete, isLoading } = useAppStore();
+  const [isMounted, setIsMounted] = React.useState(false);
 
   // ✅ SYSTEM INTEGRATION: Set up Supabase auth listener
   useAuthListener();
 
+  // ✅ Handle authentication redirects with React Query - no useEffect!
+  useAuthStateNavigation();
+
+  // ✅ Handle post-login navigation with React Query
+  const { navigationDecision, navigateToDestination, isReady } = useAuthNavigation();
+
+  // ✅ Mark component as mounted after first render
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // ✅ Handle post-authentication navigation (onboarding check) - only after mounted AND app initialized
+  React.useEffect(() => {
+    // Only run navigation logic after component is mounted AND app is initialized
+    if (!isMounted || isLoading) return;
+
+    // Only redirect to onboarding if:
+    // 1. User is NOT authenticated (new user)
+    // 2. Onboarding is NOT complete
+    // 3. Not currently logging out
+    if (!isAuthenticated && !isOnboardingComplete && !isLoggingOut) {
+      console.log('[RootNavigator] New user onboarding not complete, redirecting to onboarding');
+      router.replace('/onboarding');
+    }
+  }, [isAuthenticated, isOnboardingComplete, isLoggingOut, isMounted, isLoading]);
+
+  // ✅ Handle post-login navigation - navigate to correct destination when authenticated
+  React.useEffect(() => {
+    if (isAuthenticated && isReady && navigationDecision?.shouldNavigate && !isLoggingOut && !isLoading) {
+      console.log(`[RootNavigator] User authenticated, navigating to: ${navigationDecision.destination} (${navigationDecision.reason})`);
+      // Use setTimeout to prevent navigation during render
+      setTimeout(() => {
+        navigateToDestination();
+      }, 100);
+    }
+  }, [isAuthenticated, isReady, navigationDecision, navigateToDestination, isLoggingOut, isLoading]);
+
   // ✅ Log state changes immediately - no useEffect needed
-  const currentState = { session: !!session, isAuthenticated, userRole };
+  const currentState = { session: !!session, isAuthenticated, userRole, isOnboardingComplete, isLoading };
   console.log('[RootNavigator] State:', currentState);
+
+  // ✅ Wait for app initialization before rendering anything
+  if (isLoading) {
+    console.log('[RootNavigator] Waiting for app initialization...');
+    return null; // Show nothing while initializing
+  }
 
   return (
     <>

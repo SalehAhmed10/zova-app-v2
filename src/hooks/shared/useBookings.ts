@@ -1,0 +1,208 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/lib/core/supabase';
+import { useAuthPure } from '@/hooks/shared/useAuthPure';
+import { Database } from '@/types/supabase';
+
+type Booking = Database['public']['Tables']['bookings']['Row'];
+type CreateBookingParams = {
+  serviceId: string;
+  providerId: string;
+  bookingDate: string;
+  startTime: string;
+  specialRequests?: string;
+  address?: string;
+  depositAmount: number;
+  totalAmount: number;
+  paymentIntentId: string;
+};
+
+// Hook for creating a booking
+export function useCreateBooking() {
+  const { user } = useAuthPure();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: CreateBookingParams) => {
+      if (!user) throw new Error('User not authenticated');
+
+      console.log('[useCreateBooking] Sending to Edge Function:', {
+        service_id: params.serviceId,
+        provider_id: params.providerId,
+        customer_id: user.id,
+        booking_date: params.bookingDate,
+        start_time: params.startTime,
+        customer_notes: params.specialRequests,
+        service_address: params.address,
+        payment_intent_id: params.paymentIntentId,
+      });
+
+      const response = await supabase.functions.invoke('create-booking', {
+        body: {
+          service_id: params.serviceId,
+          provider_id: params.providerId,
+          customer_id: user.id,
+          booking_date: params.bookingDate,
+          start_time: params.startTime,
+          customer_notes: params.specialRequests,
+          service_address: params.address,
+          payment_intent_id: params.paymentIntentId,
+        },
+      });
+
+      console.log('[useCreateBooking] Response received:', { data: response.data, error: response.error });
+
+      if (response.error) {
+        console.error('[useCreateBooking] Error details:', response.error);
+        
+        // Try to extract the error message from the response
+        if (response.error.context?._bodyInit) {
+          try {
+            const errorText = await new Response(response.error.context._bodyInit).text();
+            console.error('[useCreateBooking] Error body:', errorText);
+            throw new Error(errorText);
+          } catch (e) {
+            console.error('[useCreateBooking] Could not read error body:', e);
+          }
+        }
+        
+        throw response.error;
+      }
+      return response.data;
+    },
+    onSuccess: () => {
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['customer-bookings'] });
+    },
+  });
+}
+
+// Hook for fetching customer bookings
+export function useCustomerBookings() {
+  const { user } = useAuthPure();
+
+  return useQuery({
+    queryKey: ['customer-bookings', user?.id],
+    queryFn: async () => {
+      if (!user) throw new Error('User not authenticated');
+
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
+          *,
+          services:service_id (
+            id,
+            title,
+            price,
+            duration
+          ),
+          profiles:provider_id (
+            id,
+            full_name,
+            avatar_url
+          )
+        `)
+        .eq('customer_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+}
+
+// Hook for fetching provider bookings
+export function useProviderBookings() {
+  const { user } = useAuthPure();
+
+  return useQuery({
+    queryKey: ['provider-bookings', user?.id],
+    queryFn: async () => {
+      if (!user) throw new Error('User not authenticated');
+
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
+          *,
+          services:service_id (
+            id,
+            title,
+            price,
+            duration
+          ),
+          customer_profiles:customer_id (
+            id,
+            full_name,
+            avatar_url
+          )
+        `)
+        .eq('provider_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+}
+
+// Hook for updating booking status
+export function useUpdateBookingStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ bookingId, status }: { bookingId: string; status: string }) => {
+      const { data, error } = await supabase
+        .from('bookings')
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq('id', bookingId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['customer-bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['provider-bookings'] });
+    },
+  });
+}
+
+// Hook for fetching a single booking
+export function useBooking(bookingId: string) {
+  return useQuery({
+    queryKey: ['booking', bookingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
+          *,
+          services:service_id (
+            id,
+            title,
+            price,
+            duration
+          ),
+          customer_profiles:customer_id (
+            id,
+            full_name,
+            avatar_url
+          ),
+          provider_profiles:provider_id (
+            id,
+            full_name,
+            avatar_url
+          )
+        `)
+        .eq('id', bookingId)
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!bookingId,
+  });
+}

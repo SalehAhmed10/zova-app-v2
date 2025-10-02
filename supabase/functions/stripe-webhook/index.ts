@@ -85,7 +85,7 @@ const handler = async (req: Request): Promise<Response> => {
     
     console.log(`[WEBHOOK] 🔐 Using webhook secret: ${webhookSecret.substring(0, 10)}...`);
     
-    const event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+    const event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret);
     console.log(`[WEBHOOK] ✅ Event verified: ${event.type} - ${event.id}`);
 
     // Process different event types

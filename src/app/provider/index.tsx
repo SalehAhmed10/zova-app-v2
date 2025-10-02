@@ -15,12 +15,12 @@ import {
   useAuthOptimized as useAuth,
   useProfile,
   useProviderStats,
-  useUserBookings,
   useBusinessAvailability,
   useUpdateBusinessAvailability,
   useIsPaymentSetupComplete,
 } from '@/hooks';
-import { cn } from '@/lib/core/utils';
+import { useUserBookings } from '@/hooks/shared';
+import { cn } from '@/lib/utils';
 import { PaymentSetupStatusCard } from '@/components/providers/PaymentSetupStatusCard';
 import { StorageDebugPanel } from '@/components/debug/StorageDebugPanel';
 import DateTimePicker from '@react-native-community/datetimepicker';

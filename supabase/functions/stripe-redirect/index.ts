@@ -28,6 +28,42 @@ serve(async (req: Request) => {
 
     const isDesktop = url.searchParams.get("desktop") === "true"
 
+    // Handle desktop onboarding initiation
+    if (type === "onboard" && isDesktop) {
+      const accountId = url.searchParams.get("account")
+      if (!accountId) {
+        return new Response("Account ID required for onboarding", { status: 400 })
+      }
+
+      try {
+        // Import Stripe
+        const Stripe = (await import("https://esm.sh/stripe@14.21.0")).default
+        const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!)
+
+        // Create a fresh onboarding URL for desktop
+        const accountLink = await stripe.accountLinks.create({
+          account: accountId,
+          refresh_url: `https://wezgwqqdlwybadtvripr.supabase.co/functions/v1/stripe-redirect?type=refresh&desktop=true`,
+          return_url: `https://wezgwqqdlwybadtvripr.supabase.co/functions/v1/stripe-redirect?type=return&desktop=true`,
+          type: 'account_onboarding',
+          collect: 'eventually_due'
+        })
+
+        console.log("🔗 [Stripe Redirect] Desktop onboarding URL created:", accountLink.url)
+
+        // Redirect to the Stripe onboarding URL
+        return new Response(null, {
+          status: 302,
+          headers: {
+            "Location": accountLink.url
+          }
+        })
+      } catch (error) {
+        console.error("❌ [Stripe Redirect] Error creating desktop onboarding URL:", error)
+        return new Response("Failed to create onboarding URL", { status: 500 })
+      }
+    }
+
     // For desktop users, show appropriate web pages
     if (isDesktop) {
       if (type === "return") {

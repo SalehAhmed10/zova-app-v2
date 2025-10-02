@@ -323,7 +323,7 @@ export const useTrustedProviders = (limit: number = 5) => {
   return useQuery({
     queryKey: ['trustedProviders', limit],
     queryFn: async () => {
-      // Get providers with their services and ratings
+      // Get providers with their services (simplified query)
       const { data, error } = await supabase
         .from('profiles')
         .select(`
@@ -334,33 +334,24 @@ export const useTrustedProviders = (limit: number = 5) => {
           avatar_url,
           bio,
           city,
-          is_verified,
+          verification_status,
           availability_status,
           provider_services!left (
             title,
             base_price,
             price_type
-          ),
-          reviews!reviews_provider_id_fkey!left (
-            rating
           )
         `)
         .eq('role', 'provider')
         .eq('is_business_visible', true)
         .eq('availability_status', 'available')
-        .order('is_verified', { ascending: false })
+        .order('verification_status', { ascending: false })
         .limit(limit);
 
       if (error) throw error;
 
-      // Transform data to include featured service and calculate real ratings
+      // Transform data to include featured service
       const transformedData: TrustedProvider[] = data.map((provider: any) => {
-        // Calculate real rating from reviews
-        const reviews = provider.reviews || [];
-        const avgRating = reviews.length > 0
-          ? reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / reviews.length
-          : null;
-
         return {
           id: provider.id,
           first_name: provider.first_name,
@@ -369,10 +360,10 @@ export const useTrustedProviders = (limit: number = 5) => {
           avatar_url: provider.avatar_url,
           bio: provider.bio,
           city: provider.city,
-          is_verified: provider.is_verified,
+          is_verified: provider.verification_status === 'approved',
           availability_status: provider.availability_status,
-          avg_rating: avgRating ? Math.round(avgRating * 10) / 10 : null, // Round to 1 decimal
-          total_reviews: reviews.length,
+          avg_rating: null, // Temporarily disabled
+          total_reviews: 0, // Temporarily disabled
           featured_service: provider.provider_services?.[0] ? {
             title: provider.provider_services[0].title,
             base_price: provider.provider_services[0].base_price,
@@ -475,9 +466,11 @@ export interface ProviderService {
 
 // Hook to fetch provider services with real data
 export const useProviderServices = (providerId?: string) => {
+  console.log('[useProviderServices] Hook called with providerId:', providerId);
   return useQuery({
     queryKey: ['providerServices', providerId],
     queryFn: async () => {
+      console.log('[useProviderServices] Query function called for providerId:', providerId);
       if (!providerId) throw new Error('Provider ID is required');
       
       // Get provider services with category and subcategory info
@@ -488,10 +481,9 @@ export const useProviderServices = (providerId?: string) => {
           .eq('provider_id', providerId);
 
         if (error) throw error;
+        console.log('[useProviderServices] Raw services data:', data);
         return data;
       })();
-
-      console.log('[useProviderServices] Raw services from DB:', services?.length || 0);
 
       // If no services, return empty array
       if (!services || services.length === 0) {
@@ -602,7 +594,7 @@ export const useProviderServices = (providerId?: string) => {
         bookings_count: 0,
       }));
 
-      console.log('[useProviderServices] Processed services (no bookings):', processedServices?.length || 0, processedServices?.map(s => ({ id: s.id, title: s.title, is_active: s.is_active })));
+      console.log('[useProviderServices] Final processed services:', processedServices);
       return processedServices;
     },
     enabled: !!providerId,
@@ -1052,6 +1044,7 @@ export const useCreateService = () => {
       house_call_extra_fee?: number;
       allows_sos_booking?: boolean;
     }) => {
+      console.log('🔄 useCreateService mutation called with:', serviceData);
       const { data, error } = await supabase
         .from('provider_services')
         .insert([{
@@ -1063,9 +1056,9 @@ export const useCreateService = () => {
           duration_minutes: serviceData.duration_minutes,
           price_type: serviceData.price_type || 'fixed',
           is_active: serviceData.is_active ?? true,
-          // Business terms - using custom fields for now
-          custom_deposit_percentage: serviceData.deposit_percentage,
-          custom_cancellation_policy: serviceData.cancellation_policy,
+          // Business terms - use correct field names
+          deposit_percentage: serviceData.deposit_percentage,
+          cancellation_policy: serviceData.cancellation_policy,
           house_call_available: serviceData.house_call_available,
           house_call_extra_fee: serviceData.house_call_extra_fee,
           allows_sos_booking: serviceData.allows_sos_booking,
@@ -1075,7 +1068,11 @@ export const useCreateService = () => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Supabase insert error:', error);
+        throw error;
+      }
+      console.log('✅ Service created successfully:', data);
       return data;
     },
     onSuccess: (data, variables) => {
@@ -1119,9 +1116,9 @@ export const useUpdateService = () => {
       if (serviceData.price_type !== undefined) updateData.price_type = serviceData.price_type;
       if (serviceData.is_active !== undefined) updateData.is_active = serviceData.is_active;
       
-      // Business terms - using custom fields for now
-      if (serviceData.deposit_percentage !== undefined) updateData.custom_deposit_percentage = serviceData.deposit_percentage;
-      if (serviceData.cancellation_policy !== undefined) updateData.custom_cancellation_policy = serviceData.cancellation_policy;
+      // Business terms - use correct field names
+      if (serviceData.deposit_percentage !== undefined) updateData.deposit_percentage = serviceData.deposit_percentage;
+      if (serviceData.cancellation_policy !== undefined) updateData.cancellation_policy = serviceData.cancellation_policy;
       if (serviceData.house_call_available !== undefined) updateData.house_call_available = serviceData.house_call_available;
       if (serviceData.house_call_extra_fee !== undefined) updateData.house_call_extra_fee = serviceData.house_call_extra_fee;
       if (serviceData.allows_sos_booking !== undefined) updateData.allows_sos_booking = serviceData.allows_sos_booking;
@@ -1202,6 +1199,38 @@ function processServicePerformance(bookings: any[]) {
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 10); // Top 10 services
 }
+
+// Hook to fetch provider services
+
+// Hook for creating bookings
+export const useCreateBooking = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (bookingData: {
+      serviceId: string;
+      providerId: string;
+      customerId: string;
+      bookingDate: string;
+      startTime: string;
+      customerNotes?: string;
+      serviceAddress?: string;
+    }) => {
+      const { data, error } = await supabase.functions.invoke('create-booking', {
+        body: bookingData,
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data, variables) => {
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: ['userBookings', variables.customerId] });
+      queryClient.invalidateQueries({ queryKey: ['providerCalendarBookings', variables.providerId] });
+      queryClient.invalidateQueries({ queryKey: ['providerStats', variables.providerId] });
+    },
+  });
+};
 
 // Helper function to calculate average
 function calculateAverage(values: number[]): number {

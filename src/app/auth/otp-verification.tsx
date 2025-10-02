@@ -23,6 +23,7 @@ import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import { useAuthOptimized } from '@/hooks';
 import { useAppStore } from '@/stores/auth/app';
 import { supabase } from '@/lib/core/supabase';
+import { createOrUpdateUserProfile } from '@/lib/auth/profile';
 
 export default function OTPVerificationScreen() {
   const [otp, setOtp] = useState('');
@@ -35,6 +36,8 @@ export default function OTPVerificationScreen() {
   const params = useLocalSearchParams();
   const email = params.email as string;
   const role = params.role as 'customer' | 'provider';
+  const firstName = params.firstName as string;
+  const lastName = params.lastName as string;
 
   console.log('[OTP] Screen loaded with params:', { email, role });
 
@@ -59,10 +62,48 @@ export default function OTPVerificationScreen() {
 
       return { user: data.user, session: data.session };
     },
-    onSuccess: (data) => {
-      console.log('[OTP] Verification successful', data);
-      // Refetch session to update auth state
-      refetchSession();
+    onSuccess: async (data) => {
+      console.log('[OTP] Verification successful, creating profile...');
+      
+      try {
+        // Create or update user profile
+        const profile = await createOrUpdateUserProfile(
+          data.user.id,
+          data.user.email!,
+          role
+        );
+
+        if (!profile) {
+          console.error('[OTP] Failed to create profile');
+          Alert.alert('Error', 'Account created but profile setup failed. Please contact support.');
+          return;
+        }
+
+        // Update profile with name information if provided
+        if (firstName || lastName) {
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({
+              first_name: firstName || '',
+              last_name: lastName || ''
+            })
+            .eq('id', data.user.id);
+
+          if (updateError) {
+            console.error('[OTP] Failed to update profile names:', updateError);
+            // Don't fail the whole process for this
+          }
+        }
+
+        console.log('[OTP] Profile created successfully:', profile);
+        
+        // Refetch session to update auth state
+        refetchSession();
+      } catch (error) {
+        console.error('[OTP] Error creating profile:', error);
+        Alert.alert('Error', 'Account verified but profile setup failed. Please try logging in again.');
+        return;
+      }
     },
     onError: (error: any) => {
       console.error('[OTP] Verification failed:', error);
@@ -108,6 +149,8 @@ export default function OTPVerificationScreen() {
             onPress: () => {
               console.log('[OTP] User pressed Continue, navigating...');
               setTimeout(() => {
+                // Navigation will be handled by auth navigation hooks
+                // No manual onboarding checks needed here
                 if (role === 'customer') {
                   console.log('[OTP] Navigating to customer dashboard');
                   router.replace('/customer');

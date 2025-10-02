@@ -7,25 +7,28 @@ import * as ImagePicker from 'expo-image-picker';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
+import { VerificationHeader } from '@/components/verification/VerificationHeader';
 import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/verification/provider-verification';
 import { supabase } from '@/lib/core/supabase';
 import { createStorageService } from '@/lib/storage/organized-storage';
+import { useVerificationNavigation } from '@/hooks/provider';
+import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';
 
 export default function PortfolioUploadScreen() {
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const queryClient = useQueryClient();
   
-  const { 
-    portfolioData, 
-    updatePortfolioData, 
+  const {
+    portfolioData,
+    updatePortfolioData,
     completeStep,
-    completeStepAndNext, 
-    nextStep,
+    completeStepSimple,
     previousStep,
-    providerId 
-  } = useProviderVerificationStore();
+    providerId
+  } = useProviderVerificationStore();  const isHydrated = useProviderVerificationHydration();
 
-  const isHydrated = useProviderVerificationHydration();
+  // ✅ CENTRALIZED NAVIGATION: Replace manual routing
+  const { navigateBack } = useVerificationNavigation();
 
   // Don't render until hydrated
   if (!isHydrated) {
@@ -162,6 +165,22 @@ export default function PortfolioUploadScreen() {
         .insert(portfolioImageRecords);
 
       if (dbError) throw dbError;
+
+      // ✅ SAVE PROGRESS: Update provider_onboarding_progress table
+      const { error: progressError } = await supabase
+        .from('provider_onboarding_progress')
+        .upsert({
+          provider_id: providerId,
+          current_step: 6, // Portfolio is step 6
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'provider_id'
+        });
+
+      if (progressError) {
+        console.error('[Portfolio] Error saving progress:', progressError);
+        // Don't throw here - progress saving failure shouldn't block the main operation
+      }
       
       const allPortfolioImages = [...existingImages.map(img => ({
         id: img.id.toString(),
@@ -175,7 +194,18 @@ export default function PortfolioUploadScreen() {
     onSuccess: (portfolioImages) => {
       console.log('[Portfolio] Upload successful, updating store');
       updatePortfolioData({ images: portfolioImages });
-      completeStepAndNext(6, { images: portfolioImages });
+      
+      // ✅ EXPLICIT: Complete step 6 and navigate using flow manager
+      const result = VerificationFlowManager.completeStepAndNavigate(
+        6, // Always step 6 for portfolio
+        { images: portfolioImages },
+        (step, stepData) => {
+          // Update Zustand store
+          completeStepSimple(step, stepData);
+        }
+      );
+      
+      console.log('[Portfolio] Navigation result:', result);
       queryClient.invalidateQueries({ queryKey: ['portfolioImages', providerId] });
       setSelectedImages([]); // Clear selected images after successful upload
     },
@@ -283,8 +313,17 @@ export default function PortfolioUploadScreen() {
         altText: img.alt_text,
         sortOrder: img.sort_order,
       }));
-      updatePortfolioData({ images: portfolioImages });
-      completeStepAndNext(6, { images: portfolioImages });
+      // ✅ EXPLICIT: Complete step 6 and navigate using flow manager
+      const result = VerificationFlowManager.completeStepAndNavigate(
+        6, // Always step 6 for portfolio
+        { images: portfolioImages },
+        (step, stepData) => {
+          // Update Zustand store
+          completeStepSimple(step, stepData);
+        }
+      );
+      
+      console.log('[Portfolio] Navigation result:', result);
       return;
     }
     
@@ -300,23 +339,14 @@ export default function PortfolioUploadScreen() {
   };
 
   return (
-    <ScreenWrapper scrollable={true} contentContainerClassName="px-6 py-4">
-      {/* Header */}
-      <Animated.View 
-        entering={FadeIn.delay(200).springify()}
-        className="items-center mb-8"
-      >
-        <View className="w-16 h-16 bg-primary rounded-2xl justify-center items-center mb-4">
-          <Text className="text-2xl">🖼️</Text>
-        </View>
-        <Text className="text-2xl font-bold text-foreground mb-2">
-          Portfolio Upload
-        </Text>
-        <Text className="text-base text-muted-foreground text-center">
-          Showcase your best work with up to {portfolioData.maxImages} images
-        </Text>
-      </Animated.View>
+    <View className="flex-1 bg-background">
+      <VerificationHeader 
+        step={6} 
+        title="Upload Portfolio" 
+      />
+      <ScreenWrapper scrollable={true} contentContainerClassName="px-6 py-4">
 
+      {/* Upload Area */}
       {/* Existing Images Section */}
       {existingImages.length > 0 && selectedImages.length === 0 && (
         <Animated.View entering={SlideInDown.delay(400).springify()} className="mb-6">
@@ -481,12 +511,13 @@ export default function PortfolioUploadScreen() {
         <Button
           variant="outline"
           size="lg"
-          onPress={previousStep}
+          onPress={navigateBack}
           className="w-full"
         >
           <Text>Back to Services</Text>
         </Button>
       </Animated.View>
     </ScreenWrapper>
+    </View>
   );
 }

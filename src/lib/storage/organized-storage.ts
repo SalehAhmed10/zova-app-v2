@@ -50,7 +50,22 @@ export class OrganizedStorageService {
     documentType: 'passport' | 'driving_license' | 'id_card',
     timestamp?: number
   ): Promise<UploadResult> {
+    console.log('[Storage] uploadIdentityDocument called with:', {
+      imageUri,
+      documentType,
+      timestamp,
+      imageUriType: typeof imageUri,
+      imageUriLength: imageUri?.length
+    });
+
+    if (!imageUri) {
+      console.error('[Storage] imageUri is undefined or empty in uploadIdentityDocument');
+      return { success: false, error: 'Image URI is required' };
+    }
+
     const filePath = this.paths.documentVerification.document(documentType, timestamp);
+    console.log('[Storage] Generated file path:', filePath);
+    
     return this.uploadToPrivateBucket(imageUri, filePath);
   }
 
@@ -373,9 +388,23 @@ export class OrganizedStorageService {
     isPublic: boolean
   ): Promise<UploadResult> {
     try {
+      // Validate input parameters
+      if (!fileUri) {
+        console.error('[Storage] fileUri is undefined or empty:', fileUri);
+        return { success: false, error: 'File URI is required' };
+      }
+
+      if (!filePath) {
+        console.error('[Storage] filePath is undefined or empty:', filePath);
+        return { success: false, error: 'File path is required' };
+      }
+
+      console.log('[Storage] Starting file upload:', { fileUri, filePath, bucket, isPublic });
+
       // Check if file exists
       const fileInfo = await FileSystem.getInfoAsync(fileUri);
       if (!fileInfo.exists) {
+        console.error('[Storage] File does not exist at URI:', fileUri);
         return { success: false, error: 'File does not exist' };
       }
 

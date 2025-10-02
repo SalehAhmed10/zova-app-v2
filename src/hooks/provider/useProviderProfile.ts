@@ -16,6 +16,10 @@ export interface ProviderProfileData {
   website?: string;
   years_experience?: number;
   is_verified?: boolean;
+  address?: string;
+  city?: string;
+  postal_code?: string;
+  country?: string;
   working_hours?: {
     monday?: { open: string | null; close: string | null; is_open: boolean };
     tuesday?: { open: string | null; close: string | null; is_open: boolean };
@@ -65,7 +69,7 @@ export const useProviderProfile = (providerId: string) => {
           postal_code,
           country,
           years_of_experience,
-          is_verified,
+          verification_status,
           created_at,
           provider_services (
             id,
@@ -153,43 +157,49 @@ export const useProviderProfile = (providerId: string) => {
       // Transform working hours data
       let working_hours = undefined;
       if (scheduleDataItem?.schedule_data) {
+        console.log('useProviderProfile: Raw schedule data:', scheduleDataItem.schedule_data);
+
         const transformedHours = {
           monday: scheduleDataItem.schedule_data.monday ? {
             open: scheduleDataItem.schedule_data.monday.start || null,
             close: scheduleDataItem.schedule_data.monday.end || null,
-            is_open: scheduleDataItem.schedule_data.monday.enabled || false
+            is_open: Boolean(scheduleDataItem.schedule_data.monday.enabled)
           } : undefined,
           tuesday: scheduleDataItem.schedule_data.tuesday ? {
             open: scheduleDataItem.schedule_data.tuesday.start || null,
             close: scheduleDataItem.schedule_data.tuesday.end || null,
-            is_open: scheduleDataItem.schedule_data.tuesday.enabled || false
+            is_open: Boolean(scheduleDataItem.schedule_data.tuesday.enabled)
           } : undefined,
           wednesday: scheduleDataItem.schedule_data.wednesday ? {
             open: scheduleDataItem.schedule_data.wednesday.start || null,
             close: scheduleDataItem.schedule_data.wednesday.end || null,
-            is_open: scheduleDataItem.schedule_data.wednesday.enabled || false
+            is_open: Boolean(scheduleDataItem.schedule_data.wednesday.enabled)
           } : undefined,
           thursday: scheduleDataItem.schedule_data.thursday ? {
             open: scheduleDataItem.schedule_data.thursday.start || null,
             close: scheduleDataItem.schedule_data.thursday.end || null,
-            is_open: scheduleDataItem.schedule_data.thursday.enabled || false
+            is_open: Boolean(scheduleDataItem.schedule_data.thursday.enabled)
           } : undefined,
           friday: scheduleDataItem.schedule_data.friday ? {
             open: scheduleDataItem.schedule_data.friday.start || null,
             close: scheduleDataItem.schedule_data.friday.end || null,
-            is_open: scheduleDataItem.schedule_data.friday.enabled || false
+            is_open: Boolean(scheduleDataItem.schedule_data.friday.enabled)
           } : undefined,
           saturday: scheduleDataItem.schedule_data.saturday ? {
             open: scheduleDataItem.schedule_data.saturday.start || null,
             close: scheduleDataItem.schedule_data.saturday.end || null,
-            is_open: scheduleDataItem.schedule_data.saturday.enabled || false
+            is_open: Boolean(scheduleDataItem.schedule_data.saturday.enabled)
           } : undefined,
           sunday: scheduleDataItem.schedule_data.sunday ? {
             open: scheduleDataItem.schedule_data.sunday.start || null,
             close: scheduleDataItem.schedule_data.sunday.end || null,
-            is_open: scheduleDataItem.schedule_data.sunday.enabled || false
+            is_open: Boolean(scheduleDataItem.schedule_data.sunday.enabled)
           } : undefined,
         };
+
+        console.log('useProviderProfile: Sunday raw data:', scheduleDataItem.schedule_data.sunday);
+        console.log('useProviderProfile: Sunday enabled value:', scheduleDataItem.schedule_data.sunday?.enabled);
+        console.log('useProviderProfile: Sunday is_open result:', transformedHours.sunday?.is_open);
 
         // Only set working_hours if at least one day has data
         const hasAnyHours = Object.values(transformedHours).some(day => day !== undefined);
@@ -217,7 +227,7 @@ export const useProviderProfile = (providerId: string) => {
         email: profileData.email,
         website: profileData.website,
         years_experience: profileData.years_of_experience,
-        is_verified: profileData.is_verified,
+        is_verified: profileData.verification_status === 'approved',
         services: services,
         working_hours: working_hours,
       };

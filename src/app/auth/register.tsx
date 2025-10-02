@@ -15,7 +15,7 @@ import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import {
   AlertDialog,
@@ -133,6 +133,8 @@ export default function RegisterScreen() {
         params: {
           email: data.email,
           role: data.role,
+          firstName: data.firstName,
+          lastName: data.lastName,
         },
       } as any);
       
@@ -328,23 +330,21 @@ export default function RegisterScreen() {
                 name="role"
                 render={({ field: { onChange, value } }) => (
                   <Select
-                    options={[
-                      {
-                        label: 'I need services',
-                        value: 'customer',
-                        description: 'Book appointments and connect with providers'
-                      },
-                      {
-                        label: 'I provide services',
-                        value: 'provider',
-                        description: 'Offer your services and grow your business'
-                      }
-                    ]}
-                    value={value}
-                    onValueChange={onChange}
-                    placeholder="Select your role"
-                    variant={errors.role ? 'error' : 'default'}
-                  />
+                    value={value ? { value, label: value === 'customer' ? 'I need services' : 'I provide services' } : undefined}
+                    onValueChange={(option) => onChange(option?.value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select your role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="customer" label="I need services">
+                        I need services
+                      </SelectItem>
+                      <SelectItem value="provider" label="I provide services">
+                        I provide services
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 )}
               />
               {errors.role && (

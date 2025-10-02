@@ -8,14 +8,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuthOptimized } from '@/hooks';
 import {
-  useAuthOptimized,
   useProfile,
   useProfileStats,
-  useUserBookings,
-  useTrustedProviders
-} from '@/hooks';
-import { cn } from '@/lib/core/utils';
+  useUserBookings
+} from '@/hooks/shared/useProfileData';
+import { useTrustedProviders } from '@/hooks/customer';
+import { cn } from '@/lib/utils';
 import { Ionicons } from '@expo/vector-icons';
 
 // Today's Stats Component

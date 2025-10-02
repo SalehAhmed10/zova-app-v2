@@ -38,7 +38,7 @@ export default function CustomerSubscriptionsScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background">
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <View className="p-4 space-y-6">
+        <View className="p-4 gap-6">
           {/* Header */}
           <View>
             <Text className="text-2xl font-bold text-foreground">SOS Subscription</Text>
@@ -49,7 +49,7 @@ export default function CustomerSubscriptionsScreen() {
 
           {/* Active Subscription */}
           {customerSubscription && (
-            <View className="space-y-3">
+            <View className="gap-3">
               <Text className="text-lg font-semibold text-foreground">Current Plan</Text>
               <CustomerSubscriptionCard subscription={customerSubscription} />
             </View>
@@ -57,17 +57,17 @@ export default function CustomerSubscriptionsScreen() {
 
           {/* Available Plan */}
           {!hasCustomerSOS && (
-            <View className="space-y-3">
+            <View className="gap-3">
               <Text className="text-lg font-semibold text-foreground">Available Plan</Text>
               <CustomerAvailablePlanCard />
             </View>
           )}
 
           {/* Features */}
-          <View className="space-y-3">
+          <View className="gap-3">
             <Text className="text-lg font-semibold text-foreground">SOS Features</Text>
             <Card>
-              <CardContent className="p-4 space-y-3">
+              <CardContent className="p-4 gap-3">
                 {[
                   'SOS emergency booking access',
                   'Priority provider matching',
@@ -86,7 +86,7 @@ export default function CustomerSubscriptionsScreen() {
 
           {/* Subscription History */}
           {allSubscriptions && allSubscriptions.filter(s => s.type === 'customer_sos').length > 0 && (
-            <View className="space-y-3">
+            <View className="gap-3">
               <Text className="text-lg font-semibold text-foreground">History</Text>
               
               {allSubscriptions
@@ -166,7 +166,7 @@ function CustomerSubscriptionCard({ subscription }: { subscription: UserSubscrip
         </View>
       </CardHeader>
 
-      <CardContent className="pt-0 space-y-3">
+      <CardContent className="pt-0 gap-3">
         {/* Pricing */}
         <View className="flex-row items-baseline gap-1">
           <Text className="text-xl font-bold text-foreground">
@@ -255,7 +255,7 @@ function CustomerAvailablePlanCard() {
         </View>
       </CardHeader>
 
-      <CardContent className="pt-0 space-y-3">
+      <CardContent className="pt-0 gap-3">
         <View className="flex-row items-baseline gap-1">
           <Text className="text-xl font-bold text-foreground">
             £{(priceInfo.amount / 100).toFixed(2)}

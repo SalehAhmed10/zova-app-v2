@@ -24,7 +24,7 @@ const ONBOARDING_STEPS = [
     icon: '�',
   },
   {
-    title: 'Rate & Review',
+    title: 'Rate & Review', 
     description: 'Share your experience and help others find the best services. Build a better community together.',
     icon: '⭐',
   },
@@ -38,7 +38,9 @@ export default function OnboardingScreen() {
     if (currentStep < ONBOARDING_STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
+      // Complete onboarding and let navigation hooks handle next step
       completeOnboarding();
+      // Navigation will be handled by auth navigation hooks
       router.replace('/auth');
     }
   };
@@ -50,7 +52,9 @@ export default function OnboardingScreen() {
   };
 
   const handleSkip = () => {
+    // Complete onboarding and let navigation hooks handle next step
     completeOnboarding();
+    // Navigation will be handled by auth navigation hooks
     router.replace('/auth');
   };
 

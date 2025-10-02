@@ -8,7 +8,10 @@ import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useCallback } from 'react';
 import { useAppStore } from '@/stores/auth/app';
+import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
+import { useProfileStore, useProfileHydration } from '@/stores/verification/useProfileStore';
 import { supabase } from '@/lib/core/supabase';
+import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';
 
 interface NavigationDecision {
   destination: string;
@@ -17,16 +20,65 @@ interface NavigationDecision {
 }
 
 /**
+ * useAuthStateNavigation - Handles ongoing authentication state changes
+ * ✅ Pure React Query approach - no useEffect
+ * ✅ Automatically navigates on auth state changes (login/logout)
+ */
+export const useAuthStateNavigation = () => {
+  const { isAuthenticated, isLoggingOut, isOnboardingComplete } = useAppStore();
+
+  // ✅ React Query monitors auth state and handles navigation automatically
+  const { data: shouldNavigateToAuth } = useQuery({
+    queryKey: ['auth-state-navigation', isAuthenticated, isLoggingOut, isOnboardingComplete],
+    queryFn: async () => {
+      // Only navigate to auth if:
+      // 1. Not authenticated
+      // 2. Not currently logging out
+      // 3. Onboarding is complete (don't navigate to auth if onboarding needed)
+      if (!isAuthenticated && !isLoggingOut && isOnboardingComplete) {
+        console.log('[AuthStateNavigation] User not authenticated and onboarding complete, navigating to auth');
+        router.replace('/auth');
+        return true;
+      }
+      return false;
+    },
+    enabled: true,
+    staleTime: 0, // Always check on state changes
+    gcTime: 0,
+  });
+
+  return {
+    shouldNavigateToAuth,
+  };
+};
+
+/**
  * Determines navigation destination based on app state
  * ✅ No useEffect - pure React Query logic
  */
 export const useAuthNavigation = () => {
   const appStore = useAppStore();
   const { isOnboardingComplete, isAuthenticated, userRole } = appStore;
+  
+  // ✅ Get verification data from Zustand store
+  const {
+    documentData,
+    selfieData,
+    businessData,
+    categoryData,
+    servicesData,
+    portfolioData,
+    bioData,
+    termsData
+  } = useProviderVerificationStore();
+
+  // ✅ Get profile verification status from Zustand store
+  const { verificationStatus } = useProfileStore();
+  const isProfileHydrated = useProfileHydration();
 
   // ✅ React Query handles the navigation decision logic with direct state dependency
   const { data: navigationDecision } = useQuery({
-    queryKey: ['navigation-decision', isOnboardingComplete, isAuthenticated, userRole],
+    queryKey: ['navigation-decision', isOnboardingComplete, isAuthenticated, userRole, verificationStatus, isProfileHydrated, documentData, selfieData, businessData, categoryData, servicesData, portfolioData, bioData, termsData],
     queryFn: async (): Promise<NavigationDecision> => {
       console.log('[AuthNavigation] Computing navigation decision');
       console.log('[AuthNavigation] Current state:', { isOnboardingComplete, isAuthenticated, userRole });
@@ -60,6 +112,37 @@ export const useAuthNavigation = () => {
 
       // Provider flow - check verification
       if (userRole === 'provider') {
+        console.log('[AuthNavigation] Provider flow - verificationStatus:', verificationStatus, 'isProfileHydrated:', isProfileHydrated);
+        
+        // ✅ If profile is hydrated and has verification status, use it for navigation
+        if (isProfileHydrated && verificationStatus) {
+          if (verificationStatus === 'approved') {
+            console.log('[AuthNavigation] Provider verification approved - granting dashboard access');
+            return {
+              destination: '/provider',
+              shouldNavigate: true,
+              reason: 'provider-approved'
+            };
+          } else if (verificationStatus === 'in_review' || verificationStatus === 'pending') {
+            console.log('[AuthNavigation] Provider verification', verificationStatus, '- redirecting to status screen');
+            return {
+              destination: '/provider-verification/verification-status',
+              shouldNavigate: true,
+              reason: `provider-${verificationStatus}-waiting-approval`
+            };
+          } else if (verificationStatus === 'rejected') {
+            console.log('[AuthNavigation] Provider verification rejected - redirecting to verification');
+            // Redirect to first step for rejected providers
+            return {
+              destination: '/provider-verification',
+              shouldNavigate: true,
+              reason: 'provider-rejected'
+            };
+          }
+        }
+        
+        // ✅ Fallback: If profile not hydrated or no verification status, check verification steps
+        console.log('[AuthNavigation] Profile not hydrated or no verification status - checking verification steps');
         try {
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) {
@@ -82,19 +165,43 @@ export const useAuthNavigation = () => {
               shouldNavigate: true,
               reason: 'provider-verified'
             };
-          } else {
+          } else if (profile?.verification_status === 'in_review' || profile?.verification_status === 'pending') {
             return {
               destination: '/provider-verification/verification-status',
               shouldNavigate: true,
-              reason: 'provider-needs-verification'
+              reason: `provider-${profile.verification_status}-waiting-approval`
+            };
+          } else {
+            // For rejected or any other status, go to verification steps
+            // ✅ Use VerificationFlowManager to determine correct route based on actual data
+            const verificationData = {
+              documentData,
+              selfieData,
+              businessData,
+              categoryData,
+              servicesData,
+              portfolioData,
+              bioData,
+              termsData
+            };
+            
+            const firstIncompleteStep = VerificationFlowManager.findFirstIncompleteStep(verificationData);
+            const destination = VerificationFlowManager.getRouteForStep(firstIncompleteStep as any);
+            
+            console.log(`[AuthNavigation] First incomplete step: ${firstIncompleteStep}, route: ${destination}`);
+            
+            return {
+              destination,
+              shouldNavigate: true,
+              reason: `provider-verification-step-${firstIncompleteStep}`
             };
           }
         } catch (error) {
           console.error('[AuthNavigation] Error checking provider verification:', error);
           return {
-            destination: '/provider-verification/verification-status',
+            destination: '/provider-verification',
             shouldNavigate: true,
-            reason: 'provider-verification-error'
+            reason: 'provider-verification-error-start-fresh'
           };
         }
       }

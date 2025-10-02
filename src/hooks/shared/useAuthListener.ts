@@ -24,22 +24,41 @@ export function useAuthListener() {
       async (event, session) => {
         console.log('[AuthListener] Auth state changed:', event, !!session);
 
-        if (event === 'SIGNED_IN' && session?.user) {
-          console.log('[AuthListener] User signed in, fetching profile...');
+        // Handle both SIGNED_IN and INITIAL_SESSION events
+        if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
+          console.log('[AuthListener] User session detected, waiting for session to be established...');
           
-          try {
-            const profile = await getUserProfile(session.user.id);
-            if (profile) {
-              console.log('[AuthListener] Profile loaded, setting authenticated with role:', profile.role);
-              setAuthenticated(true, profile.role as 'customer' | 'provider');
-            } else {
-              console.error('[AuthListener] No profile found for user');
+          // Wait a bit for the session to be fully established in Supabase client
+          setTimeout(async () => {
+            try {
+              console.log('[AuthListener] Fetching profile for user:', session.user.id);
+              const profile = await getUserProfile(session.user.id);
+              if (profile) {
+                console.log('[AuthListener] Profile loaded, setting authenticated with role:', profile.role);
+                setAuthenticated(true, profile.role as 'customer' | 'provider');
+              } else {
+                console.error('[AuthListener] No profile found for user:', session.user.id);
+                // Try to create profile if it doesn't exist
+                console.log('[AuthListener] Attempting to create profile for existing user...');
+                const { createOrUpdateUserProfile } = await import('@/lib/auth/profile');
+                const newProfile = await createOrUpdateUserProfile(
+                  session.user.id, 
+                  session.user.email!, 
+                  'customer' // Default role
+                );
+                if (newProfile) {
+                  console.log('[AuthListener] Profile created, setting authenticated with role:', newProfile.role);
+                  setAuthenticated(true, newProfile.role as 'customer' | 'provider');
+                } else {
+                  console.error('[AuthListener] Failed to create profile');
+                  setAuthenticated(false);
+                }
+              }
+            } catch (error) {
+              console.error('[AuthListener] Error fetching profile:', error);
               setAuthenticated(false);
             }
-          } catch (error) {
-            console.error('[AuthListener] Error fetching profile:', error);
-            setAuthenticated(false);
-          }
+          }, 500); // Wait 500ms for session to be established
         } else if (event === 'SIGNED_OUT') {
           console.log('[AuthListener] User signed out');
           setAuthenticated(false);

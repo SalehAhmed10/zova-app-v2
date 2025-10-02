@@ -103,6 +103,36 @@ export default function CustomerLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="provider/[id]"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="service/[id]"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="booking/book-service"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="booking/payment"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="booking/confirmation"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

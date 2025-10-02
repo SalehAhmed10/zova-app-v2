@@ -8,8 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
+import { VerificationHeader } from '@/components/verification/VerificationHeader';
 import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
 import { supabase } from '@/lib/core/supabase';
+import { useVerificationNavigation } from '@/hooks/provider';
+import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';
 
 export default function BusinessBioScreen() {
   const queryClient = useQueryClient();
@@ -18,11 +21,13 @@ export default function BusinessBioScreen() {
     bioData,
     updateBioData,
     completeStep,
-    completeStepAndNext,
-    nextStep,
+    completeStepSimple,
     previousStep,
     providerId 
   } = useProviderVerificationStore();
+
+  // ✅ CENTRALIZED NAVIGATION: Replace manual routing
+  const { navigateBack } = useVerificationNavigation();
 
   // ✅ REACT QUERY: Bio submission mutation
   const submitBioMutation = useMutation({
@@ -48,6 +53,22 @@ export default function BusinessBioScreen() {
         throw new Error('Failed to save to database');
       }
 
+      // ✅ SAVE PROGRESS: Update provider_onboarding_progress table
+      const { error: progressError } = await supabase
+        .from('provider_onboarding_progress')
+        .upsert({
+          provider_id: providerId,
+          current_step: 7, // Bio is step 7
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'provider_id'
+        });
+
+      if (progressError) {
+        console.error('[Bio] Error saving progress:', progressError);
+        // Don't throw here - progress saving failure shouldn't block the main operation
+      }
+
       console.log('[Bio] Bio saved successfully');
       return data;
     },
@@ -55,7 +76,17 @@ export default function BusinessBioScreen() {
       console.log('[Bio] Submission successful:', data);
       // Update store
       updateBioData(data);
-      completeStepAndNext(7, data);
+      // ✅ EXPLICIT: Complete step 7 and navigate using flow manager
+      const result = VerificationFlowManager.completeStepAndNavigate(
+        7, // Always step 7 for bio
+        data,
+        (step, stepData) => {
+          // Update Zustand store
+          completeStepSimple(step, stepData);
+        }
+      );
+      
+      console.log('[Bio] Navigation result:', result);
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ['providerProfile', providerId] });
     },
@@ -114,23 +145,12 @@ export default function BusinessBioScreen() {
   };
 
   return (
-    <ScreenWrapper scrollable={true} contentContainerClassName="px-6 py-4">
-      {/* Header */}
-      <Animated.View 
-        entering={FadeIn.delay(200).springify()}
-        className="items-center mb-8"
-      >
-        <View className="w-16 h-16 bg-primary rounded-2xl justify-center items-center mb-4">
-          <Text className="text-2xl">✍️</Text>
-        </View>
-        <Text className="text-2xl font-bold text-foreground mb-2">
-          Tell Your Story
-        </Text>
-        <Text className="text-base text-muted-foreground text-center">
-          Help customers understand your business and experience
-        </Text>
-      </Animated.View>
-
+    <View className="flex-1 bg-background">
+      <VerificationHeader 
+        step={7} 
+        title="Business Bio" 
+      />
+      <ScreenWrapper scrollable={true} contentContainerClassName="px-6 py-4">
       {/* Form */}
       <Animated.View entering={SlideInDown.delay(400).springify()}>
         {/* Business Description */}
@@ -216,12 +236,13 @@ export default function BusinessBioScreen() {
         <Button
           variant="outline"
           size="lg"
-          onPress={previousStep}
+          onPress={navigateBack}
           className="w-full"
         >
           <Text>Back to Portfolio</Text>
         </Button>
       </Animated.View>
     </ScreenWrapper>
+    </View>
   );
 }

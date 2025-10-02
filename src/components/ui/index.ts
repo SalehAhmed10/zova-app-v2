@@ -11,6 +11,7 @@ export * from './native-only-animated-view';
 export * from './screen-wrapper';
 export * from './select';
 export * from './skeleton';
+export * from './slider';
 export * from './switch';
 export * from './tabs';
 export * from './text';

@@ -3,7 +3,7 @@ export { useAuthPure as useAuthOptimized } from './useAuthPure';
 export { useProfileSync } from './useProfileSync';
 
 // ✅ PURE: Navigation decision hooks - NO useEffect
-export { useNavigationDecision, useVerificationNavigation } from './useNavigationDecision';
+export { useNavigationDecision } from './useNavigationDecision';
 
 // ✅ OPTIMIZED: New architecture hooks without useEffect
 export { useAppInitialization } from './useAppInitialization';
@@ -18,6 +18,15 @@ export { usePendingRegistration } from './usePendingRegistration';
 
 // ✅ UTILITY: Debounce hook for search optimization
 export { useDebounceValue } from './useDebounce';
+
+// ✅ BOOKING: Booking management hooks
+export {
+  useCustomerBookings,
+  useProviderBookings,
+  useUpdateBookingStatus,
+  useBooking,
+  useCreateBooking
+} from './useBookings';
 
 export * from './useSubscription';
 export {

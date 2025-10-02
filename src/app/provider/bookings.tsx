@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, ScrollView, RefreshControl, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Text } from '@/components/ui/text';
@@ -8,9 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuthOptimized, useProviderCalendarBookings } from '@/hooks';
+import { useUpdateBookingStatus } from '@/hooks/shared/useBookings';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 
-import { cn } from '@/lib/core/utils';
+import { cn } from '@/lib/utils';
 
 interface BookingItem {
   id: string;
@@ -40,6 +41,64 @@ export default function ProviderBookingsScreen() {
     isLoading,
     refetch
   } = useProviderCalendarBookings(user?.id, startDate, endDate);
+
+  const updateBookingStatusMutation = useUpdateBookingStatus();
+
+  const handleAcceptBooking = async (bookingId: string) => {
+    try {
+      await updateBookingStatusMutation.mutateAsync({
+        bookingId,
+        status: 'confirmed',
+      });
+      // Refetch bookings to update the UI
+      refetch();
+    } catch (error) {
+      console.error('Error accepting booking:', error);
+      Alert.alert('Error', 'Failed to accept booking. Please try again.');
+    }
+  };
+
+  const handleDeclineBooking = async (bookingId: string) => {
+    try {
+      await updateBookingStatusMutation.mutateAsync({
+        bookingId,
+        status: 'cancelled',
+      });
+      // Refetch bookings to update the UI
+      refetch();
+    } catch (error) {
+      console.error('Error declining booking:', error);
+      Alert.alert('Error', 'Failed to decline booking. Please try again.');
+    }
+  };
+
+  const handleCompleteBooking = async (bookingId: string) => {
+    try {
+      await updateBookingStatusMutation.mutateAsync({
+        bookingId,
+        status: 'completed',
+      });
+      // Refetch bookings to update the UI
+      refetch();
+    } catch (error) {
+      console.error('Error completing booking:', error);
+      Alert.alert('Error', 'Failed to complete booking. Please try again.');
+    }
+  };
+
+  const handleCancelBooking = async (bookingId: string) => {
+    try {
+      await updateBookingStatusMutation.mutateAsync({
+        bookingId,
+        status: 'cancelled',
+      });
+      // Refetch bookings to update the UI
+      refetch();
+    } catch (error) {
+      console.error('Error cancelling booking:', error);
+      Alert.alert('Error', 'Failed to cancel booking. Please try again.');
+    }
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -143,17 +202,23 @@ export default function ProviderBookingsScreen() {
             <Button
               size="sm"
               className="flex-1"
-              onPress={() => {/* Handle accept */}}
+              onPress={() => handleAcceptBooking(booking.id)}
+              disabled={updateBookingStatusMutation.isPending}
             >
-              <Text className="text-primary-foreground font-medium">Accept</Text>
+              <Text className="text-primary-foreground font-medium">
+                {updateBookingStatusMutation.isPending ? 'Accepting...' : 'Accept'}
+              </Text>
             </Button>
             <Button
               size="sm"
               variant="outline"
               className="flex-1"
-              onPress={() => {/* Handle decline */}}
+              onPress={() => handleDeclineBooking(booking.id)}
+              disabled={updateBookingStatusMutation.isPending}
             >
-              <Text className="text-foreground font-medium">Decline</Text>
+              <Text className="text-foreground font-medium">
+                {updateBookingStatusMutation.isPending ? 'Declining...' : 'Decline'}
+              </Text>
             </Button>
           </View>
         )}
@@ -162,19 +227,24 @@ export default function ProviderBookingsScreen() {
           <View className="flex-row gap-2">
             <Button
               size="sm"
-              variant="outline"
               className="flex-1"
-              onPress={() => router.push(`/provider/calendar`)}
+              onPress={() => handleCompleteBooking(booking.id)}
+              disabled={updateBookingStatusMutation.isPending}
             >
-              <Text className="text-foreground font-medium">View in Calendar</Text>
+              <Text className="text-primary-foreground font-medium">
+                {updateBookingStatusMutation.isPending ? 'Completing...' : 'Mark Complete'}
+              </Text>
             </Button>
             <Button
               size="sm"
               variant="destructive"
               className="flex-1"
-              onPress={() => {/* Handle cancel */}}
+              onPress={() => handleCancelBooking(booking.id)}
+              disabled={updateBookingStatusMutation.isPending}
             >
-              <Text className="text-destructive-foreground font-medium">Cancel</Text>
+              <Text className="text-destructive-foreground font-medium">
+                {updateBookingStatusMutation.isPending ? 'Cancelling...' : 'Cancel'}
+              </Text>
             </Button>
           </View>
         )}

@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useAppStore } from '@/stores/auth/app';
 import { useAuthPure } from '@/hooks/shared/useAuthPure';
-import { cn } from '@/lib/core/utils';
+import { cn } from '@/lib/utils';
 
 interface LogoutButtonProps {
   variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'modern';

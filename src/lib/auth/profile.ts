@@ -17,6 +17,8 @@ export interface UserProfile {
  */
 export const getUserProfile = async (userId: string): Promise<UserProfile | null> => {
   try {
+    console.log('[Profile] Fetching profile for userId:', userId);
+    
     const { data, error } = await supabase
       .from('profiles')
       .select('id, email, role, first_name, last_name, avatar_url, created_at')
@@ -24,13 +26,26 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
       .maybeSingle();
 
     if (error) {
-      console.error('[Profile] Error fetching user profile:', error);
+      console.error('[Profile] Error fetching user profile:', {
+        error,
+        userId,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      });
       return null;
     }
 
+    if (!data) {
+      console.warn('[Profile] No profile found for userId:', userId);
+      return null;
+    }
+
+    console.log('[Profile] Profile found:', { userId, role: data.role, email: data.email });
     return data as UserProfile;
   } catch (error) {
-    console.error('[Profile] Unexpected error fetching profile:', error);
+    console.error('[Profile] Unexpected error fetching profile:', error, 'for userId:', userId);
     return null;
   }
 };
