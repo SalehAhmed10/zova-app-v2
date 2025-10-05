@@ -1,124 +1,188 @@
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders } from "../_shared/cors.ts";
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
+import Stripe from 'https://esm.sh/stripe@14.21.0';
+import { corsHeaders } from '../_shared/cors.ts';
 
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY')!;
+interface SubscriptionRequest {
+  priceId: string;
+  subscriptionType: 'CUSTOMER_SOS' | 'PROVIDER_PREMIUM';
+  successUrl?: string;
+  cancelUrl?: string;
+}
+
+interface SubscriptionData {
+  id: string;
+  status: string;
+  current_period_end: number;
+  customer: string;
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
+    // Get authorization header
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader) {
+      console.error('No authorization header found');
+      return new Response(
+        JSON.stringify({ error: 'Authorization header required' }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401,
+        }
+      );
+    }
+
+    // Parse JWT manually (following established pattern from create-booking)
+    const token = authHeader.replace('Bearer ', '');
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const authenticatedUserId = payload.sub;
+    
+    console.log('Authenticated user ID:', authenticatedUserId);
+
+    // Parse request body
+    const body: SubscriptionRequest = await req.json();
+    const { priceId, subscriptionType, successUrl, cancelUrl } = body;
+
+    if (!priceId) {
+      console.error('Missing priceId in request body');
+      return new Response(
+        JSON.stringify({ error: 'priceId is required' }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      );
+    }
+
+    if (!subscriptionType) {
+      console.error('Missing subscriptionType in request body');
+      return new Response(
+        JSON.stringify({ error: 'subscriptionType is required' }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      );
+    }
+
+    // Map subscription type to database value
+    const dbSubscriptionType = subscriptionType === 'CUSTOMER_SOS' ? 'customer_sos' : 'provider_premium';
+
+    console.log('Creating subscription for priceId:', priceId);
+
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const { userId, subscriptionType, priceId, customerEmail } = await req.json();
 
-    if (!userId || !subscriptionType || !priceId) {
-      throw new Error('Missing required parameters');
-    }
-
-    // Get user profile
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-
-    if (profileError || !profile) {
-      throw new Error('User profile not found');
-    }
-
-    // Create Stripe customer if doesn't exist
-    let customerId = profile.stripe_customer_id;
-    if (!customerId) {
-      const customer = await fetch('https://api.stripe.com/v1/customers', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${stripeSecretKey}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          email: customerEmail || profile.email,
-          name: `${profile.first_name} ${profile.last_name}`.trim(),
-          metadata: JSON.stringify({
-            user_id: userId,
-            subscription_type: subscriptionType,
-          }),
-        }),
-      });
-
-      if (!customer.ok) {
-        const error = await customer.text();
-        throw new Error(`Failed to create Stripe customer: ${error}`);
-      }
-
-      const customerData = await customer.json();
-      customerId = customerData.id;
-
-      // Update profile with Stripe customer ID
-      await supabase
-        .from('profiles')
-        .update({ stripe_customer_id: customerId })
-        .eq('id', userId);
-    }
-
-    // Create subscription
-    const subscription = await fetch('https://api.stripe.com/v1/subscriptions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${stripeSecretKey}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        customer: customerId,
-        'items[0][price]': priceId,
-        'payment_behavior': 'default_incomplete',
-        'payment_settings[save_default_payment_method]': 'on_subscription',
-        'expand[]': 'latest_invoice.payment_intent',
-        'metadata[user_id]': userId,
-        'metadata[subscription_type]': subscriptionType,
-      }),
+    // Initialize Stripe
+    const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY')!;
+    const stripe = new Stripe(stripeSecretKey, {
+      apiVersion: '2023-10-16',
     });
 
-    if (!subscription.ok) {
-      const error = await subscription.text();
-      throw new Error(`Failed to create subscription: ${error}`);
+    // Get or create Stripe customer
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('stripe_customer_id, email, first_name, last_name')
+      .eq('id', authenticatedUserId)
+      .single();
+
+    if (profileError) {
+      console.error('Profile fetch error:', profileError);
+      throw new Error(`Failed to fetch user profile: ${profileError.message}`);
     }
 
-    const subscriptionData = await subscription.json();
+    let customerId = profile.stripe_customer_id;
 
-    // Save subscription to database
-    const { error: insertError } = await supabase
-      .from('user_subscriptions')
-      .insert({
-        user_id: userId,
-        stripe_subscription_id: subscriptionData.id,
-        type: subscriptionType === 'CUSTOMER_SOS' ? 'customer_sos' : 'provider_premium',
-        status: subscriptionData.status,
-        current_period_start: new Date(subscriptionData.current_period_start * 1000).toISOString(),
-        current_period_end: new Date(subscriptionData.current_period_end * 1000).toISOString(),
-        trial_end: subscriptionData.trial_end ? new Date(subscriptionData.trial_end * 1000).toISOString() : null,
-        cancel_at_period_end: subscriptionData.cancel_at_period_end,
-      });
-
-    if (insertError) {
-      // If subscription creation in DB fails, cancel the Stripe subscription
-      await fetch(`https://api.stripe.com/v1/subscriptions/${subscriptionData.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${stripeSecretKey}`,
+    if (!customerId) {
+      // Create Stripe customer
+      console.log('Creating new Stripe customer');
+      const customer = await stripe.customers.create({
+        email: profile.email,
+        name: `${profile.first_name} ${profile.last_name}`.trim(),
+        metadata: {
+          supabase_user_id: authenticatedUserId,
         },
       });
-      throw new Error(`Failed to save subscription: ${insertError.message}`);
+      customerId = customer.id;
+
+      // Update profile with Stripe customer ID
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ stripe_customer_id: customerId })
+        .eq('id', authenticatedUserId);
+
+      if (updateError) {
+        console.error('Profile update error:', updateError);
+        throw new Error(`Failed to update profile: ${updateError.message}`);
+      }
+    }
+
+    // Create Stripe subscription with proper payment handling
+    console.log('Creating Stripe subscription');
+    const subscription = await stripe.subscriptions.create({
+      customer: customerId,
+      items: [{ price: priceId }],
+      metadata: {
+        supabase_user_id: authenticatedUserId,
+      },
+      payment_behavior: 'default_incomplete',
+      payment_settings: {
+        save_default_payment_method: 'on_subscription',
+      },
+      expand: ['latest_invoice.payment_intent'],
+    });
+
+    console.log('Stripe subscription created:', subscription.id);
+
+    // Store subscription in database
+    const subscriptionData: SubscriptionData = {
+      id: subscription.id,
+      status: subscription.status,
+      current_period_end: subscription.current_period_end,
+      customer: customerId,
+    };
+
+    const { error: dbError } = await supabase
+      .from('user_subscriptions')
+      .upsert({
+        user_id: authenticatedUserId,
+        stripe_subscription_id: subscription.id,
+        type: dbSubscriptionType,
+        stripe_customer_id: customerId,
+        price_id: priceId,
+        status: subscription.status,
+        current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+        current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+        cancel_at_period_end: subscription.cancel_at_period_end || false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+    if (dbError) {
+      console.error('Database error:', dbError);
+      throw new Error(`Failed to store subscription: ${dbError.message}`);
+    }
+
+    console.log('Subscription stored in database successfully');
+
+    // Get client secret for payment
+    const clientSecret = subscription.latest_invoice?.payment_intent?.client_secret;
+    
+    if (!clientSecret) {
+      throw new Error('No payment intent client secret found in subscription');
     }
 
     return new Response(
       JSON.stringify({
-        subscriptionId: subscriptionData.id,
-        clientSecret: subscriptionData.latest_invoice?.payment_intent?.client_secret,
-        status: subscriptionData.status,
+        subscriptionId: subscription.id,
+        clientSecret: clientSecret,
+        status: subscription.status,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -128,11 +192,26 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Create subscription error:', error);
+    
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    const errorType = error instanceof Error ? error.constructor.name : typeof error;
+    
+    console.error('Error details:', {
+      message: errorMessage,
+      stack: errorStack,
+      type: errorType,
+      timestamp: new Date().toISOString()
+    });
+    
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: errorMessage,
+        type: errorType
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
+        status: 500,
       }
     );
   }

@@ -368,10 +368,10 @@ export default function ProviderEarningsScreen() {
             <CardContent>
               <View className="space-y-2">
                 <Text className="text-sm text-muted-foreground">
-                  • You keep 85% of each booking payment
+                  • You keep 90% of each booking payment
                 </Text>
                 <Text className="text-sm text-muted-foreground">
-                  • 15% platform fee covers payment processing and platform costs
+                  • 10% platform fee covers payment processing and platform costs
                 </Text>
                 <Text className="text-sm text-muted-foreground">
                   • Payouts happen every Monday for completed services

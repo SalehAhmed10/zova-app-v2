@@ -22,13 +22,14 @@ export {
   useUpdateProfile,
   useServiceDetails,
   useProviderDetails,
+  useCancelBooking,
   type ProfileData as CustomerProfileData,
   type BookingData as CustomerBookingData,
   type NotificationSettings as CustomerNotificationSettings,
 } from './customer';
 
 // Additional provider exports to resolve conflicts
-export { useProviderServices } from './shared/useProfileData';
+export { useProviderServices, useProviderBookings } from './shared/useProfileData';
 
 // Type exports for compatibility
 export type BookingData = any;

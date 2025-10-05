@@ -166,6 +166,12 @@ export default function ProviderLayout() {
             ),
           }}
         />
+        <Tabs.Screen
+          name="bookingdetail/[id]"
+          options={{
+            href: null, // This hides it from the tab bar
+          }}
+        />
       </Tabs>
   );
 }

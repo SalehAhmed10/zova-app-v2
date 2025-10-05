@@ -1,5 +1,8 @@
 export { useUserFavorites, useToggleFavorite, useIsFavorited, type UserFavorite, type FavoriteProvider, type FavoriteService } from './useFavorites';
 
+// ✅ Customer booking management hooks
+export { useCancelBooking } from './useCancelBooking';
+
 // ✅ Optimized search hooks following copilot-rules.md
 export {
   useSearchResults
@@ -22,7 +25,7 @@ export {
 export { useCustomerBookings, type BookingData } from './useBookings';
 
 // ✅ Import required dependencies for hooks
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/core/supabase';
 import { SearchFilters, useProviderSearch } from '../provider/useProviderSearch';
 
@@ -139,23 +142,68 @@ export const useUpdateNotificationSettings = () => {
 };
 
 export const useUpdateProfile = () => {
-  return {
-    mutateAsync: async (profile: any) => profile,
-    isLoading: false,
-    error: null,
-  };
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (profileData: {
+      id: string;
+      first_name?: string;
+      last_name?: string;
+      phone_number?: string;
+      bio?: string;
+      address?: string;
+      city?: string;
+      postal_code?: string;
+      country?: string;
+    }) => {
+      console.log('[useUpdateProfile] Starting database update for user:', profileData.id);
+      console.log('[useUpdateProfile] Update payload:', profileData);
+      
+      const { id, ...updateData } = profileData;
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[useUpdateProfile] Database error:', error);
+        throw error;
+      }
+      
+      console.log('[useUpdateProfile] ✅ Database update successful:', data);
+      return data;
+    },
+    onSuccess: (data) => {
+      console.log('[useUpdateProfile] ✅ Mutation success, invalidating queries');
+      // Invalidate and refetch profile data
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+    },
+    onError: (error) => {
+      console.error('[useUpdateProfile] ❌ Mutation failed:', error);
+    },
+  });
 };
 
 // ✅ Type exports for compatibility  
 export type ProfileData = {
   id: string;
-  name: string;
-  email: string;
-  avatar?: string;
-  total_spent?: number;
-  avg_rating?: number;
-  total_bookings?: number;
-  completed_bookings?: number;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  phone_number?: string;
+  bio?: string;
+  address?: string;
+  city?: string;
+  postal_code?: string;
+  country?: string;
+  avatar_url?: string;
+  role?: string;
+  verification_status?: string;
+  created_at?: string;
+  updated_at?: string;
 };
 
 export type NotificationSettings = {

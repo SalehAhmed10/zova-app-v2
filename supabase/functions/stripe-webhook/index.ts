@@ -95,6 +95,9 @@ const handler = async (req: Request): Promise<Response> => {
       case 'customer.subscription.deleted':
         await handleSubscriptionEvent(event.data.object as Stripe.Subscription);
         break;
+      case 'customer.subscription.trial_will_end':
+        await handleTrialWillEnd(event.data.object as Stripe.Subscription);
+        break;
       case 'invoice.payment_succeeded':
         await handleInvoicePaymentSucceeded(event.data.object as Stripe.Invoice);
         break;
@@ -244,6 +247,32 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
     }
     
     console.log(`[WEBHOOK] ✅ Updated subscription ${invoice.subscription} to past_due`);
+  }
+}
+
+async function handleTrialWillEnd(subscription: Stripe.Subscription) {
+  const subscriptionId = subscription.id;
+  console.log(`[WEBHOOK] ⏰ Trial ending soon for subscription: ${subscriptionId}`);
+  
+  try {
+    const { error } = await supabase
+      .from('user_subscriptions')
+      .update({ 
+        updated_at: new Date().toISOString(),
+        // You could add a notification flag here if needed
+        trial_ending_soon: true
+      })
+      .eq('stripe_subscription_id', subscriptionId);
+
+    if (error) {
+      console.error(`[WEBHOOK] ❌ Failed to update trial ending status:`, error);
+      throw error;
+    }
+
+    console.log(`[WEBHOOK] ✅ Trial ending notification processed for: ${subscriptionId}`);
+  } catch (error) {
+    console.error(`[WEBHOOK] ❌ Error in handleTrialWillEnd:`, error);
+    throw error;
   }
 }
 

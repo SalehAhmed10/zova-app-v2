@@ -77,6 +77,7 @@ export type Database = {
           created_at: string | null
           customer_id: string | null
           customer_notes: string | null
+          declined_reason: string | null
           end_time: string | null
           id: string
           is_sos_booking: boolean | null
@@ -104,6 +105,7 @@ export type Database = {
           created_at?: string | null
           customer_id?: string | null
           customer_notes?: string | null
+          declined_reason?: string | null
           end_time?: string | null
           id?: string
           is_sos_booking?: boolean | null
@@ -131,6 +133,7 @@ export type Database = {
           created_at?: string | null
           customer_id?: string | null
           customer_notes?: string | null
+          declined_reason?: string | null
           end_time?: string | null
           id?: string
           is_sos_booking?: boolean | null
@@ -3858,6 +3861,8 @@ export type Database = {
         | "in_progress"
         | "completed"
         | "cancelled"
+        | "declined"
+        | "expired"
       message_type: "text" | "image" | "system"
       payment_status: "pending" | "paid" | "failed" | "refunded"
       payout_status: "pending" | "processing" | "completed" | "failed"
@@ -4006,6 +4011,8 @@ export const Constants = {
         "in_progress",
         "completed",
         "cancelled",
+        "declined",
+        "expired",
       ],
       message_type: ["text", "image", "system"],
       payment_status: ["pending", "paid", "failed", "refunded"],

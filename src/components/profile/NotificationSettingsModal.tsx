@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Modal, ScrollView, Pressable, Switch } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -107,8 +108,7 @@ export function NotificationSettingsModal({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View className="flex-1 bg-background">
-       
+      <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
         <View className="flex-row items-center justify-between p-4 border-b border-border">
           <Pressable onPress={onClose} className="p-2">
             <Text className="text-primary text-base">Cancel</Text>
@@ -206,7 +206,7 @@ export function NotificationSettingsModal({
             </Button>
           </View>
         </ScrollView>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 }

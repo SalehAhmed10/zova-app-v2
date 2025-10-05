@@ -4,3 +4,14 @@
 # Disable JWT verification for Stripe webhook
 [functions.stripe-webhook]
 verify_jwt = false
+
+# Disable JWT verification for subscription management functions
+# These functions handle JWT manually for better error handling
+[functions.cancel-subscription]
+verify_jwt = false
+
+[functions.reactivate-subscription]
+verify_jwt = false
+
+[functions.create-subscription]
+verify_jwt = false

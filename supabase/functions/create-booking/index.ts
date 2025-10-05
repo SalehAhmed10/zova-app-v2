@@ -414,7 +414,30 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Check provider's auto_confirm_bookings setting
+    console.log('Checking provider auto-confirm setting...');
+    const { data: providerProfile, error: providerError } = await supabaseService
+      .from('profiles')
+      .select('auto_confirm_bookings')
+      .eq('id', provider_id)
+      .single();
+
+    if (providerError) {
+      console.error('Provider profile lookup error:', providerError);
+      return new Response(
+        JSON.stringify({ error: 'Provider not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const autoConfirm = providerProfile?.auto_confirm_bookings || false;
+    const bookingStatus = autoConfirm ? 'confirmed' : 'pending';
+    const autoConfirmed = autoConfirm;
+
+    console.log('Provider auto-confirm setting:', { autoConfirm, bookingStatus, autoConfirmed });
+
     // Create booking record using service role (bypass RLS)
+    // Status will be 'pending' if manual acceptance required, 'confirmed' if auto-accept
     const { data: booking, error: bookingError } = await supabaseService
       .from('bookings')
       .insert({
@@ -429,8 +452,10 @@ Deno.serve(async (req) => {
         total_amount: totalAmount,
         customer_notes: customer_notes,
         service_address: service_address,
-        status: 'confirmed', // Changed from 'pending' since payment is confirmed
-        payment_status: 'paid', // Changed from 'pending' since payment succeeded
+        status: bookingStatus, // 'pending' or 'confirmed' based on provider setting
+        payment_status: 'paid', // Payment succeeded
+        auto_confirmed: autoConfirmed, // Track if this was auto-confirmed
+        // provider_response_deadline set by trigger if status='pending'
       })
       .select()
       .single();

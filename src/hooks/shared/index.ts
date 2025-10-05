@@ -22,7 +22,6 @@ export { useDebounceValue } from './useDebounce';
 // ✅ BOOKING: Booking management hooks
 export {
   useCustomerBookings,
-  useProviderBookings,
   useUpdateBookingStatus,
   useBooking,
   useCreateBooking
@@ -45,7 +44,7 @@ export {
   useProviderPayouts,
   useProviderEarningsAnalytics,
   useProviderWeeklySchedule,
-  useProviderCalendarBookings,
+  useProviderBookings,
   useUpdateWeeklySchedule,
   useDeleteService,
   useToggleServiceStatus,

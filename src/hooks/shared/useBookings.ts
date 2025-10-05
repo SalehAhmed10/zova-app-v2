@@ -90,15 +90,16 @@ export function useCustomerBookings() {
         .from('bookings')
         .select(`
           *,
-          services:service_id (
+          service:provider_services!bookings_service_id_fkey (
             id,
             title,
-            price,
-            duration
+            base_price,
+            duration_minutes
           ),
-          profiles:provider_id (
+          provider:profiles!bookings_provider_id_fkey (
             id,
-            full_name,
+            first_name,
+            last_name,
             avatar_url
           )
         `)
@@ -125,15 +126,16 @@ export function useProviderBookings() {
         .from('bookings')
         .select(`
           *,
-          services:service_id (
+          service:provider_services!bookings_service_id_fkey (
             id,
             title,
-            price,
-            duration
+            base_price,
+            duration_minutes
           ),
-          customer_profiles:customer_id (
+          customer:profiles!bookings_customer_id_fkey (
             id,
-            full_name,
+            first_name,
+            last_name,
             avatar_url
           )
         `)
@@ -158,7 +160,7 @@ export function useUpdateBookingStatus() {
         .update({ status, updated_at: new Date().toISOString() })
         .eq('id', bookingId)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       return data;
@@ -180,25 +182,27 @@ export function useBooking(bookingId: string) {
         .from('bookings')
         .select(`
           *,
-          services:service_id (
+          service:provider_services!bookings_service_id_fkey (
             id,
             title,
-            price,
-            duration
+            base_price,
+            duration_minutes
           ),
-          customer_profiles:customer_id (
+          customer_profile:profiles!bookings_customer_id_fkey (
             id,
-            full_name,
+            first_name,
+            last_name,
             avatar_url
           ),
-          provider_profiles:provider_id (
+          provider_profile:profiles!bookings_provider_id_fkey (
             id,
-            full_name,
+            first_name,
+            last_name,
             avatar_url
           )
         `)
         .eq('id', bookingId)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       return data;

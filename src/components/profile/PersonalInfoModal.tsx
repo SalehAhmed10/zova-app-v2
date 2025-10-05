@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Modal, ScrollView, Pressable } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useForm, Controller } from 'react-hook-form';
 import { useUpdateProfile } from '@/hooks';
-import type { ProfileData } from '@/hooks';
+import type { ProfileData } from '@/hooks/shared/useProfileData';
 import { cn } from '@/lib/utils';
 
 interface PersonalInfoModalProps {
@@ -20,24 +21,33 @@ interface PersonalInfoForm {
   first_name: string;
   last_name: string;
   email: string;
-  phone?: string;
+  phone_number?: string;
   bio?: string;
   address?: string;
   city?: string;
   postal_code?: string;
   country: string;
+  country_code?: string;
 }
 
 export function PersonalInfoModal({ visible, onClose, profileData }: PersonalInfoModalProps) {
   const updateProfileMutation = useUpdateProfile();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  // Reset success state when modal opens/closes
+  useEffect(() => {
+    if (!visible) {
+      setShowSuccess(false);
+    }
+  }, [visible]);
 
   const { control, handleSubmit, formState: { errors, isDirty } } = useForm<PersonalInfoForm>({
     defaultValues: {
       first_name: profileData?.first_name || '',
       last_name: profileData?.last_name || '',
       email: profileData?.email || '',
-      phone: profileData?.phone || '',
+      phone_number: profileData?.phone_number || '', // Use phone_number from database
       bio: profileData?.bio || '',
       address: profileData?.address || '',
       city: profileData?.city || '',
@@ -47,17 +57,35 @@ export function PersonalInfoModal({ visible, onClose, profileData }: PersonalInf
   });
 
   const onSubmit = async (data: PersonalInfoForm) => {
-    if (!profileData?.id) return;
-    
+    if (!profileData?.id) {
+      console.log('[PersonalInfoModal] No profile ID available');
+      return;
+    }
+
+    console.log('[PersonalInfoModal] Starting profile update for user:', profileData.id);
+    console.log('[PersonalInfoModal] Update data:', data);
+
     try {
       setIsSubmitting(true);
-      await updateProfileMutation.mutateAsync({
+      const result = await updateProfileMutation.mutateAsync({
         id: profileData.id,
-        ...data,
+        first_name: data.first_name,
+        last_name: data.last_name,
+        phone_number: data.phone_number, // Map form phone_number to database phone_number
+        bio: data.bio,
+        address: data.address,
+        city: data.city,
+        postal_code: data.postal_code,
+        country: data.country,
       });
+
+      console.log('[PersonalInfoModal] ✅ Profile update successful:', result);
+      setShowSuccess(true);
+      // Auto-hide success message after 3 seconds
+      setTimeout(() => setShowSuccess(false), 3000);
       onClose();
     } catch (error) {
-      console.error('Failed to update profile:', error);
+      console.error('[PersonalInfoModal] ❌ Failed to update profile:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -139,8 +167,7 @@ export function PersonalInfoModal({ visible, onClose, profileData }: PersonalInf
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View className="flex-1 bg-background">
-    
+      <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
         <View className="flex-row items-center justify-between p-4 border-b border-border">
           <Pressable onPress={onClose} className="p-2">
             <Text className="text-primary text-base">Cancel</Text>
@@ -152,6 +179,14 @@ export function PersonalInfoModal({ visible, onClose, profileData }: PersonalInf
         </View>
 
         <ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false}>
+          {showSuccess && (
+            <View className="mb-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+              <Text className="text-green-800 dark:text-green-200 text-center font-medium">
+                ✅ Profile updated successfully!
+              </Text>
+            </View>
+          )}
+          
           <Card>
             <CardHeader>
               <CardTitle>Profile Details</CardTitle>
@@ -178,7 +213,7 @@ export function PersonalInfoModal({ visible, onClose, profileData }: PersonalInf
               />
               
               <FormField
-                name="phone"
+                name="phone_number"
                 label="Phone Number"
                 placeholder="Enter your phone number"
                 keyboardType="phone-pad"
@@ -240,7 +275,7 @@ export function PersonalInfoModal({ visible, onClose, profileData }: PersonalInf
             </Button>
           </View>
         </ScrollView>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 }

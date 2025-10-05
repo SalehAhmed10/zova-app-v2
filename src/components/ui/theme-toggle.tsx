@@ -15,35 +15,40 @@ export const ThemeToggle = React.memo(() => {
   const handleSystemPress = useStableCallback(() => setTheme('system'), [setTheme]);
 
   return (
-    <View className="p-4 bg-card rounded-lg border">
-      <Text className="text-lg font-semibold mb-2">Theme Settings</Text>
-      <Text className="text-sm text-muted-foreground mb-4">
-        Current: {resolvedTheme} ({preference})
-      </Text>
+    <View className="flex-row items-center justify-between p-4 bg-card rounded-xl ">
+      <View className="flex-1">
+        <Text className="text-base font-semibold text-foreground mb-1">Theme</Text>
+        <Text className="text-sm text-muted-foreground capitalize">
+          {preference} mode
+        </Text>
+      </View>
 
-      <View className="flex-row gap-2">
+      <View className="flex-row bg-muted/50 rounded-full p-1 gap-1">
         <Button
-          variant={preference === 'light' ? 'default' : 'outline'}
+          variant={preference === 'light' ? 'default' : 'ghost'}
           size="sm"
+          className={`rounded-full px-4 ${preference === 'light' ? 'bg-background shadow-sm' : ''}`}
           onPress={handleLightPress}
         >
-          <Text>Light</Text>
+          <Text className="text-lg">☀️</Text>
         </Button>
 
         <Button
-          variant={preference === 'dark' ? 'default' : 'outline'}
+          variant={preference === 'dark' ? 'default' : 'ghost'}
           size="sm"
+          className={`rounded-full px-4 ${preference === 'dark' ? 'bg-background shadow-sm' : ''}`}
           onPress={handleDarkPress}
         >
-          <Text>Dark</Text>
+          <Text className="text-lg">🌙</Text>
         </Button>
 
         <Button
-          variant={preference === 'system' ? 'default' : 'outline'}
+          variant={preference === 'system' ? 'default' : 'ghost'}
           size="sm"
+          className={`rounded-full px-4 ${preference === 'system' ? 'bg-background shadow-sm' : ''}`}
           onPress={handleSystemPress}
         >
-          <Text>System</Text>
+          <Text className="text-lg">🖥️</Text>
         </Button>
       </View>
     </View>

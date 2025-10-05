@@ -88,14 +88,24 @@ export function useCreateSubscription() {
       
       const { data, error } = await supabase.functions.invoke('create-subscription', {
         body: {
-          userId: user.id,
-          subscriptionType: request.subscriptionType,
           priceId: request.priceId,
-          customerEmail: request.customerEmail,
+          subscriptionType: request.subscriptionType,
         },
       });
       
-      if (error) throw error;
+      if (error) {
+        // Handle FunctionsHttpError and extract meaningful error message
+        let errorMessage = 'Failed to create subscription';
+        try {
+          if (error.context && typeof error.context.json === 'function') {
+            const errorResponse = await error.context.json();
+            errorMessage = errorResponse.error || errorMessage;
+          }
+        } catch {
+          // If we can't parse the error response, use the generic message
+        }
+        throw new Error(errorMessage);
+      }
       return data;
     },
     onSuccess: () => {
@@ -116,7 +126,19 @@ export function useCancelSubscription() {
         body: request,
       });
       
-      if (error) throw error;
+      if (error) {
+        // Handle FunctionsHttpError and extract meaningful error message
+        let errorMessage = 'Failed to cancel subscription';
+        try {
+          if (error.context && typeof error.context.json === 'function') {
+            const errorResponse = await error.context.json();
+            errorMessage = errorResponse.error || errorMessage;
+          }
+        } catch {
+          // If we can't parse the error response, use the generic message
+        }
+        throw new Error(errorMessage);
+      }
       return data;
     },
     onSuccess: () => {
@@ -137,7 +159,19 @@ export function useReactivateSubscription() {
         body: { subscriptionId },
       });
       
-      if (error) throw error;
+      if (error) {
+        // Handle FunctionsHttpError and extract meaningful error message
+        let errorMessage = 'Failed to reactivate subscription';
+        try {
+          if (error.context && typeof error.context.json === 'function') {
+            const errorResponse = await error.context.json();
+            errorMessage = errorResponse.error || errorMessage;
+          }
+        } catch {
+          // If we can't parse the error response, use the generic message
+        }
+        throw new Error(errorMessage);
+      }
       return data;
     },
     onSuccess: () => {
@@ -174,6 +208,20 @@ export function hasActiveSubscription(
       ['active', 'trialing'].includes(sub.status) &&
       !sub.cancel_at_period_end
   );
+}
+
+// Helper function to find incomplete subscription that needs payment
+export function findIncompleteSubscription(
+  subscriptions: UserSubscription[] | undefined,
+  type: 'customer_sos' | 'provider_premium'
+): UserSubscription | null {
+  if (!subscriptions) return null;
+  
+  return subscriptions.find(
+    sub => 
+      sub.type === type && 
+      sub.status === 'incomplete'
+  ) || null;
 }
 
 // Helper function to format subscription status for display

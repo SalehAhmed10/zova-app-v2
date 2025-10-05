@@ -15,8 +15,15 @@ import {
   useUserBookings
 } from '@/hooks/shared/useProfileData';
 import { useTrustedProviders } from '@/hooks/customer';
+import { 
+  useActiveSubscription,
+  hasActiveSubscription,
+  useUserSubscriptions 
+} from '@/hooks/shared/useSubscription';
 import { cn } from '@/lib/utils';
 import { Ionicons } from '@expo/vector-icons';
+import { Shield, Zap } from 'lucide-react-native';
+import { useColorScheme } from '@/lib/core/useColorScheme';
 
 // Today's Stats Component
 const TodaysStat = ({
@@ -66,6 +73,15 @@ export default function CustomerDashboard() {
   const { data: statsData, isLoading: statsLoading } = useProfileStats(user?.id);
   const { data: bookingsData, isLoading: bookingsLoading } = useUserBookings(user?.id);
   const { data: trustedProviders, isLoading: providersLoading } = useTrustedProviders(5);
+  const { isDarkColorScheme } = useColorScheme();
+  
+  // Subscription data
+  const { data: allSubscriptions } = useUserSubscriptions();
+  const { data: customerSubscription } = useActiveSubscription('customer_sos');
+  const hasSOSAccess = hasActiveSubscription(allSubscriptions, 'customer_sos');
+  
+  // Theme-aware colors
+  const redColor = '#ef4444';
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -92,6 +108,22 @@ export default function CustomerDashboard() {
     new Date(booking.booking_date) >= new Date() &&
     ['pending', 'confirmed'].includes(booking.status)
   );
+
+  // Calculate real stats
+  const realStats = {
+    totalBookings: bookingsData?.length || 0,
+    completedBookings: bookingsData?.filter(b => b.status === 'completed').length || 0,
+    totalSpent: bookingsData?.reduce((sum, booking) => 
+      sum + (booking.status === 'completed' ? parseFloat(booking.total_amount) : 0), 0
+    ) || 0,
+    thisMonthBookings: bookingsData?.filter(booking => {
+      const bookingDate = new Date(booking.booking_date);
+      const now = new Date();
+      return bookingDate.getMonth() === now.getMonth() && 
+             bookingDate.getFullYear() === now.getFullYear();
+    }).length || 0,
+    avgRating: statsData?.avg_rating || 0
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -164,17 +196,17 @@ export default function CustomerDashboard() {
                   />
                   <TodaysStat
                     icon="💰"
-                    value={statsLoading ? '-' : `$${statsData?.total_spent?.toFixed(0) || '0'}`}
+                    value={bookingsLoading ? '-' : `$${realStats.totalSpent.toFixed(0)}`}
                     label="Total Spent"
                     trend="up"
-                    isLoading={statsLoading}
+                    isLoading={bookingsLoading}
                   />
                   <TodaysStat
-                    icon="⭐"
-                    value={statsLoading ? '-' : (statsData?.avg_rating || 0).toFixed(1)}
-                    label="Your Rating"
-                    trend="neutral"
-                    isLoading={statsLoading}
+                    icon={hasSOSAccess ? "🚨" : "⭐"}
+                    value={hasSOSAccess ? "Active" : realStats.avgRating.toFixed(1)}
+                    label={hasSOSAccess ? "SOS Access" : "Your Rating"}
+                    trend={hasSOSAccess ? "up" : "neutral"}
+                    isLoading={bookingsLoading}
                   />
                 </View>
               </ScrollView>
@@ -204,7 +236,7 @@ export default function CustomerDashboard() {
               <TouchableOpacity className="flex-1" onPress={() => router.push('/providers')}>
                 <Card className='bg-card'>
                   <CardContent className=" p-4 items-center">
-                    <Text className="text-xl mb-2">�</Text>
+                    <Text className="text-xl mb-2">👥</Text>
                     <Text className="font-semibold text-foreground text-center text-xs">
                       Browse Providers
                     </Text>
@@ -217,29 +249,38 @@ export default function CustomerDashboard() {
             </View>
 
             <View className="flex-row gap-3">
-              <TouchableOpacity className="flex-1">
-                <Card className='bg-card'>
-                  <CardContent className=" p-4 items-center">
-                    <Text className="text-xl mb-2">💬</Text>
+              <TouchableOpacity 
+                className="flex-1" 
+                onPress={() => hasSOSAccess ? router.push('/customer/sos-booking') : router.push('/customer/subscriptions')}
+              >
+                <Card className={`bg-card ${hasSOSAccess ? 'border-2 border-red-500/20 bg-red-50 dark:bg-red-950/20' : ''}`}>
+                  <CardContent className="p-4 items-center">
+                    <View className="flex-row items-center justify-center mb-2">
+                      {hasSOSAccess ? (
+                        <Shield size={18} color={redColor} />
+                      ) : (
+                        <Text className="text-xl">�</Text>
+                      )}
+                    </View>
                     <Text className="font-semibold text-foreground text-center text-xs">
-                      Messages
+                      {hasSOSAccess ? "SOS Booking" : "Get SOS Access"}
                     </Text>
                     <Text className="text-muted-foreground text-xs text-center mt-1">
-                      3 unread
+                      {hasSOSAccess ? "Emergency services" : "Premium feature"}
                     </Text>
                   </CardContent>
                 </Card>
               </TouchableOpacity>
 
-              <TouchableOpacity className="flex-1">
+              <TouchableOpacity className="flex-1" onPress={() => router.push('/customer/subscriptions')}>
                 <Card className='bg-card'>
-                  <CardContent className=" p-4 items-center">
-                    <Text className="text-xl mb-2">❤️</Text>
+                  <CardContent className="p-4 items-center">
+                    <Text className="text-xl mb-2">⚡</Text>
                     <Text className="font-semibold text-foreground text-center text-xs">
-                      Favorites
+                      Subscriptions
                     </Text>
                     <Text className="text-muted-foreground text-xs text-center mt-1">
-                      Saved providers
+                      Manage plans
                     </Text>
                   </CardContent>
                 </Card>
@@ -299,19 +340,19 @@ export default function CustomerDashboard() {
               <View className="flex-row justify-between items-center mb-4">
                 <View>
                   <Text className="text-2xl font-bold text-foreground">
-                    {statsLoading ? '-' : (statsData?.total_bookings || 0)}
+                    {bookingsLoading ? '-' : realStats.totalBookings}
                   </Text>
                   <Text className="text-muted-foreground text-sm">Total bookings</Text>
                 </View>
                 <View>
-                  <Text className="text-2xl font-bold  text-foreground">
-                    {statsLoading ? '-' : `$${statsData?.total_spent?.toFixed(0) || '0'}`}
+                  <Text className="text-2xl font-bold text-foreground">
+                    {bookingsLoading ? '-' : `$${realStats.totalSpent.toFixed(0)}`}
                   </Text>
                   <Text className="text-muted-foreground text-sm">Total spent</Text>
                 </View>
                 <View>
                   <Text className="text-2xl font-bold text-foreground">
-                    {statsLoading ? '-' : (statsData?.completed_bookings || 0)}
+                    {bookingsLoading ? '-' : realStats.completedBookings}
                   </Text>
                   <Text className="text-muted-foreground text-sm">Completed</Text>
                 </View>
@@ -319,7 +360,10 @@ export default function CustomerDashboard() {
 
               <View className="bg-accent/30 rounded-lg p-3">
                 <Text className="text-sm text-muted-foreground">
-                  💡 You saved $45 by booking directly with providers
+                  {hasSOSAccess ? 
+                    "� SOS Emergency Access is active - book urgent services anytime" :
+                    "💡 Upgrade to SOS Access for emergency booking priority"
+                  }
                 </Text>
               </View>
             </CardContent>

@@ -1,3 +1,4 @@
+import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/core/supabase';
 
@@ -906,14 +907,17 @@ export const useUpdateWeeklySchedule = () => {
   });
 };
 
-// Hook to fetch provider calendar bookings within a date range
-export const useProviderCalendarBookings = (providerId?: string, startDate?: Date, endDate?: Date) => {
-  return useQuery({
-    queryKey: ['providerCalendarBookings', providerId, startDate?.toISOString(), endDate?.toISOString()],
-    queryFn: async () => {
-      if (!providerId || !startDate || !endDate) return [];
+// Hook to fetch provider bookings within a date range
+export const useProviderBookings = (providerId?: string, startDate?: Date, endDate?: Date) => {
 
-      const { data, error } = await supabase
+
+  return useQuery({
+    queryKey: ['providerBookings', providerId, startDate?.toISOString(), endDate?.toISOString()],
+    queryFn: async () => {
+      if (!providerId) throw new Error('Provider ID is required');
+
+      // First, get the bookings without joins to avoid RLS issues
+      let query = supabase
         .from('bookings')
         .select(`
           id,
@@ -923,36 +927,119 @@ export const useProviderCalendarBookings = (providerId?: string, startDate?: Dat
           status,
           total_amount,
           customer_id,
-          service_id,
-          provider_services (
-            title
-          ),
-          profiles!customer_id (
-            first_name,
-            last_name
-          )
+          service_id
         `)
         .eq('provider_id', providerId)
-        .gte('booking_date', startDate.toISOString().split('T')[0])
-        .lte('booking_date', endDate.toISOString().split('T')[0])
         .order('booking_date', { ascending: true })
         .order('start_time', { ascending: true });
 
-      if (error) throw error;
+      // Add date range filter if provided
+      if (startDate) {
+        const startDateStr = startDate.toISOString().split('T')[0];
+        query = query.gte('booking_date', startDateStr);
 
-      // Transform the data to match the expected interface
-      return data.map((booking: any) => ({
-        id: booking.id,
-        date: booking.booking_date,
-        startTime: booking.start_time,
-        endTime: booking.end_time,
-        customerName: `${booking.profiles?.first_name || 'Unknown'} ${booking.profiles?.last_name || 'Customer'}`.trim(),
-        serviceTitle: booking.provider_services?.title || 'Unknown Service',
-        status: booking.status,
-        amount: parseFloat(booking.total_amount || '0')
-      }));
+      }
+      if (endDate) {
+        const endDateStr = endDate.toISOString().split('T')[0];
+        query = query.lte('booking_date', endDateStr);
+
+      }
+
+
+      const { data: bookingsData, error: bookingsError } = await query;
+
+      if (bookingsError) {
+        console.error('❌ [useProviderBookings] Bookings query error:', bookingsError);
+        throw bookingsError;
+      }
+
+
+
+      if (!bookingsData || bookingsData.length === 0) {
+
+        return [];
+      }
+
+      // Get unique customer and service IDs
+      const customerIds = [...new Set(bookingsData.map(b => b.customer_id).filter(id => id))];
+      const serviceIds = [...new Set(bookingsData.map(b => b.service_id).filter(id => id))];
+
+
+
+      // Fetch customer profiles and services separately
+      const [customersResult, servicesResult] = await Promise.all([
+        customerIds.length > 0
+          ? supabase
+              .from('profiles')
+              .select('id, first_name, last_name, email')
+              .in('id', customerIds)
+          : Promise.resolve({ data: [], error: null }),
+        serviceIds.length > 0
+          ? supabase
+              .from('provider_services')
+              .select('id, title')
+              .in('id', serviceIds)
+          : Promise.resolve({ data: [], error: null })
+      ]);
+
+      if (customersResult.error) {
+        console.error('❌ [useProviderBookings] Customers query error:', customersResult.error);
+      }
+      if (servicesResult.error) {
+        console.error('❌ [useProviderBookings] Services query error:', servicesResult.error);
+      }
+
+      const customersMap = (customersResult.data || []).reduce((acc: any, customer: any) => {
+        acc[customer.id] = customer;
+        return acc;
+      }, {});
+
+      const servicesMap = (servicesResult.data || []).reduce((acc: any, service: any) => {
+        acc[service.id] = service;
+        return acc;
+      }, {});
+
+      console.log('� [useProviderCalendarBookings] Customers map:', customersMap);
+      console.log('📊 [useProviderCalendarBookings] Services map:', servicesMap);
+
+      const transformed = bookingsData.map((booking: any) => {
+        const customer = customersMap[booking.customer_id];
+        const service = servicesMap[booking.service_id];
+
+
+
+        // Build customer name from first_name and last_name
+        const firstName = customer?.first_name || '';
+        const lastName = customer?.last_name || '';
+        const fullName = `${firstName} ${lastName}`.trim();
+
+        // Fallback: Use email username if name is not available
+        let customerName = fullName;
+        if (!customerName && customer?.email) {
+          customerName = customer.email.split('@')[0];
+        }
+        // If profile doesn't exist, show a generic customer name
+        if (!customerName) {
+          customerName = 'Unknown Customer';
+        }
+
+        return {
+          id: booking.id,
+          date: booking.booking_date,
+          startTime: booking.start_time,
+          endTime: booking.end_time,
+          customerName,
+          serviceTitle: service?.title || 'Unknown Service',
+          status: booking.status,
+          amount: parseFloat(booking.total_amount || '0'),
+        };
+      });
+
+
+
+      return transformed;
     },
-    enabled: !!providerId && !!startDate && !!endDate,
+    enabled: !!providerId,
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 };

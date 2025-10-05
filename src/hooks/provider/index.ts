@@ -1,8 +1,15 @@
+import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/core/supabase';
 import { useProviderProfile } from './useProviderProfile';
 
+// ✅ Booking management hooks - Following React Query + Zustand architecture
 export { useBookings } from './useBookings';
+export { usePendingBookings } from './usePendingBookings';
+export { useAcceptBooking } from './useAcceptBooking';
+export { useDeclineBooking } from './useDeclineBooking';
+export { useProviderBookingDetail, type BookingDetail } from './useProviderBookingDetail';
+
 export { useProviderProfile, type ProviderProfileData } from './useProviderProfile';
 export { useProviderSearch, type SearchFilters, type ProviderSearchResult, type ServiceSearchResult } from './useProviderSearch';
 export * from './useCalendarData';
@@ -152,15 +159,16 @@ export const useUserBookings = (providerId?: string) => {
   });
 };
 export const useProviderCalendarBookings = (providerId?: string, startDate?: Date | string, endDate?: Date | string) => {
-  // Convert Date objects to ISO strings if needed
-  const startDateStr = startDate instanceof Date ? startDate.toISOString().split('T')[0] : startDate;
-  const endDateStr = endDate instanceof Date ? endDate.toISOString().split('T')[0] : endDate;
+  console.log('🚀 [CALENDAR BOOKINGS HOOK] Called with providerId:', providerId, 'enabled:', !!providerId);
 
   return useQuery({
-    queryKey: ['providerCalendarBookings', providerId, startDateStr, endDateStr],
+    queryKey: ['providerCalendarBookings', providerId, startDate, endDate],
     queryFn: async () => {
       if (!providerId) throw new Error('Provider ID is required');
 
+      console.log('🔍 [CALENDAR BOOKINGS] Starting query for provider:', providerId);
+
+      // First, get the bookings without joins to avoid RLS issues
       let query = supabase
         .from('bookings')
         .select(`
@@ -170,49 +178,124 @@ export const useProviderCalendarBookings = (providerId?: string, startDate?: Dat
           end_time,
           status,
           total_amount,
-          customer:profiles!customer_id (
-            first_name,
-            last_name
-          ),
-          service:provider_services!service_id (
-            title
-          )
+          customer_id,
+          service_id
         `)
         .eq('provider_id', providerId)
         .order('booking_date', { ascending: true })
         .order('start_time', { ascending: true });
 
       // Add date range filter if provided
-      if (startDateStr) {
+      if (startDate) {
+        const startDateStr = startDate instanceof Date ? startDate.toISOString().split('T')[0] : startDate;
         query = query.gte('booking_date', startDateStr);
+        console.log('🔍 [CALENDAR BOOKINGS] Added start date filter:', startDateStr);
       }
-      if (endDateStr) {
+      if (endDate) {
+        const endDateStr = endDate instanceof Date ? endDate.toISOString().split('T')[0] : endDate;
         query = query.lte('booking_date', endDateStr);
+        console.log('🔍 [CALENDAR BOOKINGS] Added end date filter:', endDateStr);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      console.log('🔍 [CALENDAR BOOKINGS] Executing bookings query...');
+      const { data: bookingsData, error: bookingsError } = await query;
 
-      return data?.map(booking => {
-        const customer = Array.isArray(booking.customer) ? booking.customer[0] : booking.customer;
-        const service = Array.isArray(booking.service) ? booking.service[0] : booking.service;
+      if (bookingsError) {
+        console.error('❌ [CALENDAR BOOKINGS] Bookings query error:', bookingsError);
+        throw bookingsError;
+      }
+
+      console.log('✅ [CALENDAR BOOKINGS] Bookings data received:', bookingsData?.length || 0, 'bookings');
+
+      if (!bookingsData || bookingsData.length === 0) {
+        console.log('� [CALENDAR BOOKINGS] No bookings found');
+        return [];
+      }
+
+      // Get unique customer and service IDs
+      const customerIds = [...new Set(bookingsData.map(b => b.customer_id).filter(id => id))];
+      const serviceIds = [...new Set(bookingsData.map(b => b.service_id).filter(id => id))];
+
+      console.log('🔍 [CALENDAR BOOKINGS] Customer IDs:', customerIds);
+      console.log('🔍 [CALENDAR BOOKINGS] Service IDs:', serviceIds);
+
+      // Fetch customer profiles and services separately
+      const [customersResult, servicesResult] = await Promise.all([
+        customerIds.length > 0
+          ? supabase
+              .from('profiles')
+              .select('id, first_name, last_name, email')
+              .in('id', customerIds)
+          : Promise.resolve({ data: [], error: null }),
+        serviceIds.length > 0
+          ? supabase
+              .from('provider_services')
+              .select('id, title')
+              .in('id', serviceIds)
+          : Promise.resolve({ data: [], error: null })
+      ]);
+
+      if (customersResult.error) {
+        console.error('❌ [CALENDAR BOOKINGS] Customers query error:', customersResult.error);
+      }
+      if (servicesResult.error) {
+        console.error('❌ [CALENDAR BOOKINGS] Services query error:', servicesResult.error);
+      }
+
+      const customersMap = (customersResult.data || []).reduce((acc: any, customer: any) => {
+        acc[customer.id] = customer;
+        return acc;
+      }, {});
+
+      const servicesMap = (servicesResult.data || []).reduce((acc: any, service: any) => {
+        acc[service.id] = service;
+        return acc;
+      }, {});
+
+      console.log('📊 [CALENDAR BOOKINGS] Customers map:', customersMap);
+      console.log('📊 [CALENDAR BOOKINGS] Services map:', servicesMap);
+
+      const transformed = bookingsData.map((booking: any) => {
+        const customer = customersMap[booking.customer_id];
+        const service = servicesMap[booking.service_id];
+
+        console.log('🔄 [CALENDAR BOOKINGS] Processing booking:', booking.id, 'customer:', customer, 'service:', service);
+
+        // Build customer name from first_name and last_name
+        const firstName = customer?.first_name || '';
+        const lastName = customer?.last_name || '';
+        const fullName = `${firstName} ${lastName}`.trim();
+
+        // Fallback: Use email username if name is not available
+        let customerName = fullName;
+        if (!customerName && customer?.email) {
+          customerName = customer.email.split('@')[0];
+        }
+        // If profile doesn't exist, show a generic customer name
+        if (!customerName) {
+          customerName = 'Unknown Customer';
+        }
 
         return {
           id: booking.id,
           date: booking.booking_date,
           startTime: booking.start_time,
           endTime: booking.end_time,
-          customerName: customer
-            ? `${customer.first_name || 'Unknown'} ${customer.last_name || 'Customer'}`.trim()
-            : 'Unknown Customer',
-          serviceTitle: service?.title || 'Service',
+          customerName,
+          serviceTitle: service?.title || 'Unknown Service',
           status: booking.status,
           amount: parseFloat(booking.total_amount || '0'),
         };
-      }) || [];
+      });
+
+      console.log('🎯 [CALENDAR BOOKINGS] Final transformed data:', transformed.length, 'bookings');
+      if (transformed.length > 0) {
+        console.log('🎯 [CALENDAR BOOKINGS] First transformed booking:', JSON.stringify(transformed[0], null, 2));
+      }
+
+      return transformed;
     },
     enabled: !!providerId,
-    staleTime: 2 * 60 * 1000, // 2 minutes
   });
 };
 export const useBusinessAvailability = (providerId?: string) => {

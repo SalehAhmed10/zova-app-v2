@@ -77,11 +77,11 @@ export default function CustomerLayout() {
         }}
       />
       <Tabs.Screen
-        name="subscriptions"
+        name="sos-booking"
         options={{
           title: 'SOS',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="shield-checkmark" size={size} color={color} />
+            <Ionicons name="medical" size={size} color={color} />
           ),
         }}
       />
@@ -129,6 +129,24 @@ export default function CustomerLayout() {
       />
       <Tabs.Screen
         name="booking/confirmation"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="subscriptions"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="booking/sos-confirmation"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="booking/[id]"
         options={{
           href: null,
         }}

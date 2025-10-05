@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { View, ScrollView, TouchableOpacity } from 'react-native';
+import { View, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Text } from '@/components/ui/text';
@@ -14,7 +14,7 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 
 // React Query hooks
 import { useAuthOptimized } from '@/hooks';
-import { useUserBookings, useUpdateBookingStatus } from '@/hooks/shared';
+import { useCustomerBookings } from '@/hooks/customer/useBookings';
 
 // UI Components
 import { Skeleton } from '@/components/ui/skeleton';
@@ -31,7 +31,7 @@ export default function BookingsScreen() {
 
 // Provider Selection Screen Component
 const ProviderSelectionScreen = () => {
-  const [bookingStatusTab, setBookingStatusTab] = useState<'all' | 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'>('all');
+  const [bookingStatusTab, setBookingStatusTab] = useState<'all' | 'sos' | 'normal' | 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'>('all');
 
   // Filter states
   const [filters, setFilters] = useState({
@@ -45,22 +45,25 @@ const ProviderSelectionScreen = () => {
   const bottomSheetModalRef = useRef<BottomSheetModal>(null);
 
   const { user } = useAuthOptimized();
-  const { data: bookings, isLoading: bookingsLoading } = useUserBookings(user?.id);
+  const { data: bookings, isLoading: bookingsLoading, refetch: refetchBookings } = useCustomerBookings(user?.id);
   const { colorScheme } = useColorScheme();
-  const updateBookingStatusMutation = useUpdateBookingStatus();
 
-  const handleConfirmCompletion = async (bookingId: string) => {
+  // Pull to refresh state
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Pull to refresh handler
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
     try {
-      await updateBookingStatusMutation.mutateAsync({
-        bookingId,
-        status: 'confirmed_completed', // New status for customer confirmation
-      });
-      // The bookings will refetch automatically due to React Query
+      await refetchBookings();
     } catch (error) {
-      console.error('Error confirming completion:', error);
-      // Could add Alert here if needed
+      console.error('Error refreshing bookings:', error);
+    } finally {
+      setRefreshing(false);
     }
-  };
+  }, [refetchBookings]);
+
+
 
   // Bottom sheet handlers
   const handlePresentModalPress = useCallback(() => {
@@ -100,19 +103,53 @@ const ProviderSelectionScreen = () => {
     value !== false && value !== 0 && value !== ''
   );
 
-  // Filter bookings by status
+  // Calculate booking counts for tabs
+  const bookingCounts = {
+    all: bookings?.length || 0,
+    sos: bookings?.filter(b => b.sos_booking === true).length || 0,
+    normal: bookings?.filter(b => b.sos_booking === false || b.sos_booking === null).length || 0,
+    pending: bookings?.filter(b => b.status === 'pending').length || 0,
+    confirmed: bookings?.filter(b => b.status === 'confirmed').length || 0,
+    completed: bookings?.filter(b => b.status === 'completed').length || 0,
+    cancelled: bookings?.filter(b => b.status === 'cancelled').length || 0,
+  };
+
+  // Filter bookings by status and type
   const filteredBookings = bookings?.filter(booking => {
     if (bookingStatusTab === 'all') return true;
+    if (bookingStatusTab === 'sos') return booking.sos_booking === true;
+    if (bookingStatusTab === 'normal') return booking.sos_booking === false || booking.sos_booking === null;
     return booking.status === bookingStatusTab;
   }) || [];
 
   const renderBookingItem = ({ item: booking }: { item: any }) => (
-    <Card className="mb-4 shadow-sm mx-4">
-      <CardContent className="p-4">
+    <TouchableOpacity 
+      onPress={() => router.push(`/customer/booking/${booking.id}` as any)}
+      activeOpacity={0.7}
+    >
+      <Card className="mb-4 shadow-sm mx-4">
+        <CardContent className="p-4">
         <View className="flex-row justify-between items-start mb-2">
-          <Text className="text-lg font-semibold text-foreground flex-1 mr-2">
-            {booking.service_title || 'Service'}
-          </Text>
+          <View className="flex-1 mr-2">
+            <View className="flex-row items-center gap-2 mb-1">
+              {booking.sos_booking && (
+                <Badge variant="destructive" className="bg-red-500">
+                  <View className="flex-row items-center gap-1">
+                    <Ionicons name="medical" size={12} color="white" />
+                    <Text className="text-xs text-white font-semibold">SOS</Text>
+                  </View>
+                </Badge>
+              )}
+              <Text className="text-lg font-semibold text-foreground">
+                {booking.service_title || 'Service'}
+              </Text>
+            </View>
+            {booking.sos_booking && (
+              <Text className="text-xs text-orange-600 font-medium">
+                Emergency Booking • Fast Response
+              </Text>
+            )}
+          </View>
           <Badge variant={
             booking.status === 'confirmed' ? 'default' :
             booking.status === 'completed' ? 'secondary' :
@@ -130,9 +167,16 @@ const ProviderSelectionScreen = () => {
           <Text className="text-sm text-muted-foreground">
             {new Date(booking.booking_date).toLocaleDateString()} at {booking.start_time}
           </Text>
-          <Text className="text-lg font-bold text-primary">
-            £{booking.base_price || 'N/A'}
-          </Text>
+          <View className="items-end">
+            <Text className="text-lg font-bold text-primary">
+              £{Number(booking.total_amount || 0).toFixed(2)}
+            </Text>
+            {booking.base_amount && Number(booking.base_amount) !== Number(booking.total_amount) && (
+              <Text className="text-xs text-muted-foreground">
+                Base: £{Number(booking.base_amount).toFixed(2)}
+              </Text>
+            )}
+          </View>
         </View>
 
         {/* Action buttons based on status */}
@@ -145,7 +189,7 @@ const ProviderSelectionScreen = () => {
               <Button
                 size="sm"
                 variant="outline"
-                onPress={() => {/* Could navigate to review screen */}}
+                onPress={() => router.push(`/customer/booking/${booking.id}` as any)}
               >
                 <Text className="text-xs">Leave Review</Text>
               </Button>
@@ -155,18 +199,72 @@ const ProviderSelectionScreen = () => {
 
         {booking.status === 'confirmed' && (
           <View className="mt-3 pt-3 border-t border-border">
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full"
-              onPress={() => {/* Could add reschedule/cancel options */}}
-            >
-              <Text className="text-xs">Manage Booking</Text>
-            </Button>
+            <View className="flex-row items-center justify-between gap-2">
+              <View className="flex-1">
+                <Text className="text-xs text-green-600 font-medium">
+                  ✓ Booking Confirmed
+                </Text>
+                <Text className="text-xs text-muted-foreground">
+                  {booking.sos_booking ? 'Provider will contact you shortly' : 'Ready for scheduled time'}
+                </Text>
+              </View>
+              <Button
+                size="sm"
+                variant="outline"
+                onPress={() => router.push(`/customer/booking/${booking.id}` as any)}
+              >
+                <Text className="text-xs">View Details</Text>
+              </Button>
+            </View>
+          </View>
+        )}
+
+        {booking.status === 'in_progress' && (
+          <View className="mt-3 pt-3 border-t border-border">
+            <View className="flex-row items-center justify-between gap-2">
+              <View className="flex-1">
+                <Text className="text-xs text-blue-600 font-medium">
+                  🔄 Service in Progress
+                </Text>
+                <Text className="text-xs text-muted-foreground">
+                  Provider is working on your service
+                </Text>
+              </View>
+              <Button
+                size="sm"
+                variant="outline"
+                onPress={() => router.push(`/customer/booking/${booking.id}` as any)}
+              >
+                <Text className="text-xs">View Details</Text>
+              </Button>
+            </View>
+          </View>
+        )}
+
+        {booking.status === 'pending' && (
+          <View className="mt-3 pt-3 border-t border-border">
+            <View className="flex-row items-center justify-between gap-2">
+              <View className="flex-1">
+                <Text className="text-xs text-yellow-600 font-medium">
+                  ⏳ Awaiting Response
+                </Text>
+                <Text className="text-xs text-muted-foreground">
+                  Provider will respond shortly
+                </Text>
+              </View>
+              <Button
+                size="sm"
+                variant="outline"
+                onPress={() => router.push(`/customer/booking/${booking.id}` as any)}
+              >
+                <Text className="text-xs">View Details</Text>
+              </Button>
+            </View>
           </View>
         )}
       </CardContent>
     </Card>
+    </TouchableOpacity>
   );
 
   const renderEmptyState = () => (
@@ -242,20 +340,42 @@ const ProviderSelectionScreen = () => {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} className="px-4 py-2 border-b border-border max-h-14" >
             {[
               { key: 'all', label: 'All' },
+              { key: 'sos', label: 'SOS', icon: 'medical' },
+              { key: 'normal', label: 'Normal', icon: 'calendar-outline' },
               { key: 'pending', label: 'Pending' },
               { key: 'confirmed', label: 'Confirmed' },
-              { key: 'in_progress', label: 'In Progress' },
               { key: 'completed', label: 'Completed' },
-              { key: 'cancelled', label: 'Cancelled' },
             ].map((tab) => (
               <TouchableOpacity
                 key={tab.key}
                 onPress={() => setBookingStatusTab(tab.key as any)}
-                className={`px-4 py-2 rounded-lg mr-2 ${bookingStatusTab === tab.key ? 'bg-primary' : 'bg-muted'}`}
+                className={`px-4 py-2 rounded-lg mr-2 flex-row items-center gap-1 ${bookingStatusTab === tab.key ? 'bg-primary' : 'bg-muted'}`}
               >
+                {tab.icon && (
+                  <Ionicons 
+                    name={tab.icon as any} 
+                    size={16} 
+                    color={bookingStatusTab === tab.key ? 'white' : '#64748b'} 
+                  />
+                )}
                 <Text className={`font-medium ${bookingStatusTab === tab.key ? 'text-primary-foreground' : 'text-muted-foreground'}`}>
                   {tab.label}
                 </Text>
+                {bookingCounts[tab.key as keyof typeof bookingCounts] > 0 && (
+                  <View className={`ml-1 px-1.5 py-0.5 rounded-full ${
+                    bookingStatusTab === tab.key
+                      ? 'bg-primary-foreground/20'
+                      : 'bg-foreground/10'
+                  }`}>
+                    <Text className={`text-xs font-bold ${
+                      bookingStatusTab === tab.key
+                        ? 'text-primary-foreground'
+                        : 'text-foreground'
+                    }`}>
+                      {bookingCounts[tab.key as keyof typeof bookingCounts]}
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -272,6 +392,14 @@ const ProviderSelectionScreen = () => {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingVertical: 16 }}
                 ListEmptyComponent={renderEmptyState}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    colors={['#8B5CF6']}
+                    tintColor="#8B5CF6"
+                  />
+                }
               />
             ) : (
               renderEmptyState()

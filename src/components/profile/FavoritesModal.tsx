@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Modal, ScrollView, Pressable } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -202,7 +203,7 @@ export const FavoritesModal: React.FC<FavoritesModalProps> = ({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View className="flex-1 bg-background">
+      <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
         {/* Header */}
         <View className="flex-row items-center justify-between p-4 border-b border-border">
           <Pressable onPress={onClose} className="p-2">
@@ -344,7 +345,7 @@ export const FavoritesModal: React.FC<FavoritesModalProps> = ({
             </Tabs>
           )}
         </View>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 };
