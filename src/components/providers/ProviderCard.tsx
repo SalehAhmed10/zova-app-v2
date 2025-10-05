@@ -60,7 +60,7 @@ export const ProviderCard = React.memo(({
       <View className="flex-row items-center gap-2 mb-2">
         <Text className="text-sm">⭐</Text>
         <Text className="text-sm font-medium text-foreground">
-          {provider.avg_rating?.toFixed(1) || 'New'}
+          {provider.avg_rating ? provider.avg_rating.toFixed(1) : 'New'}
         </Text>
         <Text className="text-xs text-muted-foreground">
           ({provider.total_reviews || 0} reviews)

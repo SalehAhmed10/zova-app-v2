@@ -9,7 +9,7 @@ interface ProfileModalState {
   bookingHistoryModalVisible: boolean;
   stripeIntegrationModalVisible: boolean;
   servicesModalVisible: boolean;
-  favoritesModalVisible: boolean;
+  reviewsModalVisible: boolean;
 
   // Actions
   openPersonalInfoModal: () => void;
@@ -22,8 +22,8 @@ interface ProfileModalState {
   closeStripeIntegrationModal: () => void;
   openServicesModal: () => void;
   closeServicesModal: () => void;
-  openFavoritesModal: () => void;
-  closeFavoritesModal: () => void;
+  openReviewsModal: () => void;
+  closeReviewsModal: () => void;
 
   // Reset all modals
   closeAllModals: () => void;
@@ -42,7 +42,7 @@ export const useProfileModalStore = create<ProfileModalState>()(
       bookingHistoryModalVisible: false,
       stripeIntegrationModalVisible: false,
       servicesModalVisible: false,
-      favoritesModalVisible: false,
+      reviewsModalVisible: false,
       _hasHydrated: false,
 
       // Actions
@@ -96,14 +96,14 @@ export const useProfileModalStore = create<ProfileModalState>()(
         set({ servicesModalVisible: false });
       },
 
-      openFavoritesModal: () => {
-        console.log('[ProfileModalStore] Opening favorites modal');
-        set({ favoritesModalVisible: true });
+      openReviewsModal: () => {
+        console.log('[ProfileModalStore] Opening reviews modal');
+        set({ reviewsModalVisible: true });
       },
 
-      closeFavoritesModal: () => {
-        console.log('[ProfileModalStore] Closing favorites modal');
-        set({ favoritesModalVisible: false });
+      closeReviewsModal: () => {
+        console.log('[ProfileModalStore] Closing reviews modal');
+        set({ reviewsModalVisible: false });
       },
 
       closeAllModals: () => {
@@ -114,7 +114,7 @@ export const useProfileModalStore = create<ProfileModalState>()(
           bookingHistoryModalVisible: false,
           stripeIntegrationModalVisible: false,
           servicesModalVisible: false,
-          favoritesModalVisible: false,
+          reviewsModalVisible: false,
         });
       },
 

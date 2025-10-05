@@ -76,6 +76,7 @@ export interface Service {
   isHomeService?: boolean;
   isRemoteService?: boolean;
   rating?: number;
+  total_reviews?: number;
   images: string[];
   created_at: string;
   updated_at: string;

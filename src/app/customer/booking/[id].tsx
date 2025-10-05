@@ -14,12 +14,14 @@ import { useCancelBooking } from '@/hooks/customer';
 
 // UI Components
 import { Skeleton } from '@/components/ui/skeleton';
+import { ReviewPrompt } from '@/components/ui/review-prompt';
 
 export default function BookingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: booking, isLoading } = useCustomerBookingDetail(id);
   const cancelBookingMutation = useCancelBooking();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showReviewPrompt, setShowReviewPrompt] = useState(false);
 
   const handleCancelBooking = () => {
     Alert.alert(
@@ -58,6 +60,19 @@ export default function BookingDetailScreen() {
   const handleContactProvider = () => {
     // Navigate to messages or contact provider
     Alert.alert('Coming Soon', 'Contact provider feature will be available soon!');
+  };
+
+  const handleLeaveReview = () => {
+    setShowReviewPrompt(true);
+  };
+
+  const handleReviewDismissed = () => {
+    setShowReviewPrompt(false);
+  };
+
+  const handleReviewSubmitted = () => {
+    // Refresh booking data to show review submitted status
+    // The query will be invalidated by the useSubmitReview hook
   };
 
 
@@ -124,7 +139,7 @@ export default function BookingDetailScreen() {
           <Card className="mb-4">
             <CardHeader>
               <CardTitle className="flex-row items-center justify-between">
-                <View className="flex-row items-center gap-2">
+                <View className="flex-row items-center gap-3 flex-1">
                   {booking.sos_booking && (
                     <Badge variant="destructive" className="bg-red-500">
                       <View className="flex-row items-center gap-1">
@@ -133,17 +148,19 @@ export default function BookingDetailScreen() {
                       </View>
                     </Badge>
                   )}
-                  <Text className="text-lg font-semibold text-foreground">
+                  <Text className="text-lg font-semibold text-foreground flex-1">
                     {booking.service_title}
                   </Text>
+
+                  <Badge variant={
+                    booking.status === 'confirmed' ? 'default' :
+                      booking.status === 'completed' ? 'secondary' :
+                        booking.status === 'cancelled' ? 'destructive' : 'outline'
+                  }>
+                    <Text className="text-xs capitalize">{booking.status}</Text>
+                  </Badge>
                 </View>
-                <Badge variant={
-                  booking.status === 'confirmed' ? 'default' :
-                  booking.status === 'completed' ? 'secondary' :
-                  booking.status === 'cancelled' ? 'destructive' : 'outline'
-                }>
-                  <Text className="text-xs capitalize">{booking.status}</Text>
-                </Badge>
+             
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -163,9 +180,9 @@ export default function BookingDetailScreen() {
                 </View>
 
                 {/* Date & Time */}
-                <View className="flex-row items-center gap-3">
-                  <Ionicons name="calendar" size={16} className="text-muted-foreground" />
-                  <Text className="text-foreground">
+                <View className="flex-row items-start gap-3">
+                  <Ionicons name="calendar" size={16} className="text-muted-foreground mt-0.5" />
+                  <Text className="text-foreground flex-1" numberOfLines={0}>
                     {new Date(booking.booking_date).toLocaleDateString('en-GB', {
                       weekday: 'long',
                       year: 'numeric',
@@ -310,15 +327,29 @@ export default function BookingDetailScreen() {
 
             {booking.status === 'completed' && (
               <>
-                <Button
-                  onPress={() => {/* Navigate to review screen */}}
-                  className="w-full"
-                >
-                  <View className="flex-row items-center gap-2">
-                    <Ionicons name="star" size={16} color="white" />
-                    <Text className="text-primary-foreground font-medium">Leave Review</Text>
+                {!(booking as any).customer_review_submitted && (
+                  <Button
+                    onPress={handleLeaveReview}
+                    className="w-full"
+                  >
+                    <View className="flex-row items-center gap-2">
+                      <Ionicons name="star" size={16} color="white" />
+                      <Text className="text-primary-foreground font-medium">Leave Review</Text>
+                    </View>
+                  </Button>
+                )}
+
+                {(booking as any).customer_review_submitted && (
+                  <View className="bg-green-50 dark:bg-green-950 p-4 rounded-lg mb-4">
+                    <View className="flex-row items-center gap-2 mb-2">
+                      <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+                      <Text className="text-green-600 dark:text-green-400 font-medium">Review Submitted</Text>
+                    </View>
+                    <Text className="text-green-600 dark:text-green-400 text-sm">
+                      Thank you for your feedback! Your review helps other customers.
+                    </Text>
                   </View>
-                </Button>
+                )}
 
                 <View className="bg-green-50 dark:bg-green-950 p-4 rounded-lg">
                   <View className="flex-row items-center gap-2 mb-2">
@@ -326,7 +357,7 @@ export default function BookingDetailScreen() {
                     <Text className="text-green-600 dark:text-green-400 font-medium">Service Completed</Text>
                   </View>
                   <Text className="text-green-600 dark:text-green-400 text-sm">
-                    Great! Your service has been completed. Please leave a review to help other customers.
+                    Great! Your service has been completed. {!(booking as any).customer_review_submitted && 'Please leave a review to help other customers.'}
                   </Text>
                 </View>
               </>
@@ -374,6 +405,15 @@ export default function BookingDetailScreen() {
           </View>
         </View>
       </ScrollView>
+
+      <ReviewPrompt
+        bookingId={id!}
+        providerName={`${booking.provider_first_name} ${booking.provider_last_name}`}
+        serviceName={booking.service_title}
+        isVisible={showReviewPrompt}
+        onDismiss={handleReviewDismissed}
+        onReviewSubmitted={handleReviewSubmitted}
+      />
     </SafeAreaView>
   );
 }

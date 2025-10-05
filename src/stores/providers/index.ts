@@ -1,1 +1,1 @@
-export { useProviderSearchStore, useFilteredProviders } from './useProviderSearchStore';
+// Provider search functionality has been moved to customer stores

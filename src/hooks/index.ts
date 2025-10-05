@@ -23,6 +23,7 @@ export {
   useServiceDetails,
   useProviderDetails,
   useCancelBooking,
+  useUserReviews,
   type ProfileData as CustomerProfileData,
   type BookingData as CustomerBookingData,
   type NotificationSettings as CustomerNotificationSettings,

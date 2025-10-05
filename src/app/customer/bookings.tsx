@@ -182,14 +182,15 @@ const ProviderSelectionScreen = () => {
         {/* Action buttons based on status */}
         {booking.status === 'completed' && (
           <View className="mt-3 pt-3 border-t border-border">
-            <View className="flex-row items-center justify-between">
-              <Text className="text-sm text-muted-foreground">
+            <View className="flex-row items-center justify-between gap-2">
+              <Text className="text-sm text-muted-foreground flex-1">
                 Service completed - How was your experience?
               </Text>
               <Button
                 size="sm"
                 variant="outline"
                 onPress={() => router.push(`/customer/booking/${booking.id}` as any)}
+                className="flex-shrink-0"
               >
                 <Text className="text-xs">Leave Review</Text>
               </Button>
@@ -212,6 +213,7 @@ const ProviderSelectionScreen = () => {
                 size="sm"
                 variant="outline"
                 onPress={() => router.push(`/customer/booking/${booking.id}` as any)}
+                className="flex-shrink-0"
               >
                 <Text className="text-xs">View Details</Text>
               </Button>
@@ -234,6 +236,7 @@ const ProviderSelectionScreen = () => {
                 size="sm"
                 variant="outline"
                 onPress={() => router.push(`/customer/booking/${booking.id}` as any)}
+                className="flex-shrink-0"
               >
                 <Text className="text-xs">View Details</Text>
               </Button>
@@ -256,6 +259,7 @@ const ProviderSelectionScreen = () => {
                 size="sm"
                 variant="outline"
                 onPress={() => router.push(`/customer/booking/${booking.id}` as any)}
+                className="flex-shrink-0"
               >
                 <Text className="text-xs">View Details</Text>
               </Button>

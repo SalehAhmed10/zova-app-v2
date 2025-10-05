@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, ScrollView, TouchableOpacity, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +16,8 @@ import SearchFiltersSheet from '@/components/customer/SearchFiltersSheet';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { THEME } from '@/lib/core/theme';
 import { useRouter } from 'expo-router';
+import { useAuthPure } from '@/hooks/shared/useAuthPure';
+import { useIsFavorited, useToggleFavorite } from '@/hooks/customer/useFavorites';
 
 export default function SearchScreen() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -23,8 +26,17 @@ export default function SearchScreen() {
   const isHydrated = useSearchHydration();
   const { isDarkColorScheme } = useColorScheme();
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const { user } = useAuthPure();
+  const toggleFavoriteMutation = useToggleFavorite();
 
-  console.log('[SearchScreen] searchMode:', searchMode, 'isHydrated:', isHydrated);
+  // Handle URL parameters to set initial search mode (acceptable useEffect for navigation)
+  React.useEffect(() => {
+    if (params.mode) {
+      const urlMode = params.mode === 'providers' ? 'providers' : 'services';
+      setSearchMode(urlMode);
+    }
+  }, [params.mode, setSearchMode]);
 
   // Wait for hydration before rendering search functionality
   if (!isHydrated) {
@@ -42,216 +54,278 @@ export default function SearchScreen() {
   const hasResults = resultsCount > 0;
   const { data: categories, isLoading: categoriesLoading } = useServiceCategories();
 
-  console.log('[SearchScreen] useSearchResults returned:', {
-    resultsCount,
-    isLoading,
-    error: error?.message,
-    hasResults,
-    searchMode
-  });
-
   const handleSearchChange = (text: string) => {
     setSearchQuery(text);
     setStoreQuery(text);
   };
 
-  const renderServiceItem = ({ item }: { item: any }) => (
-    <TouchableOpacity 
-      activeOpacity={0.7} 
-      className="mb-2"
-      onPress={() => router.push(`/customer/service/${item.id}`)}
-    >
-      <Card className="shadow-sm border-border/50 bg-card">
-        <CardContent className="p-3">
-          <View className="flex-row items-start gap-2.5">
-            {/* Service Avatar/Icon */}
-            <View className="w-10 h-10 rounded-md bg-primary/10 items-center justify-center border border-primary/20">
-              <Ionicons name="cut" size={18} color={isDarkColorScheme ? THEME.dark.primary : THEME.light.primary} />
-            </View>
+  // Service Item Component with favorites functionality
+  const ServiceItem = React.memo(({ item }: { item: any }) => {
+    const { data: isFavorited } = useIsFavorited(user?.id, 'service', item.id);
+    
+    const handleToggleFavorite = (e: any) => {
+      e.stopPropagation(); // Prevent navigation when tapping favorite
+      if (!user?.id) return;
+      toggleFavoriteMutation.mutate({
+        userId: user.id,
+        type: 'service',
+        itemId: item.id,
+        isFavorited: !!isFavorited
+      });
+    };
 
-            <View className="flex-1">
-              {/* Service Title & Provider */}
-              <View className="flex-row items-start justify-between mb-1">
-                <View className="flex-1 mr-1.5">
-                  <Text className="text-sm font-bold text-foreground mb-0.5" numberOfLines={1}>
-                    {item.title}
-                  </Text>
-                  <View className="flex-row items-center gap-0.5">
-                    <Ionicons name="person-outline" size={10} color={isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground} />
-                    <Text className="text-xs text-muted-foreground" numberOfLines={1}>
-                      {item.provider?.name || 'Provider'}
-                    </Text>
-                  </View>
-                </View>
-                <View className="items-end">
-                  <Text className="text-base font-bold text-primary">
-                    ${item.price}
-                  </Text>
-                  <Text className="text-xs text-muted-foreground">
-                    {item.price_type === 'hourly' ? '/hr' : 'fixed'}
-                  </Text>
-                </View>
+    return (
+      <TouchableOpacity 
+        activeOpacity={0.7} 
+        className="mb-2"
+        onPress={() => router.push(`/customer/service/${item.id}`)}
+      >
+        <Card className="shadow-sm border-border/50 bg-card">
+          <CardContent className="p-3">
+            <View className="flex-row items-start gap-2.5">
+              {/* Service Avatar/Icon */}
+              <View className="w-10 h-10 rounded-md bg-primary/10 items-center justify-center border border-primary/20">
+                <Ionicons name="cut" size={18} color={isDarkColorScheme ? THEME.dark.primary : THEME.light.primary} />
               </View>
 
-              {/* Rating & Duration */}
-              <View className="flex-row items-center gap-2 mb-1.5">
-                <View className="flex-row items-center gap-0.5 bg-warning/10 px-1 py-0.5 rounded-full border border-warning/20">
-                  <Ionicons name="star" size={10} color={isDarkColorScheme ? THEME.dark.warning : THEME.light.warning} />
-                  <Text className="text-xs font-medium" style={{ color: isDarkColorScheme ? THEME.dark.warning : THEME.light.warning }}>
-                    {item.rating || 'New'}
-                  </Text>
-                </View>
-
-                <View className="flex-row items-center gap-0.5">
-                  <Ionicons name="time-outline" size={10} color={isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground} />
-                  <Text className="text-xs text-muted-foreground">
-                    {item.duration || 60} min
-                  </Text>
-                </View>
-              </View>
-
-              {/* Description */}
-              {item.description && (
-                <Text className="text-xs text-muted-foreground mb-1.5 leading-3" numberOfLines={1}>
-                  {item.description}
-                </Text>
-              )}
-
-              {/* Service Type Badges */}
-              <View className="flex-row flex-wrap gap-1">
-                {item.isHomeService && (
-                  <View className="flex-row items-center gap-0.5 bg-info/10 px-1.5 py-0.5 rounded-full border border-info/20">
-                    <Ionicons name="home-outline" size={8} color={isDarkColorScheme ? THEME.dark.info : THEME.light.info} />
-                    <Text className="text-xs font-medium" style={{ color: isDarkColorScheme ? THEME.dark.info : THEME.light.info }}>
-                      Home
+              <View className="flex-1">
+                {/* Service Title & Provider */}
+                <View className="flex-row items-start justify-between mb-1">
+                  <View className="flex-1 mr-1.5">
+                    <Text className="text-sm font-bold text-foreground mb-0.5" numberOfLines={1}>
+                      {item.title}
                     </Text>
-                  </View>
-                )}
-                {item.isRemoteService && (
-                  <View className="flex-row items-center gap-0.5 bg-success/10 px-1.5 py-0.5 rounded-full border border-success/20">
-                    <Ionicons name="videocam-outline" size={8} color={isDarkColorScheme ? THEME.dark.success : THEME.light.success} />
-                    <Text className="text-xs font-medium" style={{ color: isDarkColorScheme ? THEME.dark.success : THEME.light.success }}>
-                      Virtual
-                    </Text>
-                  </View>
-                )}
-                {item.house_call_available && (
-                  <View className="flex-row items-center gap-0.5 bg-purple/10 px-1.5 py-0.5 rounded-full border border-purple/20">
-                    <Ionicons name="location-outline" size={8} color={isDarkColorScheme ? THEME.dark.purple : THEME.light.purple} />
-                    <Text className="text-xs font-medium" style={{ color: isDarkColorScheme ? THEME.dark.purple : THEME.light.purple }}>
-                      Mobile
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          </View>
-        </CardContent>
-      </Card>
-    </TouchableOpacity>
-  );
-
-  const renderProviderItem = ({ item }: { item: any }) => (
-    <TouchableOpacity activeOpacity={0.7} className="mb-2" onPress={() => router.push(`/customer/provider/${item.id}`)}>
-      <Card className="shadow-sm border-border/50 bg-card">
-        <CardContent className="p-3">
-          <View className="flex-row items-start gap-2.5">
-            {/* Provider Avatar */}
-            <View className="relative">
-              <Avatar className="w-10 h-10 border-2 border-primary/20" alt={item.name || 'Provider'}>
-                <AvatarImage source={{ uri: item.avatar }} />
-                <AvatarFallback className="bg-primary/10">
-                  <Text className="text-sm font-bold text-primary">
-                    {item.name?.charAt(0) || 'P'}
-                  </Text>
-                </AvatarFallback>
-              </Avatar>
-              {item.isVerified && (
-                <View className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full items-center justify-center border-2 border-card" style={{ backgroundColor: isDarkColorScheme ? THEME.dark.success : THEME.light.success }}>
-                  <Ionicons name="checkmark" size={8} color={isDarkColorScheme ? THEME.dark.card : THEME.light.card} />
-                </View>
-              )}
-            </View>
-
-            <View className="flex-1">
-              {/* Provider Name & Location */}
-              <View className="flex-row items-start justify-between mb-1">
-                <View className="flex-1 mr-1.5">
-                  <Text className="text-sm font-bold text-foreground mb-0.5" numberOfLines={1}>
-                    {item.business_name || item.name || 'Provider'}
-                  </Text>
-                  <View className="flex-row items-center gap-0.5">
-                    <Ionicons name="location-outline" size={10} color={isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground} />
-                    <Text className="text-xs text-muted-foreground" numberOfLines={1}>
-                      {item.city && item.country ? `${item.city}, ${item.country}` : 'Location not specified'}
-                    </Text>
-                  </View>
-                </View>
-                <View className="items-end">
-                  <View className="flex-row items-center gap-0.5 bg-warning/10 px-1 py-0.5 rounded-full mb-0.5 border border-warning/20">
-                    <Ionicons name="star" size={10} color={isDarkColorScheme ? THEME.dark.warning : THEME.light.warning} />
-                    <Text className="text-xs font-medium" style={{ color: isDarkColorScheme ? THEME.dark.warning : THEME.light.warning }}>
-                      {item.avg_rating ? item.avg_rating.toFixed(1) : 'New'}
-                    </Text>
-                  </View>
-                  <Text className="text-xs text-muted-foreground">
-                    {item.total_reviews || 0} reviews
-                  </Text>
-                </View>
-              </View>
-
-              {/* Stats Row */}
-              <View className="flex-row items-center gap-2 mb-1.5">
-                <View className="flex-row items-center gap-0.5">
-                  <Ionicons name="briefcase-outline" size={10} color={isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground} />
-                  <Text className="text-xs text-muted-foreground">
-                    {item.provider_services?.length || 0} services
-                  </Text>
-                </View>
-
-                {item.distance && (
-                  <View className="flex-row items-center gap-0.5">
-                    <Ionicons name="navigate-outline" size={10} color={isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground} />
-                    <Text className="text-xs text-muted-foreground">
-                      {item.distance.toFixed(1)} km away
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              {/* Bio */}
-              {item.bio && (
-                <Text className="text-xs text-muted-foreground mb-1.5 leading-3" numberOfLines={1}>
-                  {item.bio}
-                </Text>
-              )}
-
-              {/* Service Tags */}
-              {item.provider_services && item.provider_services.length > 0 && (
-                <View className="flex-row flex-wrap gap-1">
-                  {item.provider_services.slice(0, 3).map((service: any, index: number) => (
-                    <View key={index} className="flex-row items-center gap-0.5 bg-accent/50 px-1.5 py-0.5 rounded-full border border-border/50">
-                      <Ionicons name="cut-outline" size={8} color={isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground} />
-                      <Text className="text-xs font-medium text-accent-foreground" numberOfLines={1}>
-                        {service.title}
+                    <View className="flex-row items-center gap-0.5">
+                      <Ionicons name="person-outline" size={10} color={isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground} />
+                      <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+                        {item.provider?.name || 'Provider'}
                       </Text>
                     </View>
-                  ))}
-                  {item.provider_services.length > 3 && (
-                    <View className="bg-accent/50 px-1.5 py-0.5 rounded-full border border-border/50">
-                      <Text className="text-xs font-medium text-accent-foreground">
-                        +{item.provider_services.length - 3} more
+                  </View>
+                  <View className="items-end gap-1">
+                    <TouchableOpacity
+                      onPress={handleToggleFavorite}
+                      className="p-1"
+                      disabled={toggleFavoriteMutation.isPending}
+                    >
+                      <Ionicons 
+                        name={isFavorited ? "heart" : "heart-outline"} 
+                        size={16} 
+                        color={isFavorited ? "#ef4444" : (isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground)} 
+                      />
+                    </TouchableOpacity>
+                    <Text className="text-base font-bold text-primary">
+                      ${item.price}
+                    </Text>
+                    <Text className="text-xs text-muted-foreground">
+                      {item.price_type === 'hourly' ? '/hr' : 'fixed'}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Rating & Duration */}
+                <View className="flex-row items-center gap-2 mb-1.5">
+                  {item.rating > 0 ? (
+                    <View className="flex-row items-center gap-0.5 bg-amber-50 dark:bg-amber-950/20 px-1 py-0.5 rounded-full border border-amber-200 dark:border-amber-800/30">
+                      <Ionicons name="star" size={10} color="#F59E0B" />
+                      <Text className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                        {item.rating.toFixed(1)}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View className="bg-muted/50 px-1 py-0.5 rounded-full border border-border/50">
+                      <Text className="text-xs font-medium text-muted-foreground">New</Text>
+                    </View>
+                  )}
+
+                  <View className="flex-row items-center gap-0.5">
+                    <Ionicons name="time-outline" size={10} color={isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground} />
+                    <Text className="text-xs text-muted-foreground">
+                      {item.duration || 60} min
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Description */}
+                {item.description && (
+                  <Text className="text-xs text-muted-foreground mb-1.5 leading-3" numberOfLines={1}>
+                    {item.description}
+                  </Text>
+                )}
+
+                {/* Service Type Badges */}
+                <View className="flex-row flex-wrap gap-1">
+                  {item.isHomeService && (
+                    <View className="flex-row items-center gap-0.5 bg-info/10 px-1.5 py-0.5 rounded-full border border-info/20">
+                      <Ionicons name="home-outline" size={8} color={isDarkColorScheme ? THEME.dark.info : THEME.light.info} />
+                      <Text className="text-xs font-medium" style={{ color: isDarkColorScheme ? THEME.dark.info : THEME.light.info }}>
+                        Home
+                      </Text>
+                    </View>
+                  )}
+                  {item.isRemoteService && (
+                    <View className="flex-row items-center gap-0.5 bg-success/10 px-1.5 py-0.5 rounded-full border border-success/20">
+                      <Ionicons name="videocam-outline" size={8} color={isDarkColorScheme ? THEME.dark.success : THEME.light.success} />
+                      <Text className="text-xs font-medium" style={{ color: isDarkColorScheme ? THEME.dark.success : THEME.light.success }}>
+                        Virtual
+                      </Text>
+                    </View>
+                  )}
+                  {item.house_call_available && (
+                    <View className="flex-row items-center gap-0.5 bg-purple/10 px-1.5 py-0.5 rounded-full border border-purple/20">
+                      <Ionicons name="location-outline" size={8} color={isDarkColorScheme ? THEME.dark.purple : THEME.light.purple} />
+                      <Text className="text-xs font-medium" style={{ color: isDarkColorScheme ? THEME.dark.purple : THEME.light.purple }}>
+                        Mobile
                       </Text>
                     </View>
                   )}
                 </View>
-              )}
+              </View>
             </View>
-          </View>
-        </CardContent>
-      </Card>
-    </TouchableOpacity>
-  );
+          </CardContent>
+        </Card>
+      </TouchableOpacity>
+    );
+  });
+
+  const renderServiceItem = ({ item }: { item: any }) => <ServiceItem item={item} />;
+
+  // Provider Item Component with favorites functionality
+  const ProviderItem = React.memo(({ item }: { item: any }) => {
+    const { data: isFavorited } = useIsFavorited(user?.id, 'provider', item.id);
+    
+    const handleToggleFavorite = (e: any) => {
+      e.stopPropagation(); // Prevent navigation when tapping favorite
+      if (!user?.id) return;
+      toggleFavoriteMutation.mutate({
+        userId: user.id,
+        type: 'provider',
+        itemId: item.id,
+        isFavorited: !!isFavorited
+      });
+    };
+
+    return (
+      <TouchableOpacity activeOpacity={0.7} className="mb-2" onPress={() => router.push(`/customer/provider/${item.id}`)}>
+        <Card className="shadow-sm border-border/50 bg-card">
+          <CardContent className="p-3">
+            <View className="flex-row items-start gap-2.5">
+              {/* Provider Avatar */}
+              <View className="relative">
+                <Avatar className="w-10 h-10 border-2 border-primary/20" alt={item.name || 'Provider'}>
+                  <AvatarImage source={{ uri: item.avatar }} />
+                  <AvatarFallback className="bg-primary/10">
+                    <Text className="text-sm font-bold text-primary">
+                      {item.name?.charAt(0) || 'P'}
+                    </Text>
+                  </AvatarFallback>
+                </Avatar>
+                {item.isVerified && (
+                  <View className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full items-center justify-center border-2 border-card" style={{ backgroundColor: isDarkColorScheme ? THEME.dark.success : THEME.light.success }}>
+                    <Ionicons name="checkmark" size={8} color={isDarkColorScheme ? THEME.dark.card : THEME.light.card} />
+                  </View>
+                )}
+              </View>
+
+              <View className="flex-1">
+                {/* Provider Name & Location */}
+                <View className="flex-row items-start justify-between mb-1">
+                  <View className="flex-1 mr-1.5">
+                    <Text className="text-sm font-bold text-foreground mb-0.5" numberOfLines={1}>
+                      {item.business_name || item.name || 'Provider'}
+                    </Text>
+                    <View className="flex-row items-center gap-0.5">
+                      <Ionicons name="location-outline" size={10} color={isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground} />
+                      <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+                        {item.city && item.country ? `${item.city}, ${item.country}` : 'Location not specified'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View className="items-end gap-1">
+                    <TouchableOpacity
+                      onPress={handleToggleFavorite}
+                      className="p-1"
+                      disabled={toggleFavoriteMutation.isPending}
+                    >
+                      <Ionicons 
+                        name={isFavorited ? "heart" : "heart-outline"} 
+                        size={16} 
+                        color={isFavorited ? "#ef4444" : (isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground)} 
+                      />
+                    </TouchableOpacity>
+                    {item.avg_rating ? (
+                      <View className="flex-row items-center gap-0.5 bg-amber-50 dark:bg-amber-950/20 px-1 py-0.5 rounded-full mb-0.5 border border-amber-200 dark:border-amber-800/30">
+                        <Ionicons name="star" size={10} color="#F59E0B" />
+                        <Text className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                          {item.avg_rating.toFixed(1)}
+                        </Text>
+                      </View>
+                    ) : (
+                      <View className="bg-muted/50 px-1 py-0.5 rounded-full mb-0.5 border border-border/50">
+                        <Text className="text-xs font-medium text-muted-foreground">New</Text>
+                      </View>
+                    )}
+                    <Text className="text-xs text-muted-foreground">
+                      {item.total_reviews || 0} reviews
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Stats Row */}
+                <View className="flex-row items-center gap-2 mb-1.5">
+                  <View className="flex-row items-center gap-0.5">
+                    <Ionicons name="briefcase-outline" size={10} color={isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground} />
+                    <Text className="text-xs text-muted-foreground">
+                      {item.provider_services?.length || 0} services
+                    </Text>
+                  </View>
+
+                  {item.distance && (
+                    <View className="flex-row items-center gap-0.5">
+                      <Ionicons name="navigate-outline" size={10} color={isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground} />
+                      <Text className="text-xs text-muted-foreground">
+                        {item.distance.toFixed(1)} km away
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Bio */}
+                {item.bio && (
+                  <Text className="text-xs text-muted-foreground mb-1.5 leading-3" numberOfLines={1}>
+                    {item.bio}
+                  </Text>
+                )}
+
+                {/* Service Tags */}
+                {item.provider_services && item.provider_services.length > 0 && (
+                  <View className="flex-row flex-wrap gap-1">
+                    {item.provider_services.slice(0, 3).map((service: any, index: number) => (
+                      <View key={index} className="flex-row items-center gap-0.5 bg-accent/50 px-1.5 py-0.5 rounded-full border border-border/50">
+                        <Ionicons name="cut-outline" size={8} color={isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground} />
+                        <Text className="text-xs font-medium text-accent-foreground" numberOfLines={1}>
+                          {service.title}
+                        </Text>
+                      </View>
+                    ))}
+                    {item.provider_services.length > 3 && (
+                      <View className="bg-accent/50 px-1.5 py-0.5 rounded-full border border-border/50">
+                        <Text className="text-xs font-medium text-accent-foreground">
+                          +{item.provider_services.length - 3} more
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            </View>
+          </CardContent>
+        </Card>
+      </TouchableOpacity>
+    );
+  });
+
+  const renderProviderItem = ({ item }: { item: any }) => <ProviderItem item={item} />;
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -370,8 +444,8 @@ export default function SearchScreen() {
             </ScrollView>
           ) : error ? (
             <View className="flex-1 items-center justify-center px-6 py-8">
-              <View className="w-16 h-16 rounded-full items-center justify-center mb-4" style={{ backgroundColor: isDarkColorScheme ? 'rgba(239, 68, 68, 0.1)' : 'rgba(220, 38, 38, 0.1)' }}>
-                <Ionicons name="alert-circle" size={24} color={isDarkColorScheme ? '#ef4444' : '#dc2626'} />
+              <View className="w-16 h-16 rounded-full items-center justify-center mb-4" style={{ backgroundColor: THEME[isDarkColorScheme ? 'dark' : 'light'].destructive.replace('hsl(', 'hsla(').replace(')', ', 0.1)') }}>
+                <Ionicons name="alert-circle" size={24} color={THEME[isDarkColorScheme ? 'dark' : 'light'].destructive} />
               </View>
               <Text className="text-lg font-bold text-foreground mb-1 text-center">
                 Something went wrong
@@ -443,7 +517,6 @@ export default function SearchScreen() {
         isVisible={isFiltersVisible}
         onClose={() => setIsFiltersVisible(false)}
         onApplyFilters={(filters) => {
-          console.log('[SearchScreen] Applying filters:', filters);
           handleFiltersChange(filters);
           setIsFiltersVisible(false);
         }}

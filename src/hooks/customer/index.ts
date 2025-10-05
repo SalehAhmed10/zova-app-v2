@@ -2,6 +2,7 @@ export { useUserFavorites, useToggleFavorite, useIsFavorited, type UserFavorite,
 
 // ✅ Customer booking management hooks
 export { useCancelBooking } from './useCancelBooking';
+export { useUserReviews, type UserReview } from './useUserReviews';
 
 // ✅ Optimized search hooks following copilot-rules.md
 export {

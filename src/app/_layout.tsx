@@ -83,6 +83,9 @@ import { Text } from '@/components/ui/text';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { StripeProvider } from '@/app-providers/stripe-provider';
 import { useAuthStateNavigation, useAuthNavigation } from '@/hooks/shared/useAuthNavigation';
+import { ReviewPrompt } from '@/components/customer/review-prompt';
+import { ReviewModal } from '@/components/customer/review-modal';
+import { useReviewPrompt } from '@/hooks/customer/useReviewPrompt';
 
 // Apply cssInterop to all Expo Vector Icons globally
 Object.keys(Icons).forEach((iconKey) => {
@@ -170,6 +173,8 @@ function RootNavigator() {
   const { session } = useSession();
   const { userRole, isAuthenticated, isLoggingOut, isOnboardingComplete, isLoading } = useAppStore();
   const [isMounted, setIsMounted] = React.useState(false);
+  const { showPrompt, bookingId, providerName, serviceName, dismissPrompt, startReview, completeReview } = useReviewPrompt();
+  const [showReviewModal, setShowReviewModal] = React.useState(false);
 
   // ✅ SYSTEM INTEGRATION: Set up Supabase auth listener
   useAuthListener();
@@ -226,6 +231,25 @@ function RootNavigator() {
       <Slot />
       {/* ✅ App-level logout loading screen - persists during layout changes */}
       <LogoutLoadingScreen visible={isLoggingOut} />
+      {/* ✅ Review prompt - shows for authenticated customers with reviewable bookings */}
+      {isAuthenticated && userRole === 'customer' && showPrompt && (
+        <ReviewPrompt
+          visible={showPrompt}
+          providerName={providerName}
+          serviceName={serviceName}
+          onSkip={dismissPrompt}
+          onReview={() => setShowReviewModal(true)}
+        />
+      )}
+      {/* ✅ Review modal - opens when user taps "Leave Review" */}
+      <ReviewModal
+        visible={showReviewModal}
+        onClose={() => setShowReviewModal(false)}
+        bookingId={bookingId || ''}
+        providerName={providerName}
+        serviceName={serviceName}
+        onSubmitSuccess={completeReview}
+      />
     </>
   );
 }

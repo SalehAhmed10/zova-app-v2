@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useProviderBookingDetail } from '@/hooks/provider';
-import { useUpdateBookingStatus } from '@/hooks/shared/useBookings';
+import { useUpdateBookingStatus, useCompleteService } from '@/hooks/shared/useBookings';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { cn } from '@/lib/utils';
 
@@ -24,6 +24,7 @@ export default function ProviderBookingDetailScreen() {
   } = useProviderBookingDetail(id);
 
   const updateBookingStatusMutation = useUpdateBookingStatus();
+  const completeServiceMutation = useCompleteService();
 
   const handleAcceptBooking = async () => {
     if (!booking) return;
@@ -85,17 +86,35 @@ export default function ProviderBookingDetailScreen() {
 
   const handleCompleteBooking = async () => {
     if (!booking) return;
-    
-    try {
-      await updateBookingStatusMutation.mutateAsync({
-        bookingId: booking.id,
-        status: 'completed',
-      });
-      await refetch();
-    } catch (error) {
-      console.error('Error completing booking:', error);
-      Alert.alert('Error', 'Failed to complete booking. Please try again.');
-    }
+
+    Alert.alert(
+      'Complete Service',
+      'Are you sure you want to mark this service as complete? This will release payment to you and notify the customer.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Complete Service',
+          style: 'default',
+          onPress: async () => {
+            try {
+              await completeServiceMutation.mutateAsync(booking.id);
+              Alert.alert(
+                'Service Completed',
+                'The service has been marked as complete. Payment will be released to you shortly.',
+                [{ text: 'OK' }]
+              );
+            } catch (error) {
+              console.error('Error completing service:', error);
+              Alert.alert(
+                'Error',
+                'Failed to complete service. Please try again.',
+                [{ text: 'OK' }]
+              );
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleCancelBooking = async () => {
@@ -265,10 +284,10 @@ export default function ProviderBookingDetailScreen() {
           <Button
             className="w-full"
             onPress={handleCompleteBooking}
-            disabled={updateBookingStatusMutation.isPending}
+            disabled={completeServiceMutation.isPending}
           >
             <Text className="text-primary-foreground font-semibold">
-              {updateBookingStatusMutation.isPending ? 'Completing...' : 'Mark as Complete'}
+              {completeServiceMutation.isPending ? 'Completing...' : 'Mark as Complete'}
             </Text>
           </Button>
         );

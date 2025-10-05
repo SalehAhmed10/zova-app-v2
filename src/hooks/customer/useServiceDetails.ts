@@ -24,6 +24,11 @@ export function useServiceDetails(serviceId: string) {
             years_of_experience,
             availability_status,
             availability_message
+          ),
+          bookings!bookings_service_id_fkey (
+            reviews!reviews_booking_id_fkey (
+              rating
+            )
           )
         `)
         .eq('id', serviceId)
@@ -37,10 +42,18 @@ export function useServiceDetails(serviceId: string) {
 
       // Transform the data to match the Service interface
       if (data) {
+        // Calculate service rating from reviews
+        const allReviews = data.bookings?.flatMap((booking: any) => booking.reviews || []) || [];
+        const avgRating = allReviews.length > 0
+          ? allReviews.reduce((sum: number, review: any) => sum + (review.rating || 0), 0) / allReviews.length
+          : 0;
+
         const transformedData = {
           ...data,
           duration: data.duration_minutes,
           price: data.base_price,
+          rating: avgRating, // Add service rating
+          total_reviews: allReviews.length, // Add total reviews count
           isHomeService: data.is_home_service,
           isRemoteService: data.is_remote_service,
           provider: data.provider ? {

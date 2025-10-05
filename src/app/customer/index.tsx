@@ -24,9 +24,10 @@ import { cn } from '@/lib/utils';
 import { Ionicons } from '@expo/vector-icons';
 import { Shield, Zap } from 'lucide-react-native';
 import { useColorScheme } from '@/lib/core/useColorScheme';
+import { THEME } from '@/lib/core/theme';
 
 // Today's Stats Component
-const TodaysStat = ({
+const TodaysStat = React.memo(({
   label,
   value,
   icon,
@@ -39,7 +40,7 @@ const TodaysStat = ({
   trend?: 'up' | 'down' | 'neutral';
   isLoading?: boolean;
 }) => (
-  <View className="flex-1 bg-accent/50 rounded-2xl p-5 min-w-[110px]">
+  <View className="flex-1 bg-accent/50 rounded-2xl p-5 min-w-[110px]" accessibilityLabel={`${label}: ${value}`}>
     <View className="items-center">
       <Text className="text-xl mb-2">{icon}</Text>
       {isLoading ? (
@@ -64,7 +65,7 @@ const TodaysStat = ({
       )}
     </View>
   </View>
-);
+));
 
 export default function CustomerDashboard() {
   // ✅ MIGRATED: Using optimized auth hook following copilot-rules.md
@@ -81,7 +82,7 @@ export default function CustomerDashboard() {
   const hasSOSAccess = hasActiveSubscription(allSubscriptions, 'customer_sos');
   
   // Theme-aware colors
-  const redColor = '#ef4444';
+  const theme = isDarkColorScheme ? THEME.dark : THEME.light;
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -98,19 +99,21 @@ export default function CustomerDashboard() {
   };
 
   // Get upcoming bookings for today
-  const todaysBookings = bookingsData?.filter(booking =>
-    booking.booking_date === new Date().toISOString().split('T')[0] &&
-    ['pending', 'confirmed'].includes(booking.status)
-  ) || [];
+  const todaysBookings = React.useMemo(() => 
+    bookingsData?.filter(booking =>
+      booking.booking_date === new Date().toISOString().split('T')[0] &&
+      ['pending', 'confirmed'].includes(booking.status)
+    ) || [], [bookingsData]);
 
   // Get next upcoming booking
-  const nextBooking = bookingsData?.find(booking =>
-    new Date(booking.booking_date) >= new Date() &&
-    ['pending', 'confirmed'].includes(booking.status)
-  );
+  const nextBooking = React.useMemo(() => 
+    bookingsData?.find(booking =>
+      new Date(booking.booking_date) >= new Date() &&
+      ['pending', 'confirmed'].includes(booking.status)
+    ), [bookingsData]);
 
   // Calculate real stats
-  const realStats = {
+  const realStats = React.useMemo(() => ({
     totalBookings: bookingsData?.length || 0,
     completedBookings: bookingsData?.filter(b => b.status === 'completed').length || 0,
     totalSpent: bookingsData?.reduce((sum, booking) => 
@@ -123,14 +126,14 @@ export default function CustomerDashboard() {
              bookingDate.getFullYear() === now.getFullYear();
     }).length || 0,
     avgRating: statsData?.avg_rating || 0
-  };
+  }), [bookingsData, statsData]);
 
   return (
     <SafeAreaView className="flex-1 bg-background">
       <ScrollView className="flex-1">
         {/* Header with Gradient */}
         <LinearGradient
-          colors={['#667EEA', '#764BA2']}
+          colors={[theme.gradientStart, theme.gradientEnd]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 24 }}
@@ -219,67 +222,82 @@ export default function CustomerDashboard() {
           <Text className="text-lg font-bold text-foreground mb-4">Quick Actions</Text>
           <View className="gap-3">
             <View className="flex-row gap-3">
-              <TouchableOpacity className="flex-1" onPress={() => router.push('/customer/search')}>
-                <Card className='bg-card'>
-                  <CardContent className=" p-4 items-center">
-                    <Text className="text-xl mb-2">🔍</Text>
-                    <Text className="font-semibold text-foreground text-center text-xs">
+              <TouchableOpacity
+                className="flex-1"
+                onPress={() => router.push('/customer/search')}
+                accessibilityLabel="Find services"
+                accessibilityRole="button"
+              >
+                <Card className="bg-card">
+                  <CardContent className="p-4 items-center">
+                    <Text className="text-2xl mb-2">🔍</Text>
+                    <Text className="font-semibold text-foreground text-center text-sm">
                       Find Services
                     </Text>
-                    <Text className="text-muted-foreground text-xs text-center mt-1">
+                    <Text className="text-muted-foreground text-xs text-center mt-1 leading-4">
                       Browse nearby
                     </Text>
                   </CardContent>
                 </Card>
               </TouchableOpacity>
 
-              <TouchableOpacity className="flex-1" onPress={() => router.push('/providers')}>
-                <Card className='bg-card'>
-                  <CardContent className=" p-4 items-center">
-                    <Text className="text-xl mb-2">👥</Text>
-                    <Text className="font-semibold text-foreground text-center text-xs">
+              <TouchableOpacity
+                className="flex-1"
+                onPress={() => router.push('/customer/search?mode=providers')}
+                accessibilityLabel="Browse providers"
+                accessibilityRole="button"
+              >
+                <Card className="bg-card">
+                  <CardContent className="p-4 items-center">
+                    <Text className="text-2xl mb-2">👥</Text>
+                    <Text className="font-semibold text-foreground text-center text-sm">
                       Browse Providers
                     </Text>
-                    <Text className="text-muted-foreground text-xs text-center mt-1">
+                    <Text className="text-muted-foreground text-xs text-center mt-1 leading-4">
                       Find professionals
                     </Text>
                   </CardContent>
                 </Card>
               </TouchableOpacity>
-            </View>
-
-            <View className="flex-row gap-3">
+            </View>            <View className="flex-row gap-3">
               <TouchableOpacity 
                 className="flex-1" 
                 onPress={() => hasSOSAccess ? router.push('/customer/sos-booking') : router.push('/customer/subscriptions')}
+                accessibilityLabel={hasSOSAccess ? "Emergency SOS booking" : "Get SOS access"}
+                accessibilityRole="button"
               >
-                <Card className={`bg-card ${hasSOSAccess ? 'border-2 border-red-500/20 bg-red-50 dark:bg-red-950/20' : ''}`}>
+                                <Card className={`bg-card ${hasSOSAccess ? 'border-2 border-destructive/20 bg-destructive/5' : ''}`}>
                   <CardContent className="p-4 items-center">
                     <View className="flex-row items-center justify-center mb-2">
                       {hasSOSAccess ? (
-                        <Shield size={18} color={redColor} />
+                        <Shield size={18} color={theme.destructive} />
                       ) : (
-                        <Text className="text-xl">�</Text>
+                        <Text className="text-xl">⚡</Text>
                       )}
                     </View>
-                    <Text className="font-semibold text-foreground text-center text-xs">
+                    <Text className="font-semibold text-foreground text-center text-sm">
                       {hasSOSAccess ? "SOS Booking" : "Get SOS Access"}
                     </Text>
-                    <Text className="text-muted-foreground text-xs text-center mt-1">
+                    <Text className="text-muted-foreground text-xs text-center mt-1 leading-4">
                       {hasSOSAccess ? "Emergency services" : "Premium feature"}
                     </Text>
                   </CardContent>
                 </Card>
               </TouchableOpacity>
 
-              <TouchableOpacity className="flex-1" onPress={() => router.push('/customer/subscriptions')}>
+              <TouchableOpacity 
+                className="flex-1" 
+                onPress={() => router.push('/customer/subscriptions')}
+                accessibilityLabel="Manage subscriptions"
+                accessibilityRole="button"
+              >
                 <Card className='bg-card'>
                   <CardContent className="p-4 items-center">
                     <Text className="text-xl mb-2">⚡</Text>
-                    <Text className="font-semibold text-foreground text-center text-xs">
+                    <Text className="font-semibold text-foreground text-center text-sm">
                       Subscriptions
                     </Text>
-                    <Text className="text-muted-foreground text-xs text-center mt-1">
+                    <Text className="text-muted-foreground text-xs text-center mt-1 leading-4">
                       Manage plans
                     </Text>
                   </CardContent>
@@ -361,7 +379,7 @@ export default function CustomerDashboard() {
               <View className="bg-accent/30 rounded-lg p-3">
                 <Text className="text-sm text-muted-foreground">
                   {hasSOSAccess ? 
-                    "� SOS Emergency Access is active - book urgent services anytime" :
+                    "🛡️ SOS Emergency Access is active - book urgent services anytime" :
                     "💡 Upgrade to SOS Access for emergency booking priority"
                   }
                 </Text>
@@ -406,7 +424,7 @@ export default function CustomerDashboard() {
                           </Text>
                           {provider.is_verified && (
                             <View className="flex-row items-center">
-                              <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                              <Ionicons name="checkmark-circle" size={14} color={theme.success} />
                             </View>
                           )}
                           <View className="flex-row items-center">
@@ -472,10 +490,10 @@ export default function CustomerDashboard() {
                     </AvatarFallback>
                   </Avatar>
                   <View className="flex-1">
-                    <Text className="font-semibold text-foreground text-base">
+                    <Text className="font-semibold text-foreground text-lg">{nextBooking.service_title}</Text>
+                    <Text className="text-muted-foreground text-sm mt-1">
                       {nextBooking.provider_first_name} {nextBooking.provider_last_name}
                     </Text>
-                    <Text className="text-muted-foreground text-sm mt-1">{nextBooking.service_title}</Text>
                     <View className="flex-row items-center gap-2 mt-1">
                       <Text className="text-xs">📅</Text>
                       <Text className="text-muted-foreground text-xs">
@@ -497,25 +515,11 @@ export default function CustomerDashboard() {
 
                 <View className="gap-3">
                   {/* Primary Action - View Details */}
-                  <TouchableOpacity onPress={() => router.push('/customer/bookings')}>
+                  <TouchableOpacity onPress={() => router.push(`/customer/booking/${nextBooking.id}` as any)}>
                     <View className="bg-primary rounded-lg py-4 items-center">
                       <Text className="text-primary-foreground font-bold text-sm">View Details</Text>
                     </View>
                   </TouchableOpacity>
-
-                  {/* Secondary Actions */}
-                  <View className="flex-row gap-3">
-                    <TouchableOpacity className="flex-1">
-                      <View className="bg-secondary/10 border border-secondary/20 rounded-lg py-3 items-center">
-                        <Text className="text-muted-foreground font-medium text-xs">Reschedule</Text>
-                      </View>
-                    </TouchableOpacity>
-                    <TouchableOpacity className="flex-1">
-                      <View className="bg-secondary/10 border border-secondary/20 rounded-lg py-3 items-center">
-                        <Text className="text-muted-foreground font-medium text-xs">Contact Provider</Text>
-                      </View>
-                    </TouchableOpacity>
-                  </View>
                 </View>
               </CardContent>
             </Card>

@@ -210,3 +210,34 @@ export function useBooking(bookingId: string) {
     enabled: !!bookingId,
   });
 }
+
+// Hook for completing a service (marks booking as complete and triggers payout)
+export function useCompleteService() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (bookingId: string) => {
+      console.log('[useCompleteService] Completing service for booking:', bookingId);
+
+      const response = await supabase.functions.invoke('complete-service', {
+        body: { booking_id: bookingId },
+      });
+
+      if (response.error) {
+        console.error('[useCompleteService] Error:', response.error);
+        throw new Error(response.error.message || 'Failed to complete service');
+      }
+
+      return response.data;
+    },
+    onSuccess: (data, bookingId) => {
+      console.log('[useCompleteService] Service completed successfully:', data);
+      // Invalidate all booking-related queries
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['customer-bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['provider-bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['booking', bookingId] });
+      queryClient.invalidateQueries({ queryKey: ['provider-booking-detail', bookingId] });
+    },
+  });
+}

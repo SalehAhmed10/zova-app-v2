@@ -123,14 +123,23 @@ export default function ServiceDetailsScreen() {
                 entering={FadeInDown.duration(500).delay(500)}
                 className="flex-row items-center flex-wrap mb-3"
               >
-                {service.provider?.rating && (
+                {service.rating > 0 && (
                   <View className="flex-row items-center mr-3 bg-warning/10 px-2 py-1 rounded-full mb-1">
                     <Ionicons name="star" size={14} color={isDarkColorScheme ? THEME.dark.warning : THEME.light.warning} />
                     <Text
                       className="text-sm font-semibold ml-1"
                       style={{ color: isDarkColorScheme ? THEME.dark.warning : THEME.light.warning }}
                     >
-                      {service.provider.rating.toFixed(1)}
+                      {service.rating.toFixed(1)} ({service.total_reviews} review{service.total_reviews !== 1 ? 's' : ''})
+                    </Text>
+                  </View>
+                )}
+
+                {service.provider?.rating && (
+                  <View className="flex-row items-center mr-3 bg-muted/50 px-2 py-1 rounded-full mb-1">
+                    <Ionicons name="person-outline" size={12} color={isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground} />
+                    <Text className="text-xs text-muted-foreground ml-1">
+                      Provider: {service.provider.rating.toFixed(1)}
                     </Text>
                   </View>
                 )}

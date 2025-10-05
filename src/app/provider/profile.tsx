@@ -140,7 +140,7 @@ export default React.memo(function ProfileScreen() {
       iconBg: `${getIconBgColor('yellow')}20`,
       title: 'Reviews & Ratings',
       subtitle: '2 new reviews',
-      onPress: () => {},
+      onPress: () => router.push('/provider/reviews'),
     },
     {
       id: 'messages',

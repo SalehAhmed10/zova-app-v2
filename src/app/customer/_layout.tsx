@@ -85,7 +85,7 @@ export default function CustomerLayout() {
           ),
         }}
       />
-      <Tabs.Screen
+      {/* <Tabs.Screen
         name="messages"
         options={{
           title: 'Messages',
@@ -93,7 +93,15 @@ export default function CustomerLayout() {
             <Ionicons name="chatbubble" size={size} color={color} />
           ),
         }}
-      />
+      /> */}
+
+      <Tabs.Screen
+        name="messages"
+        options={{
+          href: null,
+        }}
+      />    
+
       <Tabs.Screen
         name="profile"
         options={{
@@ -151,6 +159,25 @@ export default function CustomerLayout() {
           href: null,
         }}
       />
+      <Tabs.Screen
+      name='profile/booking-history'
+      options={{
+        href: null,
+      }}
+      />
+      <Tabs.Screen
+      name='profile/favorites'
+      options={{
+        href: null,
+      }}
+      />
+      <Tabs.Screen
+      name='profile/personal-info'
+      options={{
+        href: null,
+      }}
+      />
+      
     </Tabs>
   );
 }

@@ -69,7 +69,8 @@ export function useSearchResults() {
           avatar: provider.avatar_url,
           location: [provider.city, provider.country].filter(Boolean).join(', ') || 'Location not specified',
           bio: provider.bio,
-          rating: avgRating,
+          avg_rating: avgRating, // Changed from 'rating' to 'avg_rating' to match component expectations
+          total_reviews: reviews.length, // Added total_reviews count
           yearsOfExperience: 0,
           serviceCount: provider.provider_services?.length || 0,
           distance: null,
@@ -111,7 +112,7 @@ export function useSearchResults() {
       console.log('🔍 [Services Query] Starting services search...');
       console.log('🔍 [Services Query] Query params:', { searchQuery, searchMode, filters });
 
-      // Fetch services with provider info
+      // Fetch services with provider info and ratings
       const { data: services, error: servicesError } = await supabase
         .from('provider_services')
         .select(`
@@ -126,6 +127,11 @@ export function useSearchResults() {
             bio,
             years_of_experience,
             availability_status
+          ),
+          bookings!bookings_service_id_fkey (
+            reviews!reviews_booking_id_fkey (
+              rating
+            )
           )
         `)
         .eq('is_active', true)
@@ -145,23 +151,32 @@ export function useSearchResults() {
 
       const transformedServices = (services || [])
         .filter(service => service.profiles !== null) // Filter out orphaned services
-        .map(service => ({
-        id: service.id,
-        title: service.title,
-        description: service.description,
-        price: service.base_price,
-        duration: service.duration_minutes,
-        rating: 4.5, // Default rating since it's not in the table
-        isHomeService: service.is_home_service,
-        isRemoteService: service.is_remote_service,
-        provider: service.profiles ? {
-          id: service.profiles.id,
-          name: `${service.profiles.first_name || ''} ${service.profiles.last_name || ''}`.trim() || 'Provider',
-          avatar: service.profiles.avatar_url,
-          location: [service.profiles.city, service.profiles.country].filter(Boolean).join(', ') || 'Location not specified',
-          yearsOfExperience: service.profiles.years_of_experience || 0,
-        } : null,
-      }));
+        .map(service => {
+          // Calculate average rating from reviews
+          const allReviews = service.bookings?.flatMap((booking: any) => booking.reviews || []) || [];
+          const avgRating = allReviews.length > 0
+            ? allReviews.reduce((sum: number, review: any) => sum + (review.rating || 0), 0) / allReviews.length
+            : 0;
+
+          return {
+            id: service.id,
+            title: service.title,
+            description: service.description,
+            price: service.base_price,
+            duration: service.duration_minutes,
+            rating: avgRating, // Real rating calculated from reviews
+            total_reviews: allReviews.length, // Added total reviews count
+            isHomeService: service.is_home_service,
+            isRemoteService: service.is_remote_service,
+            provider: service.profiles ? {
+              id: service.profiles.id,
+              name: `${service.profiles.first_name || ''} ${service.profiles.last_name || ''}`.trim() || 'Provider',
+              avatar: service.profiles.avatar_url,
+              location: [service.profiles.city, service.profiles.country].filter(Boolean).join(', ') || 'Location not specified',
+              yearsOfExperience: service.profiles.years_of_experience || 0,
+            } : null,
+          };
+        });
 
       console.log('🔍 [Services Query] Transformed services:', transformedServices.length);
 

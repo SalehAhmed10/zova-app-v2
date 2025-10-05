@@ -21,6 +21,7 @@ export interface BookingData {
   service_location?: string;
   emergency_description?: string;
   sos_booking?: boolean;
+  customer_review_submitted?: boolean;
 }
 
 export const useCustomerBookings = (userId?: string) => {
@@ -55,6 +56,9 @@ export const useCustomerBookings = (userId?: string) => {
             first_name,
             last_name,
             business_name
+          ),
+          reviews!left (
+            id
           )
         `)
         .eq('customer_id', userId)
@@ -85,6 +89,7 @@ export const useCustomerBookings = (userId?: string) => {
         service_location: booking.service_address,
         emergency_description: booking.customer_notes,
         sos_booking: booking.is_sos_booking || false,
+        customer_review_submitted: !!(booking.reviews as any)?.id,
       }));
     },
     enabled: !!userId,
@@ -125,6 +130,9 @@ export const useCustomerBookingDetail = (bookingId?: string) => {
             first_name,
             last_name,
             business_name
+          ),
+          reviews!left (
+            id
           )
         `)
         .eq('id', bookingId)
@@ -156,7 +164,8 @@ export const useCustomerBookingDetail = (bookingId?: string) => {
         service_type: (data.provider_services as any)?.title || 'Emergency Service',
         service_location: data.service_address,
         emergency_description: data.customer_notes,
-        sos_booking: data.is_sos_booking || false
+        sos_booking: data.is_sos_booking || false,
+        customer_review_submitted: !!(data.reviews as any)?.id,
       };
     },
     enabled: !!bookingId,

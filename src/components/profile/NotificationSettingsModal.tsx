@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useUpdateNotificationSettings } from '@/hooks';
 import type { NotificationSettings } from '@/hooks';
 import { cn } from '@/lib/utils';
+import { useColorScheme } from '@/lib/core/useColorScheme';
+import { THEME } from '@/lib/core/theme';
 
 interface NotificationSettingsModalProps {
   visible: boolean;
@@ -22,6 +24,7 @@ export function NotificationSettingsModal({
   userId 
 }: NotificationSettingsModalProps) {
   const updateSettingsMutation = useUpdateNotificationSettings();
+  const { colorScheme } = useColorScheme();
   
   const [localSettings, setLocalSettings] = useState<NotificationSettings>({
     user_id: userId,
@@ -84,7 +87,7 @@ export function NotificationSettingsModal({
         onValueChange={onToggle}
         trackColor={{ 
           false: 'rgba(120, 113, 108, 0.3)', 
-          true: 'hsl(var(--primary))' 
+          true: THEME[colorScheme].primary
         }}
         thumbColor={value ? '#fff' : '#f4f3f4'}
       />
