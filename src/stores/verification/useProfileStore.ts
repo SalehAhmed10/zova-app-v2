@@ -8,7 +8,7 @@ interface ProfileState {
   userId: string | null;
   verificationStatus: VerificationStatus | null;
   _hasHydrated: boolean;
-  setProfile: (userId: string, status: VerificationStatus) => void;
+  setProfile: (userId: string, status: VerificationStatus | null) => void;
   clear: () => void;
   isApproved: () => boolean;
   setHydrated: () => void;
@@ -21,8 +21,8 @@ export const useProfileStore = create<ProfileState>()(
       verificationStatus: null,
       _hasHydrated: false,
       setProfile: (userId, status) => {
-        // Validate status
-        const validStatuses: VerificationStatus[] = ["pending", "in_review", "approved", "rejected"];
+        // Validate status - allow null for unverified providers
+        const validStatuses: (VerificationStatus | null)[] = ["pending", "in_review", "approved", "rejected", null];
         if (!validStatuses.includes(status)) {
           console.warn("[ProfileStore] Invalid verification status:", status);
           return;

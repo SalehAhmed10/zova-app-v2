@@ -15,7 +15,8 @@ interface LogoutLoadingScreenProps {
 }
 
 export function LogoutLoadingScreen({ visible }: LogoutLoadingScreenProps) {
-  console.log('[LogoutLoadingScreen] � Component render - visible:', visible);
+  // Temporarily disabled verbose logging to reduce console noise
+  // console.log('[LogoutLoadingScreen] � Component render - visible:', visible);
   
   // ✅ CLEAN: Static initial values for optimal performance
   const scaleAnim = useSharedValue(0);

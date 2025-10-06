@@ -1,0 +1,2 @@
+[functions.stripe-redirect]
+verify_jwt = false

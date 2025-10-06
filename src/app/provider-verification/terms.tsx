@@ -37,11 +37,11 @@ export default function BusinessTermsScreen() {
     const cancellationFee = termsData.cancellationFeePercentage;
     const policy = termsData.cancellationPolicy;
 
-    if (!deposit || deposit < 0 || deposit > 100) {
+    if (deposit === null || deposit === undefined || deposit < 0 || deposit > 100) {
       Alert.alert('Invalid Deposit', 'Deposit percentage must be between 0 and 100.');
       return false;
     }
-    if (!cancellationFee || cancellationFee < 0 || cancellationFee > 100) {
+    if (cancellationFee === null || cancellationFee === undefined || cancellationFee < 0 || cancellationFee > 100) {
       Alert.alert('Invalid Cancellation Fee', 'Cancellation fee percentage must be between 0 and 100.');
       return false;
     }
@@ -69,7 +69,6 @@ export default function BusinessTermsScreen() {
           depositPercentage: termsData.depositPercentage,
           cancellationFeePercentage: termsData.cancellationFeePercentage,
           cancellationPolicy: termsData.cancellationPolicy,
-          termsAccepted: true,
         },
       });
 
@@ -114,10 +113,19 @@ export default function BusinessTermsScreen() {
               placeholder="Enter deposit percentage (e.g., 25)"
               value={termsData.depositPercentage?.toString() || ''}
               onChangeText={(text) => {
-                // Only allow numbers and decimal point
+                // Allow empty input or numbers with decimal point
+                if (text === '') {
+                  updateTermsData({ depositPercentage: null });
+                  return;
+                }
+                
                 const numericText = text.replace(/[^0-9.]/g, '');
-                const value = parseFloat(numericText) || 0;
-                updateTermsData({ depositPercentage: value });
+                const value = parseFloat(numericText);
+                
+                if (!isNaN(value)) {
+                  updateTermsData({ depositPercentage: value });
+                }
+                // If invalid, don't update (keep previous value)
               }}
               keyboardType="decimal-pad"
               maxLength={5}
@@ -142,10 +150,19 @@ export default function BusinessTermsScreen() {
               placeholder="Enter cancellation fee percentage (e.g., 50)"
               value={termsData.cancellationFeePercentage?.toString() || ''}
               onChangeText={(text) => {
-                // Only allow numbers and decimal point
+                // Allow empty input or numbers with decimal point
+                if (text === '') {
+                  updateTermsData({ cancellationFeePercentage: null });
+                  return;
+                }
+                
                 const numericText = text.replace(/[^0-9.]/g, '');
-                const value = parseFloat(numericText) || 0;
-                updateTermsData({ cancellationFeePercentage: value });
+                const value = parseFloat(numericText);
+                
+                if (!isNaN(value)) {
+                  updateTermsData({ cancellationFeePercentage: value });
+                }
+                // If invalid, don't update (keep previous value)
               }}
               keyboardType="decimal-pad"
               maxLength={5}
@@ -221,8 +238,10 @@ export default function BusinessTermsScreen() {
           onPress={handleSubmit}
           disabled={
             saveTermsMutation.isPending ||
-            !termsData.depositPercentage ||
-            !termsData.cancellationFeePercentage ||
+            termsData.depositPercentage === null ||
+            termsData.depositPercentage === undefined ||
+            termsData.cancellationFeePercentage === null ||
+            termsData.cancellationFeePercentage === undefined ||
             !termsData.cancellationPolicy?.trim()
           }
           className="w-full"

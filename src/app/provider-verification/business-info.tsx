@@ -1,7 +1,9 @@
 import React from 'react';
 import { View } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
+import { useQuery } from '@tanstack/react-query';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
+import { router } from 'expo-router';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,6 +32,7 @@ export default function BusinessInfoScreen() {
     businessData, 
     updateBusinessData, 
     completeStepSimple,
+    currentStep,
   } = useProviderVerificationStore();
   
   // ✅ REACT QUERY: Mutation for saving business info

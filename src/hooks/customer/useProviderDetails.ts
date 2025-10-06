@@ -2,13 +2,35 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/core/supabase';
 import { ProfileData } from '@/hooks/shared/useProfileData';
 
+export interface ProviderDetails extends ProfileData {
+  provider_services: any[];
+  average_rating?: number;
+  total_reviews?: number;
+  years_of_experience?: number;
+  business_name?: string;
+  business_description?: string;
+  website?: string;
+  recent_reviews?: ReviewData[];
+}
+
+export interface ReviewData {
+  id: string;
+  rating: number;
+  comment?: string;
+  created_at: string;
+  customer_first_name?: string;
+  customer_last_name?: string;
+  is_anonymous: boolean;
+}
+
 export function useProviderDetails(providerId: string) {
   return useQuery({
     queryKey: ['provider', providerId],
-    queryFn: async (): Promise<ProfileData | null> => {
+    queryFn: async (): Promise<ProviderDetails | null> => {
       if (!providerId) return null;
 
-      const { data, error } = await supabase
+      // Fetch provider profile with services
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select(`
           *,
@@ -35,12 +57,71 @@ export function useProviderDetails(providerId: string) {
         .eq('verification_status', 'approved')
         .single();
 
-      if (error) {
-        console.error('Error fetching provider details:', error);
-        throw error;
+      if (profileError) {
+        console.error('Error fetching provider details:', profileError);
+        throw profileError;
       }
 
-      return data;
+      // Fetch average rating and review count
+      const { data: reviews, error: reviewsError } = await supabase
+        .from('reviews')
+        .select('rating')
+        .eq('provider_id', providerId);
+
+      if (reviewsError) {
+        console.error('Error fetching provider reviews:', reviewsError);
+        // Don't throw error for reviews, just continue without them
+      }
+
+      // Fetch recent reviews (last 2)
+      const { data: recentReviews, error: recentReviewsError } = await supabase
+        .from('reviews')
+        .select(`
+          id,
+          rating,
+          comment,
+          created_at,
+          is_anonymous,
+          customer:customer_id (
+            first_name,
+            last_name
+          )
+        `)
+        .eq('provider_id', providerId)
+        .order('created_at', { ascending: false })
+        .limit(2);
+
+      if (recentReviewsError) {
+        console.error('Error fetching recent reviews:', recentReviewsError);
+      }
+
+      // Calculate average rating
+      let averageRating = 0;
+      let totalReviews = 0;
+
+      if (reviews && reviews.length > 0) {
+        totalReviews = reviews.length;
+        const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
+        averageRating = totalRating / reviews.length;
+      }
+
+      // Format recent reviews
+      const formattedReviews: ReviewData[] = (recentReviews || []).map(review => ({
+        id: review.id,
+        rating: review.rating,
+        comment: review.comment,
+        created_at: review.created_at,
+        customer_first_name: review.is_anonymous ? null : (review.customer as any)?.first_name,
+        customer_last_name: review.is_anonymous ? null : (review.customer as any)?.last_name,
+        is_anonymous: review.is_anonymous,
+      }));
+
+      return {
+        ...profile,
+        average_rating: averageRating,
+        total_reviews: totalReviews,
+        recent_reviews: formattedReviews,
+      };
     },
     enabled: !!providerId,
   });

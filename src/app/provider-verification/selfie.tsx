@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Alert, Image } from 'react-native';
+import { View, Alert, Image, Platform } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import * as ImagePicker from 'expo-image-picker';
@@ -551,7 +551,11 @@ export default function SelfieVerificationScreen() {
       </Animated.View>
 
       {/* Back Button */}
-      <Animated.View entering={SlideInDown.delay(1200).springify()}>
+      <Animated.View 
+        entering={SlideInDown.delay(1200).springify()} 
+        className="mb-6"
+        style={Platform.OS === 'android' ? { marginBottom: 32 } : undefined}
+      >
         <Button
           variant="outline"
           size="lg"

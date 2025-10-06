@@ -31,8 +31,10 @@ export const ScreenWrapper: React.FC<ScreenWrapperProps> = ({
   // Calculate proper bottom padding based on platform and safe area
   const getBottomPadding = () => {
     const basePadding = 20;
+    // Android navigation bar is typically 48-56dp, add extra padding
+    const androidNavBarPadding = Platform.OS === 'android' ? 48 : 0;
     const extraPadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 34 : 16);
-    return basePadding + extraPadding;
+    return basePadding + extraPadding + androidNavBarPadding;
   };
 
   if (scrollable) {

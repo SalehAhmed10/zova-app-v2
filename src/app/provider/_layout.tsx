@@ -140,15 +140,6 @@ export default function ProviderLayout() {
           }}
         />
         <Tabs.Screen
-          name="subscriptions"
-          options={{
-            title: 'Premium',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="star" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tabs.Screen
           name="earnings"
           options={{
             title: 'Earnings',
@@ -164,6 +155,18 @@ export default function ProviderLayout() {
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="person" size={size} color={color} />
             ),
+          }}
+        />
+        <Tabs.Screen
+          name="profile/reviews"
+          options={{
+            href: null, // Hide from bottom tab
+          }}
+        />
+        <Tabs.Screen
+          name="profile/subscriptions"
+          options={{
+            href: null, // Hide from bottom tab
           }}
         />
         <Tabs.Screen

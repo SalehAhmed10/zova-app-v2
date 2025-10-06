@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ScrollView } from 'react-native';
+import { View, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
@@ -8,41 +8,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuthPure } from '@/hooks/shared/useAuthPure';
-import { useUserFavorites } from '@/hooks/customer/useFavorites';
+import { useUserFavorites, useToggleFavorite } from '@/hooks/customer/useFavorites';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChevronLeft } from 'lucide-react-native';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { THEME } from '@/lib/core/theme';
 import { ProviderCard, ServiceCard } from '@/components/customer';
 
-interface FavoriteProvider {
-  id: string;
-  first_name: string;
-  last_name: string;
-  business_name?: string;
-  avatar_url?: string;
-  rating?: number;
-  review_count?: number;
-  services_count?: number;
-}
 
-interface FavoriteService {
-  id: string;
-  title: string;
-  description?: string;
-  base_price: number;
-  price_type: 'fixed' | 'hourly';
-  provider?: {
-    id: string;
-    first_name: string;
-    last_name: string;
-    business_name?: string;
-    avatar_url?: string;
-    rating?: number;
-  } | null;
-  category_name: string;
-  subcategory_name: string;
-}
 
 const FavoritesSkeleton = () => (
   <View className="mb-3">
@@ -64,9 +37,40 @@ const FavoritesSkeleton = () => (
 
 export default function FavoritesScreen() {
   const [activeTab, setActiveTab] = React.useState('all');
+  const [refreshing, setRefreshing] = React.useState(false);
   const { user } = useAuthPure();
   const { data: favorites, isLoading, error, refetch } = useUserFavorites(user?.id);
+  const toggleFavoriteMutation = useToggleFavorite();
   const { isDarkColorScheme } = useColorScheme();
+
+  const handleToggleFavorite = (serviceId: string) => {
+    if (!user?.id) return;
+    toggleFavoriteMutation.mutate({
+      userId: user.id,
+      type: 'service',
+      itemId: serviceId,
+      isFavorited: true // Since we're in favorites, these are currently favorited
+    });
+  };
+
+  const handleToggleProviderFavorite = (providerId: string) => {
+    if (!user?.id) return;
+    toggleFavoriteMutation.mutate({
+      userId: user.id,
+      type: 'provider',
+      itemId: providerId,
+      isFavorited: true // Since we're in favorites, these are currently favorited
+    });
+  };
+
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetch]);
 
   if (!user) {
     return (
@@ -137,7 +141,17 @@ export default function FavoritesScreen() {
             </View>
 
             <TabsContent value="all" className="flex-1">
-              <ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false}>
+              <ScrollView
+                className="flex-1 p-4"
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    tintColor={isDarkColorScheme ? THEME.dark.primary : THEME.light.primary}
+                  />
+                }
+              >
                 <View className="py-2">
                   {/* Providers Section */}
                   {favorites?.providers && favorites.providers.length > 0 && (
@@ -146,7 +160,12 @@ export default function FavoritesScreen() {
                         Favorite Providers
                       </Text>
                       {favorites.providers.map((provider) => (
-                        <ProviderCard key={provider.id} provider={provider} />
+                        <ProviderCard 
+                          key={provider.id} 
+                          provider={provider}
+                          isFavorited={true}
+                          onToggleFavorite={() => handleToggleProviderFavorite(provider.id)}
+                        />
                       ))}
                     </View>
                   )}
@@ -158,7 +177,12 @@ export default function FavoritesScreen() {
                         Favorite Services
                       </Text>
                       {favorites.services.map((service) => (
-                        <ServiceCard key={service.id} service={service} />
+                        <ServiceCard 
+                          key={service.id} 
+                          service={service}
+                          isFavorited={true}
+                          onToggleFavorite={() => handleToggleFavorite(service.id)}
+                        />
                       ))}
                     </View>
                   )}
@@ -167,11 +191,26 @@ export default function FavoritesScreen() {
             </TabsContent>
 
             <TabsContent value="providers" className="flex-1">
-              <ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false}>
+              <ScrollView
+                className="flex-1 p-4"
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    tintColor={isDarkColorScheme ? THEME.dark.primary : THEME.light.primary}
+                  />
+                }
+              >
                 <View className="py-2">
                   {favorites?.providers && favorites.providers.length > 0 ? (
                     favorites.providers.map((provider) => (
-                      <ProviderCard key={provider.id} provider={provider} />
+                      <ProviderCard 
+                        key={provider.id} 
+                        provider={provider}
+                        isFavorited={true}
+                        onToggleFavorite={() => handleToggleProviderFavorite(provider.id)}
+                      />
                     ))
                   ) : (
                     <View className="flex-1 justify-center items-center py-12">
@@ -192,11 +231,26 @@ export default function FavoritesScreen() {
             </TabsContent>
 
             <TabsContent value="services" className="flex-1">
-              <ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false}>
+              <ScrollView
+                className="flex-1 p-4"
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    tintColor={isDarkColorScheme ? THEME.dark.primary : THEME.light.primary}
+                  />
+                }
+              >
                 <View className="py-2">
                   {favorites?.services && favorites.services.length > 0 ? (
                     favorites.services.map((service) => (
-                      <ServiceCard key={service.id} service={service} />
+                      <ServiceCard 
+                        key={service.id} 
+                        service={service}
+                        isFavorited={true}
+                        onToggleFavorite={() => handleToggleFavorite(service.id)}
+                      />
                     ))
                   ) : (
                     <View className="flex-1 justify-center items-center py-12">

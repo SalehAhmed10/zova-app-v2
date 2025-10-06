@@ -170,41 +170,74 @@ export const useUserBookings = (userId?: string) => {
 };
 
 // Hook to fetch user statistics
-export const useProfileStats = (userId?: string) => {
+export const useProfileStats = (userId?: string, userRole?: string) => {
   return useQuery({
-    queryKey: ['profileStats', userId],
+    queryKey: ['profileStats', userId, userRole],
     queryFn: async () => {
       if (!userId) throw new Error('User ID is required');
       
-      // Get booking stats
-      const { data: bookingStats, error: bookingError } = await supabase
-        .from('bookings')
-        .select('status, total_amount')
-        .eq('customer_id', userId);
+      if (userRole === 'provider') {
+        // Provider stats: bookings they provide service for
+        const { data: bookingStats, error: bookingError } = await supabase
+          .from('bookings')
+          .select('status, total_amount')
+          .eq('provider_id', userId);
 
-      if (bookingError) throw bookingError;
+        if (bookingError) throw bookingError;
 
-      // Get average rating from reviews
-      const { data: reviewStats, error: reviewError } = await supabase
-        .from('reviews')
-        .select('rating')
-        .eq('customer_id', userId);
+        // Get average rating from reviews for provider
+        const { data: reviewStats, error: reviewError } = await supabase
+          .from('reviews')
+          .select('rating')
+          .eq('provider_id', userId);
 
-      if (reviewError) throw reviewError;
+        if (reviewError) throw reviewError;
 
-      const totalBookings = bookingStats?.length || 0;
-      const completedBookings = bookingStats?.filter(b => b.status === 'completed').length || 0;
-      const totalSpent = bookingStats?.reduce((sum, b) => sum + parseFloat(b.total_amount || '0'), 0) || 0;
-      const avgRating = reviewStats?.length > 0 
-        ? reviewStats.reduce((sum, r) => sum + r.rating, 0) / reviewStats.length 
-        : 0;
+        const totalBookings = bookingStats?.length || 0;
+        const completedBookings = bookingStats?.filter(b => b.status === 'completed').length || 0;
+        const totalEarnings = bookingStats?.filter(b => b.status === 'completed')
+          .reduce((sum, b) => sum + parseFloat(b.total_amount || '0'), 0) || 0;
+        const avgRating = reviewStats?.length > 0 
+          ? reviewStats.reduce((sum, r) => sum + r.rating, 0) / reviewStats.length 
+          : 0;
 
-      return {
-        total_bookings: totalBookings,
-        completed_bookings: completedBookings,
-        avg_rating: Math.round(avgRating * 10) / 10, // Round to 1 decimal
-        total_spent: totalSpent,
-      } as ProfileStats;
+        return {
+          total_bookings: totalBookings,
+          completed_bookings: completedBookings,
+          avg_rating: Math.round(avgRating * 10) / 10, // Round to 1 decimal
+          total_spent: totalEarnings, // For providers, this represents earnings
+        } as ProfileStats;
+      } else {
+        // Customer stats: bookings they've made
+        const { data: bookingStats, error: bookingError } = await supabase
+          .from('bookings')
+          .select('status, total_amount')
+          .eq('customer_id', userId);
+
+        if (bookingError) throw bookingError;
+
+        // Get average rating from reviews made by customer (not really used for customers)
+        const { data: reviewStats, error: reviewError } = await supabase
+          .from('reviews')
+          .select('rating')
+          .eq('customer_id', userId);
+
+        if (reviewError) throw reviewError;
+
+        const totalBookings = bookingStats?.length || 0;
+        const completedBookings = bookingStats?.filter(b => b.status === 'completed').length || 0;
+        const totalSpent = bookingStats?.reduce((sum, b) => sum + parseFloat(b.total_amount || '0'), 0) || 0;
+        const avgRating = reviewStats?.length > 0 
+          ? reviewStats.reduce((sum, r) => sum + r.rating, 0) / reviewStats.length 
+          : 0;
+
+        return {
+          total_bookings: totalBookings,
+          completed_bookings: completedBookings,
+          avg_rating: Math.round(avgRating * 10) / 10, // Round to 1 decimal
+          total_spent: totalSpent,
+        } as ProfileStats;
+      }
     },
     enabled: !!userId,
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -678,69 +711,90 @@ export const useUpdateBusinessAvailability = () => {
 };
 
 // Hook to fetch provider earnings data
+export interface ProviderEarningsData {
+  totalEarnings: number;
+  thisMonth: number;
+  pendingPayouts: number;
+  completedBookings: number;
+  nextPayoutDate: string;
+}
+
+export interface ProviderPayoutData {
+  id: string;
+  amount: number;
+  status: string;
+  expected_payout_date: string;
+  actual_payout_date?: string;
+  booking_id: string;
+  created_at: string;
+}
+
+export interface ProviderEarningsAnalytics {
+  monthlyRevenue: number[];
+  bookingTrends: number[];
+  averageBookingValue: number;
+  topServices: Array<{
+    service_name: string;
+    revenue: number;
+    bookings: number;
+  }>;
+}
+
+// Hook to fetch provider earnings summary
 export const useProviderEarnings = (providerId?: string) => {
   return useQuery({
     queryKey: ['providerEarnings', providerId],
-    queryFn: async () => {
+    queryFn: async (): Promise<ProviderEarningsData> => {
       if (!providerId) throw new Error('Provider ID is required');
 
-      // Get provider payouts
-      const { data: payouts, error: payoutsError } = await supabase
+      // Get payout records from provider_payouts table
+      const { data: payouts, error } = await supabase
         .from('provider_payouts')
-        .select('*')
-        .eq('provider_id', providerId)
-        .order('created_at', { ascending: false });
+        .select('amount, status, expected_payout_date, created_at')
+        .eq('provider_id', providerId);
 
-      if (payoutsError) throw payoutsError;
+      if (error) throw error;
+
+      // Calculate total earnings (paid/completed payouts)
+      const totalEarnings = payouts?.filter(p => p.status === 'paid' || p.status === 'completed')
+        .reduce((sum, payout) => sum + parseFloat(payout.amount || '0'), 0) || 0;
+
+      // Calculate this month's earnings
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const thisMonthEarnings = payouts?.filter(payout => {
+        const payoutDate = new Date(payout.created_at);
+        return payoutDate >= startOfMonth && (payout.status === 'paid' || payout.status === 'completed');
+      }).reduce((sum, payout) => sum + parseFloat(payout.amount || '0'), 0) || 0;
+
+      // Calculate pending payouts
+      const pendingPayouts = payouts?.filter(p => p.status === 'pending' || p.status === 'processing')
+        .reduce((sum, payout) => sum + parseFloat(payout.amount || '0'), 0) || 0;
 
       // Get completed bookings count
-      const { count: bookingsCount } = await supabase
+      const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
-        .select('*', { count: 'exact', head: true })
+        .select('id')
         .eq('provider_id', providerId)
         .eq('status', 'completed');
 
-      if (payouts) {
-        const totalEarnings = payouts
-          .filter(p => p.status === 'paid')
-          .reduce((sum, p) => sum + p.amount, 0);
+      if (bookingsError) throw bookingsError;
+      const completedBookings = bookings?.length || 0;
 
-        const thisMonth = payouts
-          .filter(p => {
-            const payoutDate = new Date(p.created_at);
-            const now = new Date();
-            return payoutDate.getMonth() === now.getMonth() &&
-                   payoutDate.getFullYear() === now.getFullYear() &&
-                   p.status === 'paid';
-          })
-          .reduce((sum, p) => sum + p.amount, 0);
-
-        const pendingAmount = payouts
-          .filter(p => p.status === 'pending' || p.status === 'processing')
-          .reduce((sum, p) => sum + p.amount, 0);
-
-        // Calculate next payout date (next Monday)
-        const nextMonday = getNextMonday();
-
-        return {
-          totalEarnings,
-          thisMonth,
-          pendingPayouts: pendingAmount,
-          completedBookings: bookingsCount || 0,
-          nextPayoutDate: nextMonday.toLocaleDateString()
-        };
-      }
+      // Calculate next payout date (earliest pending payout)
+      const nextPayout = payouts?.filter(p => p.status === 'pending' || p.status === 'processing')
+        .sort((a, b) => new Date(a.expected_payout_date).getTime() - new Date(b.expected_payout_date).getTime())[0];
 
       return {
-        totalEarnings: 0,
-        thisMonth: 0,
-        pendingPayouts: 0,
-        completedBookings: bookingsCount || 0,
-        nextPayoutDate: getNextMonday().toLocaleDateString()
+        totalEarnings,
+        thisMonth: thisMonthEarnings,
+        pendingPayouts,
+        completedBookings,
+        nextPayoutDate: nextPayout?.expected_payout_date || '',
       };
     },
     enabled: !!providerId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 2 * 60 * 1000, // 2 minutes
   });
 };
 
@@ -748,84 +802,95 @@ export const useProviderEarnings = (providerId?: string) => {
 export const useProviderPayouts = (providerId?: string) => {
   return useQuery({
     queryKey: ['providerPayouts', providerId],
-    queryFn: async () => {
+    queryFn: async (): Promise<ProviderPayoutData[]> => {
       if (!providerId) throw new Error('Provider ID is required');
 
-      const { data: payouts, error } = await supabase
+      const { data, error } = await supabase
         .from('provider_payouts')
-        .select('*')
+        .select('id, amount, status, expected_payout_date, actual_payout_date, booking_id, created_at')
         .eq('provider_id', providerId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return payouts || [];
+      return data || [];
     },
     enabled: !!providerId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 2 * 60 * 1000, // 2 minutes
   });
 };
 
-// Hook to fetch provider earnings analytics for charts
+// Hook to fetch provider earnings analytics
 export const useProviderEarningsAnalytics = (providerId?: string) => {
   return useQuery({
     queryKey: ['providerEarningsAnalytics', providerId],
-    queryFn: async () => {
+    queryFn: async (): Promise<ProviderEarningsAnalytics> => {
       if (!providerId) throw new Error('Provider ID is required');
 
-      // Get last 12 months of earnings data
-      const { data: payouts, error: payoutsError } = await supabase
+      // Get last 12 months of payout data
+      const twelveMonthsAgo = new Date();
+      twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+
+      const { data: payouts, error } = await supabase
         .from('provider_payouts')
-        .select('amount, created_at, status')
+        .select('amount, status, created_at')
         .eq('provider_id', providerId)
-        .eq('status', 'paid')
-        .order('created_at', { ascending: false });
+        .gte('created_at', twelveMonthsAgo.toISOString())
+        .eq('status', 'paid');
 
-      if (payoutsError) throw payoutsError;
+      if (error) throw error;
 
-      // Get booking trends (last 12 months)
+      // Calculate monthly revenue for the last 12 months
+      const monthlyRevenue = Array.from({ length: 12 }, (_, i) => {
+        const month = new Date();
+        month.setMonth(month.getMonth() - (11 - i));
+        const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
+        const monthEnd = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+
+        return payouts?.filter(payout => {
+          const payoutDate = new Date(payout.created_at);
+          return payoutDate >= monthStart && payoutDate <= monthEnd;
+        }).reduce((sum, payout) => sum + parseFloat(payout.amount || '0'), 0) || 0;
+      });
+
+      // Get booking trends (completed bookings per month)
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
-        .select('total_amount, booking_date, status')
+        .select('created_at')
         .eq('provider_id', providerId)
         .eq('status', 'completed')
-        .gte('booking_date', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
-        .order('booking_date', { ascending: false });
+        .gte('created_at', twelveMonthsAgo.toISOString());
 
       if (bookingsError) throw bookingsError;
 
-      // Process monthly earnings data
-      const monthlyEarnings = processMonthlyData(payouts || [], 'amount');
-      const monthlyBookings = processMonthlyData(bookings || [], 'total_amount');
+      const bookingTrends = Array.from({ length: 12 }, (_, i) => {
+        const month = new Date();
+        month.setMonth(month.getMonth() - (11 - i));
+        const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
+        const monthEnd = new Date(month.getFullYear(), month.getMonth() + 1, 0);
 
-      // Get service performance
-      const { data: serviceStats, error: serviceError } = await supabase
-        .from('bookings')
-        .select(`
-          total_amount,
-          provider_services (
-            title,
-            category_name,
-            subcategory_name
-          )
-        `)
-        .eq('provider_id', providerId)
-        .eq('status', 'completed');
+        return bookings?.filter(booking => {
+          const bookingDate = new Date(booking.created_at);
+          return bookingDate >= monthStart && bookingDate <= monthEnd;
+        }).length || 0;
+      });
 
-      if (serviceError) throw serviceError;
+      // Calculate average booking value
+      const totalRevenue = payouts?.reduce((sum, payout) => sum + parseFloat(payout.amount || '0'), 0) || 0;
+      const totalBookings = bookings?.length || 0;
+      const averageBookingValue = totalBookings > 0 ? totalRevenue / totalBookings : 0;
 
-      // Process service performance data
-      const servicePerformance = processServicePerformance(serviceStats || []);
+      // Get top services (this would require joining with services/bookings, simplified for now)
+      const topServices = [];
 
       return {
-        monthlyEarnings,
-        monthlyBookings,
-        servicePerformance,
-        totalPayouts: payouts?.length || 0,
-        averageMonthlyEarnings: calculateAverage(monthlyEarnings.map(m => m.value))
+        monthlyRevenue,
+        bookingTrends,
+        averageBookingValue,
+        topServices,
       };
     },
     enabled: !!providerId,
-    staleTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
 
@@ -961,8 +1026,8 @@ export const useProviderBookings = (providerId?: string, startDate?: Date, endDa
       }
 
       // Get unique customer and service IDs
-      const customerIds = [...new Set(bookingsData.map(b => b.customer_id).filter(id => id))];
-      const serviceIds = [...new Set(bookingsData.map(b => b.service_id).filter(id => id))];
+      const customerIds = Array.from(new Set(bookingsData.map(b => b.customer_id).filter(id => id)));
+      const serviceIds = Array.from(new Set(bookingsData.map(b => b.service_id).filter(id => id)));
 
 
 
@@ -1287,8 +1352,6 @@ function processServicePerformance(bookings: any[]) {
     .slice(0, 10); // Top 10 services
 }
 
-// Hook to fetch provider services
-
 // Hook for creating bookings
 export const useCreateBooking = () => {
   const queryClient = useQueryClient();
@@ -1323,4 +1386,36 @@ export const useCreateBooking = () => {
 function calculateAverage(values: number[]): number {
   if (values.length === 0) return 0;
   return Math.round((values.reduce((sum, val) => sum + val, 0) / values.length) * 100) / 100;
+}
+
+// ✅ PROVIDER EARNINGS HOOKS - Following React Query architecture
+
+export interface ProviderEarningsData {
+  totalEarnings: number;
+  thisMonth: number;
+  pendingPayouts: number;
+  completedBookings: number;
+  nextPayoutDate: string;
+}
+
+export interface ProviderPayoutData {
+  id: string;
+  amount: number;
+  status: string;
+  expected_payout_date: string;
+  actual_payout_date?: string;
+  booking_id: string;
+  created_at: string;
+}
+
+export interface ProviderEarningsAnalytics {
+  monthlyRevenue: number[];
+  bookingTrends: number[];
+  averageBookingValue: number;
+  topServices: Array<{
+    service_name: string;
+    revenue: number;
+    bookings: number;
+  }>;
+
 }

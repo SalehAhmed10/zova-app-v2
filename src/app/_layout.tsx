@@ -1,7 +1,7 @@
 import "~/global.css";
 
 import { Theme, ThemeProvider } from '@react-navigation/native';
-import { Slot } from 'expo-router';
+import { Slot, usePathname } from 'expo-router';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as React from 'react';
@@ -175,6 +175,7 @@ function RootNavigator() {
   const [isMounted, setIsMounted] = React.useState(false);
   const { showPrompt, bookingId, providerName, serviceName, dismissPrompt, startReview, completeReview } = useReviewPrompt();
   const [showReviewModal, setShowReviewModal] = React.useState(false);
+  const pathname = usePathname();
 
   // ✅ SYSTEM INTEGRATION: Set up Supabase auth listener
   useAuthListener();
@@ -208,6 +209,17 @@ function RootNavigator() {
   // ✅ Handle post-login navigation - navigate to correct destination when authenticated
   React.useEffect(() => {
     if (isAuthenticated && isReady && navigationDecision?.shouldNavigate && !isLoggingOut && !isLoading) {
+      // ✅ Don't interfere with manual navigation within verification flow
+      const currentPath = pathname;
+      const isOnVerificationFlow = currentPath.startsWith('/provider-verification');
+      const isNavigatingToVerificationFlow = navigationDecision.destination.startsWith('/provider-verification');
+      
+      if (isOnVerificationFlow && isNavigatingToVerificationFlow) {
+        // Temporarily disabled verbose logging to reduce console noise during form input
+        // console.log('[RootNavigator] Skipping navigation - user is already in verification flow, allowing manual navigation');
+        return;
+      }
+      
       console.log(`[RootNavigator] User authenticated, navigating to: ${navigationDecision.destination} (${navigationDecision.reason})`);
       // Use setTimeout to prevent navigation during render
       setTimeout(() => {
@@ -218,7 +230,8 @@ function RootNavigator() {
 
   // ✅ Log state changes immediately - no useEffect needed
   const currentState = { session: !!session, isAuthenticated, userRole, isOnboardingComplete, isLoading };
-  console.log('[RootNavigator] State:', currentState);
+  // Temporarily disabled verbose logging to reduce console noise during form input
+  // console.log('[RootNavigator] State:', currentState);
 
   // ✅ Wait for app initialization before rendering anything
   if (isLoading) {

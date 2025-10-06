@@ -21,8 +21,7 @@ import {
   useUserSubscriptions 
 } from '@/hooks/shared/useSubscription';
 import { cn } from '@/lib/utils';
-import { Ionicons } from '@expo/vector-icons';
-import { Shield, Zap } from 'lucide-react-native';
+
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { THEME } from '@/lib/core/theme';
 
@@ -71,7 +70,7 @@ export default function CustomerDashboard() {
   // ✅ MIGRATED: Using optimized auth hook following copilot-rules.md
   const { user } = useAuthOptimized();
   const { data: profileData, isLoading: profileLoading } = useProfile(user?.id);
-  const { data: statsData, isLoading: statsLoading } = useProfileStats(user?.id);
+  const { data: statsData, isLoading: statsLoading } = useProfileStats(user?.id, 'customer');
   const { data: bookingsData, isLoading: bookingsLoading } = useUserBookings(user?.id);
   const { data: trustedProviders, isLoading: providersLoading } = useTrustedProviders(5);
   const { isDarkColorScheme } = useColorScheme();
@@ -220,8 +219,8 @@ export default function CustomerDashboard() {
         {/* Quick Actions */}
         <View className="px-4 mb-6">
           <Text className="text-lg font-bold text-foreground mb-4">Quick Actions</Text>
-          <View className="gap-3">
-            <View className="flex-row gap-3">
+          <View>
+            <View className="flex-row mb-3">
               <TouchableOpacity
                 className="flex-1"
                 onPress={() => router.push('/customer/search')}
@@ -259,18 +258,18 @@ export default function CustomerDashboard() {
                   </CardContent>
                 </Card>
               </TouchableOpacity>
-            </View>            <View className="flex-row gap-3">
+            </View>            <View className="flex-row">
               <TouchableOpacity 
                 className="flex-1" 
                 onPress={() => hasSOSAccess ? router.push('/customer/sos-booking') : router.push('/customer/subscriptions')}
                 accessibilityLabel={hasSOSAccess ? "Emergency SOS booking" : "Get SOS access"}
                 accessibilityRole="button"
               >
-                                <Card className={`bg-card ${hasSOSAccess ? 'border-2 border-destructive/20 bg-destructive/5' : ''}`}>
+                <Card className={`bg-card ${hasSOSAccess ? 'border-2 border-destructive/20 bg-destructive/5' : ''}`}>
                   <CardContent className="p-4 items-center">
                     <View className="flex-row items-center justify-center mb-2">
                       {hasSOSAccess ? (
-                        <Shield size={18} color={theme.destructive} />
+                        <Text className="text-xl text-destructive">🛡️</Text>
                       ) : (
                         <Text className="text-xl">⚡</Text>
                       )}
@@ -314,15 +313,15 @@ export default function CustomerDashboard() {
           <Text className="text-lg font-bold text-foreground mb-4">Recent Activity</Text>
           <Card>
             <CardContent className="p-4">
-              <View className="gap-4">
+              <View>
                 {bookingsLoading ? (
                   <>
-                    <Skeleton className="h-16 w-full" />
-                    <Skeleton className="h-16 w-full" />
+                    <Skeleton className="h-16 w-full mb-4" />
+                    <Skeleton className="h-16 w-full mb-4" />
                     <Skeleton className="h-16 w-full" />
                   </>
                 ) : bookingsData?.slice(0, 3).map((booking) => (
-                  <View key={booking.id} className="flex-row items-center">
+                  <View key={booking.id} className="flex-row items-center mb-4 last:mb-0">
                     <View className="w-10 h-10 bg-accent/50 rounded-full items-center justify-center mr-3">
                       <Text className="text-lg">
                         {booking.status === 'completed' ? '✅' :
@@ -393,19 +392,19 @@ export default function CustomerDashboard() {
           <Text className="text-lg font-bold text-foreground mb-4">Trusted Providers Near You</Text>
           <Card>
             <CardContent className="p-4">
-              <View className="gap-4">
+              <View>
                 {providersLoading ? (
                   <>
-                    <Skeleton className="h-16 w-full" />
-                    <Skeleton className="h-16 w-full" />
+                    <Skeleton className="h-16 w-full mb-4" />
+                    <Skeleton className="h-16 w-full mb-4" />
                     <Skeleton className="h-16 w-full" />
                   </>
                 ) : trustedProviders?.length > 0 ? (
                   trustedProviders.map((provider) => (
                     <TouchableOpacity
                       key={provider.id}
-                      className="flex-row items-center"
-                      onPress={() => router.push(`/profiles/provider?providerId=${provider.id}`)}
+                      className="flex-row items-center mb-4 last:mb-0"
+                      onPress={() => router.push(`/customer/provider/${provider.id}`)}
                     >
                       <Avatar className="w-12 h-12 mr-3" alt={`${provider.first_name} ${provider.last_name} avatar`}>
                         {provider.avatar_url ? (
@@ -413,7 +412,7 @@ export default function CustomerDashboard() {
                         ) : null}
                         <AvatarFallback className="bg-primary/10">
                           <Text className="text-lg font-bold text-primary">
-                            {provider.first_name[0]}{provider.last_name[0]}
+                            {provider.first_name?.[0] || '?'}{provider.last_name?.[0] || '?'}
                           </Text>
                         </AvatarFallback>
                       </Avatar>
@@ -424,7 +423,7 @@ export default function CustomerDashboard() {
                           </Text>
                           {provider.is_verified && (
                             <View className="flex-row items-center">
-                              <Ionicons name="checkmark-circle" size={14} color={theme.success} />
+                              <Text className="text-xs text-success">✓</Text>
                             </View>
                           )}
                           <View className="flex-row items-center">
@@ -437,11 +436,11 @@ export default function CustomerDashboard() {
                         <Text className="text-muted-foreground text-sm">
                           {provider.featured_service?.title || 'Service Provider'}
                         </Text>
-                        <View className="flex-row items-center gap-2 mt-1">
+                        <View className="flex-row items-center mt-1">
                           {provider.city && (
                             <>
                               <Text className="text-xs">📍</Text>
-                              <Text className="text-muted-foreground text-xs">{provider.city}</Text>
+                              <Text className="text-muted-foreground text-xs mr-2">{provider.city}</Text>
                             </>
                           )}
                           <Text className="text-xs">💼</Text>
@@ -482,13 +481,13 @@ export default function CustomerDashboard() {
             <Card>
               <CardContent className="p-4">
                 <View className="flex-row items-center gap-3 mb-4">
-                  <Avatar className="w-14 h-14" alt="Provider avatar">
-                    <AvatarFallback className="bg-primary/10">
-                      <Text className="text-lg font-bold text-primary">
-                        {nextBooking.provider_first_name[0]}{nextBooking.provider_last_name[0]}
-                      </Text>
-                    </AvatarFallback>
-                  </Avatar>
+                    <Avatar className="w-14 h-14" alt="Provider avatar">
+                      <AvatarFallback className="bg-primary/10">
+                        <Text className="text-lg font-bold text-primary">
+                          {nextBooking.provider_first_name?.[0] || '?'}{nextBooking.provider_last_name?.[0] || '?'}
+                        </Text>
+                      </AvatarFallback>
+                    </Avatar>
                   <View className="flex-1">
                     <Text className="font-semibold text-foreground text-lg">{nextBooking.service_title}</Text>
                     <Text className="text-muted-foreground text-sm mt-1">
@@ -514,12 +513,14 @@ export default function CustomerDashboard() {
                 </View>
 
                 <View className="gap-3">
-                  {/* Primary Action - View Details */}
+             
+                                  <View>
                   <TouchableOpacity onPress={() => router.push(`/customer/booking/${nextBooking.id}` as any)}>
                     <View className="bg-primary rounded-lg py-4 items-center">
                       <Text className="text-primary-foreground font-bold text-sm">View Details</Text>
                     </View>
                   </TouchableOpacity>
+                </View>
                 </View>
               </CardContent>
             </Card>

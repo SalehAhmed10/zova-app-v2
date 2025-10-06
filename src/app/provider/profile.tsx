@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { FlashList } from '@shopify/flash-list';
+import { Ionicons } from '@expo/vector-icons';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,11 +27,11 @@ import { THEME } from '@/lib/core/theme';
 
 
 // Import modals
-import { PersonalInfoModal } from '@/components/profile/PersonalInfoModal';
+
 import { NotificationSettingsModal } from '@/components/profile/NotificationSettingsModal';
-import { BookingHistoryModal } from '@/components/profile/BookingHistoryModal';
+
 import { StripeIntegrationModal } from '@/components/profile/StripeIntegrationModal';
-import { ServicesModal } from '@/components';
+import ServicesModal from '@/components/profile/ServicesModal';
 
 export default React.memo(function ProfileScreen() {
   const { userRole } = useAppStore();
@@ -63,7 +64,7 @@ export default React.memo(function ProfileScreen() {
 
   // Data fetching hooks with user ID - only call when user is authenticated
   const { data: profileData, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useProfile(shouldFetchData ? user?.id : undefined);
-  const { data: statsData, isLoading: statsLoading } = useProfileStats(shouldFetchData ? user?.id : undefined);
+  const { data: statsData, isLoading: statsLoading } = useProfileStats(shouldFetchData ? user?.id : undefined, userRole);
   const { data: bookingsData, isLoading: bookingsLoading } = useUserBookings(shouldFetchData ? user?.id : undefined);
   const { data: notificationSettings } = useNotificationSettings(shouldFetchData ? user?.id : undefined);
 
@@ -75,13 +76,14 @@ export default React.memo(function ProfileScreen() {
 
   // Helper functions
   const getDisplayName = () => {
+    if (profileLoading) return 'Loading...';
     if (profileData?.first_name && profileData?.last_name) {
       return `${profileData.first_name} ${profileData.last_name}`;
     }
     if (profileData?.first_name) {
       return profileData.first_name;
     }
-    return profileData?.email?.split('@')[0] || 'Provider';
+    return profileData?.email?.split('@')[0] || user?.email?.split('@')[0] || 'Provider';
   };
 
   // Helper function for icon background colors using theme colors
@@ -101,150 +103,198 @@ export default React.memo(function ProfileScreen() {
   const businessManagementMenu = React.useMemo(() => [
     {
       id: 'calendar',
-      icon: '📅',
-      iconBg: 'bg-primary/10',
+      icon: 'calendar-outline' as keyof typeof Ionicons.glyphMap,
+      iconBg: 'bg-blue-500/10',
+      iconColor: 'text-blue-600',
       title: 'Calendar & Bookings',
       subtitle: 'Manage your schedule and appointments',
       onPress: () => router.push('/provider/calendar'),
     },
     {
       id: 'services',
-      icon: '⚙️',
-      iconBg: 'bg-secondary/20',
+      icon: 'construct-outline' as keyof typeof Ionicons.glyphMap,
+      iconBg: 'bg-purple-500/10',
+      iconColor: 'text-purple-600',
       title: 'Services & Pricing',
-      subtitle: 'Update your service offerings',
+      subtitle: 'Update your service offerings and rates',
       onPress: openServicesModal,
     },
     {
       id: 'payments',
-      icon: '💳',
-      iconBg: 'bg-primary/10',
+      icon: 'card-outline' as keyof typeof Ionicons.glyphMap,
+      iconBg: 'bg-green-500/10',
+      iconColor: 'text-green-600',
       title: 'Payment Integration',
-      subtitle: 'Connect your Stripe account for payments',
+      subtitle: 'Connect Stripe for secure payments',
       onPress: openStripeIntegrationModal,
     },
     {
       id: 'analytics',
-      icon: '📊',
-      iconBg: 'bg-secondary/20',
-      title: 'Analytics',
-      subtitle: 'View detailed business insights',
+      icon: 'bar-chart-outline' as keyof typeof Ionicons.glyphMap,
+      iconBg: 'bg-orange-500/10',
+      iconColor: 'text-orange-600',
+      title: 'Business Analytics',
+      subtitle: 'Track performance and earnings',
       onPress: () => {},
+    },
+    {
+      id: 'subscriptions',
+      icon: 'diamond-outline' as keyof typeof Ionicons.glyphMap,
+      iconBg: 'bg-yellow-500/10',
+      iconColor: 'text-yellow-600',
+      title: 'Premium Subscription',
+      subtitle: 'Unlock advanced business features',
+      onPress: () => router.push('/provider/profile/subscriptions'),
     },
   ], [openStripeIntegrationModal, openServicesModal]);
 
   const customerRelationsMenu = React.useMemo(() => [
     {
       id: 'reviews',
-      icon: '⭐',
-      iconBg: `${getIconBgColor('yellow')}20`,
+      icon: 'star-outline' as keyof typeof Ionicons.glyphMap,
+      iconBg: 'bg-yellow-500/10',
+      iconColor: 'text-yellow-600',
       title: 'Reviews & Ratings',
-      subtitle: '2 new reviews',
-      onPress: () => router.push('/provider/reviews'),
+      subtitle: statsData?.avg_rating ? `${statsData.avg_rating.toFixed(1)}★ average rating` : 'No reviews yet',
+      badge: '2 new',
+      onPress: () => router.push('/provider/profile/reviews'),
     },
-    {
-      id: 'messages',
-      icon: '💬',
-      iconBg: `${getIconBgColor('blue')}20`,
-      title: 'Messages',
-      subtitle: 'Communicate with clients',
-      onPress: () => {},
-    },
-    {
-      id: 'marketing',
-      icon: '🎯',
-      iconBg: `${getIconBgColor('purple')}20`,
-      title: 'Marketing Tools',
-      subtitle: 'Promote your services',
-      onPress: () => {},
-    },
-  ], [colorScheme]);
+    // {
+    //   id: 'messages',
+    //   icon: 'chatbubbles-outline' as keyof typeof Ionicons.glyphMap,
+    //   iconBg: 'bg-blue-500/10',
+    //   iconColor: 'text-blue-600',
+    //   title: 'Client Messages',
+    //   subtitle: 'Communicate with your clients',
+    //   onPress: () => {},
+    // },
+    // {
+    //   id: 'marketing',
+    //   icon: 'megaphone-outline' as keyof typeof Ionicons.glyphMap,
+    //   iconBg: 'bg-purple-500/10',
+    //   iconColor: 'text-purple-600',
+    //   title: 'Marketing Tools',
+    //   subtitle: 'Promote and grow your business',
+    //   onPress: () => {},
+    // },
+  ], [statsData?.avg_rating]);
 
   const accountSettingsMenu = React.useMemo(() => [
     {
       id: 'profile',
-      icon: '👤',
-      iconBg: 'bg-primary/10',
+      icon: 'person-outline' as keyof typeof Ionicons.glyphMap,
+      iconBg: 'bg-indigo-500/10',
+      iconColor: 'text-indigo-600',
       title: 'Business Profile',
       subtitle: 'Update your business information',
       onPress: openPersonalInfoModal,
     },
     {
       id: 'hours',
-      icon: '🏪',
-      iconBg: 'bg-secondary/20',
+      icon: 'time-outline' as keyof typeof Ionicons.glyphMap,
+      iconBg: 'bg-cyan-500/10',
+      iconColor: 'text-cyan-600',
       title: 'Business Hours',
-      subtitle: 'Set your availability',
+      subtitle: 'Set your availability schedule',
       onPress: () => router.push('/provider/calendar'),
     },
     {
       id: 'notifications',
-      icon: '🔔',
-      iconBg: `${getIconBgColor('orange')}20`,
+      icon: 'notifications-outline' as keyof typeof Ionicons.glyphMap,
+      iconBg: 'bg-orange-500/10',
+      iconColor: 'text-orange-600',
       title: 'Notifications',
       subtitle: 'Customize business alerts',
       onPress: openNotificationModal,
     },
     {
       id: 'security',
-      icon: '🔒',
-      iconBg: `${getIconBgColor('red')}20`,
+      icon: 'shield-checkmark-outline' as keyof typeof Ionicons.glyphMap,
+      iconBg: 'bg-red-500/10',
+      iconColor: 'text-red-600',
       title: 'Privacy & Security',
-      subtitle: 'Manage account security',
+      subtitle: 'Manage account security settings',
       onPress: () => {},
     },
-  ], [colorScheme, openPersonalInfoModal, openNotificationModal]);
+  ], [openPersonalInfoModal, openNotificationModal]);
 
   const supportResourcesMenu = React.useMemo(() => [
     {
       id: 'resources',
-      icon: '📚',
-      iconBg: 'bg-primary/10',
+      icon: 'library-outline' as keyof typeof Ionicons.glyphMap,
+      iconBg: 'bg-emerald-500/10',
+      iconColor: 'text-emerald-600',
       title: 'Provider Resources',
-      subtitle: 'Tips and best practices',
+      subtitle: 'Tips, guides, and best practices',
       onPress: () => {},
     },
     {
       id: 'help',
-      icon: '❓',
-      iconBg: 'bg-secondary/20',
+      icon: 'help-circle-outline' as keyof typeof Ionicons.glyphMap,
+      iconBg: 'bg-slate-500/10',
+      iconColor: 'text-slate-600',
       title: 'Help Center',
-      subtitle: 'Find answers to your questions',
+      subtitle: 'FAQs and documentation',
       onPress: () => {},
     },
     {
       id: 'support',
-      icon: '💬',
-      iconBg: `${getIconBgColor('blue')}20`,
+      icon: 'headset-outline' as keyof typeof Ionicons.glyphMap,
+      iconBg: 'bg-blue-500/10',
+      iconColor: 'text-blue-600',
       title: 'Contact Support',
-      subtitle: 'Get help from our business team',
+      subtitle: '24/7 business support team',
       onPress: () => {},
     },
     {
       id: 'history',
-      icon: '📱',
-      iconBg: `${getIconBgColor('green')}20`,
-      title: 'Business History',
-      subtitle: 'View your service history',
+      icon: 'document-text-outline' as keyof typeof Ionicons.glyphMap,
+      iconBg: 'bg-green-500/10',
+      iconColor: 'text-green-600',
+      title: 'Service History',
+      subtitle: 'View completed bookings',
       onPress: openBookingHistoryModal,
     },
-  ], [colorScheme, openBookingHistoryModal]);
+  ], [openBookingHistoryModal]);
+
+  // Define menu item type
+  type MenuItem = {
+    id: string;
+    icon: keyof typeof Ionicons.glyphMap;
+    iconBg: string;
+    iconColor: string;
+    title: string;
+    subtitle: string;
+    badge?: string;
+    onPress: () => void;
+  };
 
   // Memoized MenuItem component for performance
-  const MenuItem = React.memo(({ item }: { item: typeof businessManagementMenu[0] }) => (
+  const MenuItemComponent = React.memo(({ item }: { item: MenuItem }) => (
     <TouchableOpacity 
-      className="bg-card rounded-xl p-4 border border-border"
+      className="bg-card rounded-2xl p-5 border border-border shadow-sm active:scale-[0.98] transition-transform"
       onPress={item.onPress}
     >
       <View className="flex-row items-center">
-        <View className={cn("w-10 h-10 rounded-xl items-center justify-center mr-4", item.iconBg)}>
-          <Text className="text-xl">{item.icon}</Text>
+        <View className={cn("w-12 h-12 rounded-2xl items-center justify-center mr-4", item.iconBg)}>
+          <Ionicons 
+            name={item.icon} 
+            size={24} 
+            className={cn("text-2xl", item.iconColor)} 
+          />
         </View>
         <View className="flex-1">
-          <Text className="font-semibold text-foreground">{item.title}</Text>
-          <Text className="text-muted-foreground text-sm">{item.subtitle}</Text>
+          <View className="flex-row items-center">
+            <Text className="font-bold text-foreground text-base">{item.title}</Text>
+            {item.badge && (
+              <View className="ml-2 bg-primary/10 px-2 py-0.5 rounded-full">
+                <Text className="text-primary text-xs font-medium">{item.badge}</Text>
+              </View>
+            )}
+          </View>
+          <Text className="text-muted-foreground text-sm mt-0.5">{item.subtitle}</Text>
         </View>
-        <Text className="text-muted-foreground text-lg">›</Text>
+        <Ionicons name="chevron-forward" size={20} className="text-muted-foreground" />
       </View>
     </TouchableOpacity>
   ));
@@ -343,119 +393,187 @@ export default React.memo(function ProfileScreen() {
           colors={[THEME[colorScheme].gradientStart, THEME[colorScheme].gradientEnd]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16 }}
+          style={{ paddingHorizontal: 24, paddingTop: 20, paddingBottom: 24 }}
         >
           <View className="items-center">
             {/* Profile Picture */}
-            <View className="mb-3">
-              <Avatar className="w-20 h-20 border-3 border-white" alt="Provider avatar">
+            <View className="mb-4">
+              <Avatar className="w-24 h-24 border-4 border-white shadow-lg" alt="Provider avatar">
                 {profileData?.avatar_url ? (
                   <AvatarImage source={{ uri: profileData.avatar_url }} />
                 ) : null}
-                <AvatarFallback className="bg-muted/50">
-                  <Text className="text-2xl text-foreground font-bold">
-                    {profileData?.first_name?.[0]?.toUpperCase() || 
-                     profileData?.email?.[0]?.toUpperCase() || '💼'}
-                  </Text>
+                <AvatarFallback className="bg-white/20 backdrop-blur-sm">
+                  {(profileData?.first_name?.[0] || profileData?.email?.[0]) ? (
+                    <Text className="text-3xl text-white font-bold">
+                      {profileData?.first_name?.[0]?.toUpperCase() || 
+                       profileData?.email?.[0]?.toUpperCase()}
+                    </Text>
+                  ) : (
+                    <Ionicons name="person" size={32} className="text-white" />
+                  )}
                 </AvatarFallback>
               </Avatar>
             </View>
             
             {/* Provider Info */}
-            <Text className="text-lg font-bold text-white mb-0.5">
+            <Text className="text-xl font-bold text-white mb-1 text-center">
               {getDisplayName()}
             </Text>
-            <Text className="text-white/80 mb-1.5 text-xs">
+            <Text className="text-white/90 mb-3 text-sm text-center px-4">
               {profileData?.bio || 'Professional Service Provider'}
             </Text>
             
             {/* Business Badge */}
-            <View className="bg-muted/30 px-3 py-1.5 rounded-full">
-              <Text className="text-foreground font-medium text-xs">
-                {userRole === 'provider' ? 'Service Provider' : 'Business Account'}
+            <View className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full border border-white/30">
+              <Text className="text-white font-semibold text-sm">
+                {userRole === 'provider' ? '⭐ Service Provider' : '🏢 Business Account'}
               </Text>
             </View>
+            
+            {/* Verification Status */}
+            {profileData?.verification_status === 'approved' && (
+              <View className="mt-2 bg-green-500/20 backdrop-blur-sm px-3 py-1 rounded-full border border-green-400/30">
+                <Text className="text-green-100 font-medium text-xs">
+                  ✓ Verified Provider
+                </Text>
+              </View>
+            )}
+            {profileData?.verification_status === 'pending' && (
+              <View className="mt-2 bg-yellow-500/20 backdrop-blur-sm px-3 py-1 rounded-full border border-yellow-400/30">
+                <Text className="text-yellow-100 font-medium text-xs">
+                  ⏳ Verification Pending
+                </Text>
+              </View>
+            )}
           </View>
         </LinearGradient>
 
         {/* Business Stats Cards */}
-        <View className="px-6 pt-6 mb-6">
-          <View className="flex-row gap-4">
-            <View className="flex-1 bg-card rounded-2xl p-4 border border-border">
-              <Text className="text-2xl text-center font-bold text-green-600 mb-1">
-                {statsLoading ? '...' : statsData?.completed_bookings ? statsData.completed_bookings.toLocaleString() : '0'}
-              </Text>
-              <Text className="text-muted-foreground text-center text-xs">Completed Jobs</Text>
+        <View className="px-6 pt-4 mb-8">
+          <View className="flex-row gap-3">
+            {/* Completed Jobs */}
+            <View className="flex-1 bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-4 border border-green-200/50">
+              <View className="items-center">
+                <View className="w-8 h-8 bg-green-500/10 rounded-full items-center justify-center mb-2">
+                  <Ionicons name="checkmark-circle" size={18} className="text-green-600" />
+                </View>
+                <Text className="text-2xl font-bold text-green-700 mb-1">
+                  {statsLoading ? '...' : statsData?.completed_bookings ? statsData.completed_bookings.toLocaleString() : '0'}
+                </Text>
+                <Text className="text-green-600 text-xs font-medium text-center">Completed</Text>
+                <Text className="text-green-600/70 text-xs text-center">Jobs</Text>
+              </View>
             </View>
-            <View className="flex-1 bg-card rounded-2xl p-4 border border-border">
-              <Text className="text-2xl text-center font-bold text-yellow-600 mb-1">
-                {statsLoading ? '...' : statsData?.avg_rating ? statsData.avg_rating.toFixed(1) : '0.0'}
-              </Text>
-              <Text className="text-muted-foreground text-center text-xs">Rating</Text>
+
+            {/* Rating */}
+            <View className="flex-1 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-2xl p-4 border border-yellow-200/50">
+              <View className="items-center">
+                <View className="w-8 h-8 bg-yellow-500/10 rounded-full items-center justify-center mb-2">
+                  <Ionicons name="star" size={18} className="text-yellow-600" />
+                </View>
+                <Text className="text-2xl font-bold text-yellow-700 mb-1">
+                  {statsLoading ? '...' : statsData?.avg_rating ? statsData.avg_rating.toFixed(1) : '0.0'}
+                </Text>
+                <Text className="text-yellow-600 text-xs font-medium text-center">Average</Text>
+                <Text className="text-yellow-600/70 text-xs text-center">Rating</Text>
+              </View>
             </View>
-            <View className="flex-1 bg-card rounded-2xl p-4 border border-border">
-              <Text className="text-2xl text-center font-bold text-blue-600 mb-1">
-                {statsLoading ? '...' : statsData?.completed_bookings || 0}
-              </Text>
-              <Text className="text-muted-foreground text-center text-xs">Clients</Text>
+
+            {/* Total Earnings */}
+            <View className="flex-1 bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-4 border border-blue-200/50">
+              <View className="items-center">
+                <View className="w-8 h-8 bg-blue-500/10 rounded-full items-center justify-center mb-2">
+                  <Ionicons name="wallet" size={18} className="text-blue-600" />
+                </View>
+                <Text className="text-2xl font-bold text-blue-700 mb-1">
+                  {statsLoading ? '...' : statsData?.total_spent ? `£${statsData.total_spent.toFixed(0)}` : '£0'}
+                </Text>
+                <Text className="text-blue-600 text-xs font-medium text-center">Total</Text>
+                <Text className="text-blue-600/70 text-xs text-center">Earned</Text>
+              </View>
             </View>
+          </View>
+
+          {/* Quick Actions Row */}
+          <View className="flex-row gap-3 mt-4">
+            <TouchableOpacity 
+              className="flex-1 bg-primary/5 rounded-xl p-3 border border-primary/20"
+              onPress={() => {}}
+            >
+              <View className="flex-row items-center justify-center">
+                <Ionicons name="trending-up" size={16} className="text-primary mr-2" />
+                <Text className="text-primary font-semibold text-sm">View Earnings</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              className="flex-1 bg-secondary/5 rounded-xl p-3 border border-secondary/20"
+              onPress={() => router.push('/provider/calendar')}
+            >
+              <View className="flex-row items-center justify-center">
+                <Ionicons name="calendar" size={16} className="text-secondary mr-2" />
+                <Text className="text-secondary font-semibold text-sm">My Schedule</Text>
+              </View>
+            </TouchableOpacity>
           </View>
         </View>
 
         {/* Menu Sections */}
-        <View className="px-6 gap-6">
+        <View className="px-6 gap-8">
           {/* Business Management Section */}
           <View>
-            <Text className="text-lg font-bold text-foreground mb-4">Business Management</Text>
-            <FlashList
-              data={businessManagementMenu}
-              renderItem={({ item }) => <MenuItem item={item} />}
-              keyExtractor={(item) => item.id}
-              showsVerticalScrollIndicator={false}
-              ItemSeparatorComponent={() => <View className="h-2" />}
-            />
+            <View className="flex-row items-center mb-5">
+              <View className="w-1 h-6 bg-primary rounded-full mr-3" />
+              <Text className="text-xl font-bold text-foreground">Business Management</Text>
+            </View>
+            <View className="gap-3">
+              {businessManagementMenu.map((item) => (
+                <MenuItemComponent key={item.id} item={item} />
+              ))}
+            </View>
           </View>
 
           {/* Customer Relations Section */}
           <View>
-            <Text className="text-lg font-bold text-foreground mb-4">Customer Relations</Text>
-            <FlashList
-              data={customerRelationsMenu}
-              renderItem={({ item }) => <MenuItem item={item} />}
-              keyExtractor={(item) => item.id}
-              showsVerticalScrollIndicator={false}
-              ItemSeparatorComponent={() => <View className="h-2" />}
-            />
+            <View className="flex-row items-center mb-5">
+              <View className="w-1 h-6 bg-secondary rounded-full mr-3" />
+              <Text className="text-xl font-bold text-foreground">Customer Relations</Text>
+            </View>
+            <View className="gap-3">
+              {customerRelationsMenu.map((item) => (
+                <MenuItemComponent key={item.id} item={item} />
+              ))}
+            </View>
           </View>
 
           {/* Account Settings Section */}
           <View>
-            <Text className="text-lg font-bold text-foreground mb-4">Account Settings</Text>
-            <FlashList
-              data={accountSettingsMenu}
-              renderItem={({ item }) => <MenuItem item={item} />}
-              keyExtractor={(item) => item.id}
-              showsVerticalScrollIndicator={false}
-              ItemSeparatorComponent={() => <View className="h-2" />}
-            />
+            <View className="flex-row items-center mb-5">
+              <View className="w-1 h-6 bg-orange-500 rounded-full mr-3" />
+              <Text className="text-xl font-bold text-foreground">Account Settings</Text>
+            </View>
+            <View className="gap-3">
+              {accountSettingsMenu.map((item) => (
+                <MenuItemComponent key={item.id} item={item} />
+              ))}
+            </View>
           </View>
 
           {/* Support & Resources Section */}
           <View>
-            <Text className="text-lg font-bold text-foreground mb-4">Support & Resources</Text>
-            <View className="gap-2">
-              <FlashList
-                data={supportResourcesMenu}
-                renderItem={({ item }) => <MenuItem item={item} />}
-                keyExtractor={(item) => item.id}
-                showsVerticalScrollIndicator={false}
-                ItemSeparatorComponent={() => <View className="h-2" />}
-              />
-
+            <View className="flex-row items-center mb-5">
+              <View className="w-1 h-6 bg-green-500 rounded-full mr-3" />
+              <Text className="text-xl font-bold text-foreground">Support & Resources</Text>
+            </View>
+            <View className="gap-3">
+              {supportResourcesMenu.map((item) => (
+                <MenuItemComponent key={item.id} item={item} />
+              ))}
+              
               {/* Theme Toggle */}
-              <View className="bg-card rounded-xl p-4 shadow-sm border border-border">
-                <ThemeToggle />
-              </View>
+          
+               
+                  <ThemeToggle />
+            
             </View>
           </View>
 
@@ -486,14 +604,8 @@ export default React.memo(function ProfileScreen() {
         <View className={cn("h-6", Platform.OS === 'ios' && "h-24")} />
       </ScrollView>
 
-      {/* Modals - Lazy Loading for Performance */}
-      {personalInfoModalVisible && (
-        <PersonalInfoModal
-          visible={personalInfoModalVisible}
-          onClose={closePersonalInfoModal}
-          profileData={profileData}
-        />
-      )}
+
+
 
       {notificationModalVisible && (
         <NotificationSettingsModal
@@ -504,9 +616,7 @@ export default React.memo(function ProfileScreen() {
         />
       )}
 
-      {bookingHistoryModalVisible && (
-        <BookingHistoryModal />
-      )}
+  
 
       {stripeIntegrationModalVisible && (
         <StripeIntegrationModal

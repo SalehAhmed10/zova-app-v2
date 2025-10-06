@@ -10,9 +10,8 @@
  * ELIMINATES: All useEffect patterns from verification system
  */
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { useCallback } from 'react';
 import { supabase } from '@/lib/core/supabase';
 import { useVerificationStatusStore } from '@/stores/verification/useVerificationStatusStore';
 import { useProfileStore } from '@/stores/verification/useProfileStore';
@@ -76,15 +75,17 @@ export const useVerificationStatusPure = (userId: string | undefined) => {
 };
 
 /**
- * ✅ PURE ZUSTAND SELECTORS: Individual selectors for optimal performance
- * NO useEffect - pure state selection without object creation
+ * ✅ VERIFICATION STATUS SELECTOR - Pure store access
+ * Provides typed access to verification status store state
  */
 export const useVerificationStatusSelector = () => {
-  const status = useVerificationStatusStore((state) => state.currentStatus);
-  const lastUpdated = useVerificationStatusStore((state) => state.lastUpdated);
-  const isSubscribed = useVerificationStatusStore((state) => state.isSubscribed);
-  
-  return { status, lastUpdated, isSubscribed };
+  const store = useVerificationStatusStore();
+
+  return React.useMemo(() => ({
+    status: store.currentStatus,
+    lastUpdated: store.lastUpdated,
+    isSubscribed: store.isSubscribed,
+  }), [store.currentStatus, store.lastUpdated, store.isSubscribed]);
 };
 
 /**
@@ -183,33 +184,25 @@ export const useVerificationNavigationPure = (currentStatus: VerificationStatus 
 };
 
 /**
- * ✅ NAVIGATION EFFECT HANDLER - Encapsulates useEffect for navigation
- * Keeps main component pure while handling navigation side effects
+ * ✅ VERIFICATION NAVIGATION HANDLER COMPONENT - Encapsulates navigation useEffect
+ * Handles navigation side effects without cluttering main components
  */
 export const VerificationNavigationHandler: React.FC<{
   shouldNavigateToProvider: boolean;
   shouldRedirectToAuth: boolean;
 }> = ({ shouldNavigateToProvider, shouldRedirectToAuth }) => {
-  // ✅ ENCAPSULATED useEffect: Navigation side effects isolated here
-  React.useEffect(() => {
-    if (shouldRedirectToAuth) {
-      console.log('[VerificationNavigationHandler] User not authenticated, redirecting to auth');
-      router.replace('/auth');
-    }
-  }, [shouldRedirectToAuth]);
-
+  // ✅ ENCAPSULATED useEffect: Navigation side effect isolated here
   React.useEffect(() => {
     if (shouldNavigateToProvider) {
-      console.log('[VerificationNavigationHandler] Status approved - auto-navigating to dashboard');
-      // ✅ DELAY: Prevent immediate navigation loops
-      const timer = setTimeout(() => {
-        router.replace('/provider');
-      }, 500);
-      return () => clearTimeout(timer);
+      console.log('[VerificationNavigationHandler] Navigating to provider dashboard');
+      router.replace('/provider');
+    } else if (shouldRedirectToAuth) {
+      console.log('[VerificationNavigationHandler] Redirecting to auth');
+      router.replace('/auth');
     }
-  }, [shouldNavigateToProvider]);
+  }, [shouldNavigateToProvider, shouldRedirectToAuth]);
 
-  // This component renders nothing - it only handles side effects
+  // This component renders nothing - it only handles navigation
   return null;
 };
 

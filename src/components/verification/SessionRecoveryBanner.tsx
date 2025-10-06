@@ -10,7 +10,7 @@ import { useMutation } from '@tanstack/react-query';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { useVerificationSessionRecovery } from '@/hooks/verification/useVerificationSessionRecovery';
+import { useVerificationSessionRecovery } from '@/hooks/verification';
 import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
 import { supabase } from '@/lib/core/supabase';
 

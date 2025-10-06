@@ -3,6 +3,7 @@ export * from './avatar';
 export * from './badge';
 export * from './button';
 export * from './card';
+export * from './context-menu';
 export * from './error-boundary';
 export * from './input';
 export * from './link';

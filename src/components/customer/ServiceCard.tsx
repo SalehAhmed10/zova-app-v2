@@ -1,5 +1,5 @@
 import React from 'react';
-import { View } from 'react-native';
+import { View, TouchableOpacity, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, CardContent } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
@@ -39,7 +39,7 @@ interface ServiceCardProps {
 
 export const ServiceCard: React.FC<ServiceCardProps> = ({
   service,
-  showFavoriteButton = false,
+  showFavoriteButton = true, // Default to true for customer-facing usage
   onToggleFavorite,
   isFavorited = false,
   actionButtonText = "Book Now",
@@ -48,7 +48,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
   const router = useRouter();
   const { isDarkColorScheme } = useColorScheme();
 
-  const handlePress = () => {
+  const handleCardPress = () => {
     router.push(`/customer/service/${service.id}`);
   };
 
@@ -74,115 +74,115 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
     : '?';
 
   return (
-    <Card className="bg-card border border-border/50 mb-3 shadow-sm overflow-hidden">
-      <CardContent className="p-4">
-        {/* Service Title and Price */}
-        <View className="mb-3">
-          <View className="flex-row items-start justify-between mb-2">
-            <Text className="text-lg font-bold text-foreground flex-1 mr-3" numberOfLines={2}>
-              {service.title}
-            </Text>
-            <View className="items-end">
-              <Text className="text-xl font-bold text-primary">
-                ${service.base_price}
+    <TouchableOpacity
+      activeOpacity={0.95}
+      onPress={handleCardPress}
+      className="mb-4"
+    >
+      <Card className="bg-card border border-border/50 shadow-sm overflow-hidden">
+        <CardContent className="p-4">
+          {/* Service Title and Price */}
+          <View className="mb-4">
+            <View className="flex-row items-start justify-between mb-2">
+              <Text className="text-lg font-bold text-foreground flex-1 mr-3" numberOfLines={2}>
+                {service.title}
               </Text>
-              <Text className="text-xs text-muted-foreground">
-                {service.price_type === 'hourly' ? 'per hour' : 'fixed price'}
+              <View className="items-end">
+                <Text className="text-xl font-bold text-primary">
+                  ${service.base_price}
+                </Text>
+                <Text className="text-xs text-muted-foreground">
+                  {service.price_type === 'hourly' ? 'per hour' : 'fixed price'}
+                </Text>
+              </View>
+            </View>
+
+            {service.description && (
+              <Text className="text-sm text-muted-foreground mb-3 leading-5" numberOfLines={2} ellipsizeMode="tail">
+                {service.description}
               </Text>
+            )}
+          </View>
+
+          {/* Provider Info */}
+          <View className="flex-row items-center gap-3 mb-4">
+            <View className="relative">
+              <Avatar className="w-12 h-12 border-2 border-primary/20" alt={providerDisplayName}>
+                {service.provider?.avatar_url ? (
+                  <AvatarImage source={{ uri: service.provider.avatar_url }} />
+                ) : null}
+                <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10">
+                  <Text className="text-sm font-bold text-primary">
+                    {providerInitials}
+                  </Text>
+                </AvatarFallback>
+              </Avatar>
+              {showFavoriteButton && (
+                <TouchableOpacity
+                  onPress={handleToggleFavorite}
+                  className="absolute -top-1 -right-1 w-7 h-7 rounded-full bg-card border border-border items-center justify-center shadow-sm"
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name={isFavorited ? "heart" : "heart-outline"}
+                    size={14}
+                    color={isFavorited ? "#ef4444" : (isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground)}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <View className="flex-1">
+              <Text className="text-sm font-semibold text-foreground mb-1" numberOfLines={1}>
+                {providerDisplayName}
+              </Text>
+              {service.provider?.business_name && (
+                <Text className="text-xs text-muted-foreground mb-1" numberOfLines={1}>
+                  {service.provider.business_name}
+                </Text>
+              )}
+              {service.provider?.rating && (
+                <View className="flex-row items-center gap-1">
+                  <Ionicons name="star" size={10} color="#F59E0B" />
+                  <Text className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                    {service.provider.rating.toFixed(1)}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
 
-          {service.description && (
-            <Text className="text-sm text-muted-foreground mb-3 leading-5" numberOfLines={2} ellipsizeMode="tail">
-              {service.description}
-            </Text>
-          )}
-        </View>
-
-        {/* Provider Info */}
-        <View className="flex-row items-center gap-3 mb-3">
-          <View className="relative">
-            <Avatar className="w-12 h-12 border-2 border-primary/20" alt={providerDisplayName}>
-              {service.provider?.avatar_url ? (
-                <AvatarImage source={{ uri: service.provider.avatar_url }} />
-              ) : null}
-              <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10">
-                <Text className="text-sm font-bold text-primary">
-                  {providerInitials}
-                </Text>
-              </AvatarFallback>
-            </Avatar>
-            {showFavoriteButton && (
-              <View className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-card border border-border items-center justify-center">
-                <Ionicons
-                  name={isFavorited ? "heart" : "heart-outline"}
-                  size={12}
-                  color={isFavorited ? "#ef4444" : (isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground)}
-                />
-              </View>
-            )}
-          </View>
-
-          <View className="flex-1">
-            <Text className="text-sm font-semibold text-foreground mb-1" numberOfLines={1}>
-              {providerDisplayName}
-            </Text>
-            {service.provider?.business_name && (
-              <Text className="text-xs text-muted-foreground mb-1" numberOfLines={1}>
-                {service.provider.business_name}
+          {/* Category Badges */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            className="mb-4"
+            contentContainerStyle={{ gap: 8 }}
+          >
+            <Badge className="bg-primary/10 text-primary border-primary/20 px-2 py-1 flex-shrink-0">
+              <Text className="text-xs font-medium" numberOfLines={1}>
+                {service.category_name}
               </Text>
-            )}
-            {service.provider?.rating && (
-              <View className="flex-row items-center gap-1">
-                <Ionicons name="star" size={10} color="#F59E0B" />
-                <Text className="text-xs font-medium text-amber-700 dark:text-amber-400">
-                  {service.provider.rating.toFixed(1)}
-                </Text>
-              </View>
-            )}
-          </View>
+            </Badge>
+            <Badge className="bg-secondary text-secondary-foreground border-secondary/50 px-2 py-1 flex-shrink-0">
+              <Text className="text-xs font-medium" numberOfLines={1}>
+                {service.subcategory_name}
+              </Text>
+            </Badge>
+          </ScrollView>
 
-          {showFavoriteButton && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={handleToggleFavorite}
-              className="p-1"
-            >
-              <Ionicons
-                name={isFavorited ? "heart" : "heart-outline"}
-                size={20}
-                color={isFavorited ? "#ef4444" : (isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground)}
-              />
-            </Button>
-          )}
-        </View>
-
-        {/* Category Badges */}
-        <View className="flex-row gap-2 mb-4">
-          <Badge className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-800/30 px-2 py-1">
-            <Text className="text-xs font-medium" numberOfLines={1}>
-              {service.category_name}
-            </Text>
-          </Badge>
-          <Badge className="bg-green-50 text-green-700 border-green-200 dark:bg-green-950/20 dark:text-green-400 dark:border-green-800/30 px-2 py-1">
-            <Text className="text-xs font-medium" numberOfLines={1}>
-              {service.subcategory_name}
-            </Text>
-          </Badge>
-        </View>
-
-        {/* Action Button */}
-        <Button
-          onPress={handleActionPress}
-          className="w-full bg-primary hover:bg-primary/90 active:bg-primary/80"
-        >
-          <View className="flex-row items-center justify-center gap-2">
-            <Text className="text-primary-foreground font-semibold">{actionButtonText}</Text>
-            <Feather name="arrow-right" size={16} color={isDarkColorScheme ? THEME.dark.primaryForeground : THEME.light.primaryForeground} />
-          </View>
-        </Button>
-      </CardContent>
-    </Card>
+          {/* Action Button */}
+          <Button
+            onPress={handleActionPress}
+            className="w-full bg-primary hover:bg-primary/90 active:bg-primary/80"
+          >
+            <View className="flex-row items-center justify-center gap-2">
+              <Text className="text-primary-foreground font-semibold">{actionButtonText}</Text>
+              <Feather name="arrow-right" size={16} color={isDarkColorScheme ? THEME.dark.primaryForeground : THEME.light.primaryForeground} />
+            </View>
+          </Button>
+        </CardContent>
+      </Card>
+    </TouchableOpacity>
   );
 };

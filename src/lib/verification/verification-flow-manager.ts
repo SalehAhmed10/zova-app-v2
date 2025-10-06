@@ -273,7 +273,8 @@ export class VerificationFlowManager {
    * Validates actual data instead of relying on completion flags
    */
   static findFirstIncompleteStep(verificationData: any): number {
-    console.log('[VerificationFlowManager] Finding first incomplete step with data:', verificationData);
+    // Temporarily disabled verbose logging to reduce console noise during form input
+    // console.log('[VerificationFlowManager] Finding first incomplete step with data:', verificationData);
     
     // Check each step sequentially using actual data validation
     for (let stepId = 1; stepId <= 9; stepId++) {
@@ -311,15 +312,17 @@ export class VerificationFlowManager {
       }
       
       const validation = this.validateStepCompletion(stepId as VerificationStepId, stepData);
-      console.log(`[VerificationFlowManager] Step ${stepId} validation:`, validation);
+      // Temporarily disabled verbose logging to reduce console noise during form input
+      // console.log(`[VerificationFlowManager] Step ${stepId} validation:`, validation);
       
       if (!validation.isComplete) {
-        console.log(`[VerificationFlowManager] First incomplete step: ${stepId}`);
+        // console.log(`[VerificationFlowManager] First incomplete step: ${stepId}`);
         return stepId;
       }
     }
     
-    console.log('[VerificationFlowManager] All steps complete, returning step 9');
+    // Temporarily disabled verbose logging to reduce console noise during form input
+    // console.log('[VerificationFlowManager] All steps complete, returning step 9');
     return 9; // All steps complete
   }
 
@@ -330,7 +333,8 @@ export class VerificationFlowManager {
   static navigateToStep(targetStep: number, reason: string = 'navigation'): NavigationResult {
     const route = this.getRouteForStep(targetStep as VerificationStepId);
     
-    console.log(`[VerificationFlowManager] Navigating to step ${targetStep} (${route}) - ${reason}`);
+    // Temporarily disabled verbose logging to reduce console noise during form input
+    // console.log(`[VerificationFlowManager] Navigating to step ${targetStep} (${route}) - ${reason}`);
     
     try {
       // Use push instead of replace to maintain navigation history for back buttons
@@ -364,7 +368,8 @@ export class VerificationFlowManager {
     stepData: any,
     updateStoreCallback: (step: number, data: any) => void
   ): NavigationResult {
-    console.log(`[VerificationFlowManager] Completing step ${currentStep} with data:`, stepData);
+    // Temporarily disabled verbose logging to reduce console noise during form input
+    // console.log(`[VerificationFlowManager] Completing step ${currentStep} with data:`, stepData);
     
     // Update store with completion
     updateStoreCallback(currentStep, stepData);
@@ -376,7 +381,8 @@ export class VerificationFlowManager {
       return this.navigateToStep(nextStep, `completed-step-${currentStep}`);
     } else {
       // Verification complete
-      console.log('[VerificationFlowManager] Verification complete, navigating to complete screen');
+      // Temporarily disabled verbose logging to reduce console noise during form input
+      // console.log('[VerificationFlowManager] Verification complete, navigating to complete screen');
       router.replace('/provider-verification/complete');
       return {
         success: true,

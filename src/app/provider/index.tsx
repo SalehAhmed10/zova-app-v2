@@ -18,7 +18,10 @@ import {
   useBusinessAvailability,
   useUpdateBusinessAvailability,
   useIsPaymentSetupComplete,
+  useNextUpcomingBooking,
+  useRecentActivity,
 } from '@/hooks';
+import { useUpdateBookingDetails } from '@/hooks/shared';
 import { useUserBookings } from '@/hooks/shared';
 import { cn } from '@/lib/utils';
 import { PaymentSetupStatusCard } from '@/components/providers/PaymentSetupStatusCard';
@@ -73,6 +76,8 @@ export default function ProviderDashboard() {
   const { data: statsData, isLoading: statsLoading } = useProviderStats(user?.id);
   const { data: bookingsData, isLoading: bookingsLoading } = useUserBookings(user?.id);
   const { data: availabilityData, isLoading: availabilityLoading } = useBusinessAvailability(user?.id);
+  const { data: nextBooking, isLoading: nextBookingLoading } = useNextUpcomingBooking(user?.id);
+  const { data: recentActivity, isLoading: activityLoading } = useRecentActivity(user?.id);
   const updateAvailability = useUpdateBusinessAvailability();
 
   // Business pause state
@@ -83,8 +88,18 @@ export default function ProviderDashboard() {
   const [selectedDate, setSelectedDate] = React.useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)); // Default to 1 week from now
   const [isIndefinitePause, setIsIndefinitePause] = React.useState(false);
 
+  // Reschedule state
+  const [showRescheduleModal, setShowRescheduleModal] = React.useState(false);
+  const [rescheduleDate, setRescheduleDate] = React.useState(new Date());
+  const [rescheduleTime, setRescheduleTime] = React.useState('10:00');
+  const [showRescheduleDatePicker, setShowRescheduleDatePicker] = React.useState(false);
+  const [showRescheduleTimePicker, setShowRescheduleTimePicker] = React.useState(false);
+
   // ✅ REACT QUERY: Payment setup status check (replaces usePaymentSetupNudge)
   const { isComplete: isPaymentComplete } = useIsPaymentSetupComplete(user?.id || '');
+
+  // ✅ REACT QUERY: Booking update mutation
+  const updateBookingDetails = useUpdateBookingDetails();
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -98,6 +113,41 @@ export default function ProviderDashboard() {
       return `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim();
     }
     return profileData?.email?.split('@')[0] || 'Provider';
+  };
+
+  // Reschedule handlers
+  const handleReschedulePress = () => {
+    if (nextBooking) {
+      // Pre-populate with current booking date/time
+      const bookingDate = new Date(nextBooking.date);
+      setRescheduleDate(bookingDate);
+      setRescheduleTime(nextBooking.startTime);
+      setShowRescheduleModal(true);
+    }
+  };
+
+  const handleRescheduleConfirm = async () => {
+    if (!nextBooking) return;
+
+    try {
+      await updateBookingDetails.mutateAsync({
+        bookingId: nextBooking.id,
+        bookingDate: rescheduleDate.toISOString().split('T')[0],
+        startTime: rescheduleTime,
+      });
+      setShowRescheduleModal(false);
+      // Show success message (could be implemented with a toast)
+    } catch (error) {
+      console.error('Failed to reschedule booking:', error);
+      // Show error message (could be implemented with a toast)
+    }
+  };
+
+  // Contact client handler (placeholder for future messaging feature)
+  const handleContactClient = () => {
+    // For now, show an alert that messaging is coming soon
+    // In the future, this could navigate to a messaging screen
+    alert('Messaging feature coming soon! For urgent matters, please call the client directly.');
   };
 
   return (
@@ -178,7 +228,7 @@ export default function ProviderDashboard() {
                   />
                   <TodaysStat
                     icon="💰"
-                    value={statsLoading ? '-' : `£${(statsData?.this_month_earnings || 0).toFixed(0)}`}
+                    value={statsLoading ? '-' : `$${(statsData?.this_month_earnings || 0).toFixed(0)}`}
                     label="This Month"
                     trend="up"
                     isLoading={statsLoading}
@@ -283,15 +333,15 @@ export default function ProviderDashboard() {
             </View>
             
             <View className="flex-row gap-3">
-              <TouchableOpacity className="flex-1">
+              <TouchableOpacity className="flex-1" onPress={() => router.push('/provider/bookings')}>
                 <Card className='bg-card'>
                   <CardContent className=" p-4 items-center">
-                    <Text className="text-xl mb-2">💬</Text>
+                    <Text className="text-xl mb-2">�</Text>
                     <Text className="font-semibold text-foreground text-center text-xs">
-                      Messages
+                      Bookings
                     </Text>
                     <Text className="text-muted-foreground text-xs text-center mt-1">
-                      2 unread
+                      Manage requests
                     </Text>
                   </CardContent>
                 </Card>
@@ -314,74 +364,54 @@ export default function ProviderDashboard() {
           </View>
         </View>
 
-        {/* Development Tools - Only show in development */}
-        {(() => {
-          return __DEV__ && (
-            <View className="px-4 mb-6">
-              <Text className="text-lg font-bold text-foreground mb-4">🔧 Development Tools</Text>
-              <View className="gap-3">
-                <TouchableOpacity onPress={() => {
-                  router.push('/provider-verification/payment');
-                }}>
-                  <Card className='bg-card border-yellow-200'>
-                    <CardContent className="p-4 flex-row items-center">
-                      <Text className="text-xl mr-3">🧪</Text>
-                      <View className="flex-1">
-                        <Text className="font-semibold text-foreground">
-                          Stripe Integration Test
-                        </Text>
-                        <Text className="text-muted-foreground text-xs">
-                          Test payment system functionality
-                        </Text>
-                      </View>
-                      <Text className="text-primary text-xs">→</Text>
-                    </CardContent>
-                  </Card>
-                </TouchableOpacity>
-              </View>
-            </View>
-          );
-        })()}
-
+        
         {/* Recent Activity */}
         <View className="px-4 mb-6">
           <Text className="text-lg font-bold text-foreground mb-4">Recent Activity</Text>
           <Card>
             <CardContent className="p-4">
-              <View className="gap-4">
-                <View className="flex-row items-center">
-                  <View className="w-10 h-10 bg-accent/50 rounded-full items-center justify-center mr-3">
-                    <Text className="text-lg">✅</Text>
-                  </View>
-                  <View className="flex-1">
-                    <Text className="font-semibold text-foreground">Service completed</Text>
-                    <Text className="text-muted-foreground text-sm">Hair styling for Sarah M. • 2h ago</Text>
-                  </View>
-                  <Text className="text-primary font-bold">+$85</Text>
+              {activityLoading ? (
+                <View className="gap-4">
+                  {[1, 2, 3].map((i) => (
+                    <View key={i} className="flex-row items-center">
+                      <Skeleton className="w-10 h-10 rounded-full mr-3" />
+                      <View className="flex-1">
+                        <Skeleton className="w-32 h-4 mb-2" />
+                        <Skeleton className="w-48 h-3" />
+                      </View>
+                      <Skeleton className="w-12 h-4" />
+                    </View>
+                  ))}
                 </View>
-
-                <View className="flex-row items-center">
-                  <View className="w-10 h-10 bg-primary/10 rounded-full items-center justify-center mr-3">
-                    <Text className="text-lg">📅</Text>
-                  </View>
-                  <View className="flex-1">
-                    <Text className="font-semibold text-foreground">New booking</Text>
-                    <Text className="text-muted-foreground text-sm">Makeup session • Tomorrow 2:00 PM</Text>
-                  </View>
-                  <Text className="text-primary font-bold">$120</Text>
+              ) : recentActivity && recentActivity.length > 0 ? (
+                <View className="gap-4">
+                  {recentActivity.map((activity) => (
+                    <View key={activity.id} className="flex-row items-center">
+                      <View className="w-10 h-10 bg-accent/50 rounded-full items-center justify-center mr-3">
+                        <Text className="text-lg">{activity.icon}</Text>
+                      </View>
+                      <View className="flex-1">
+                        <Text className="font-semibold text-foreground">{activity.title}</Text>
+                        <Text className="text-muted-foreground text-sm">{activity.description}</Text>
+                      </View>
+                      {activity.amount !== null && (
+                        <Text className="text-primary font-bold">
+                          {activity.type === 'completed' ? '+' : ''}${activity.amount}
+                        </Text>
+                      )}
+                      {activity.rating && (
+                        <Text className="text-primary font-bold">⭐ {activity.rating}</Text>
+                      )}
+                    </View>
+                  ))}
                 </View>
-
-                <View className="flex-row items-center">
-                  <View className="w-10 h-10 bg-accent/50 rounded-full items-center justify-center mr-3">
-                    <Text className="text-lg">⭐</Text>
-                  </View>
-                  <View className="flex-1">
-                    <Text className="font-semibold text-foreground">New review</Text>
-                    <Text className="text-muted-foreground text-sm">5 stars from Michael T. • 1h ago</Text>
-                  </View>
-                  <Text className="text-primary font-bold">⭐ 5.0</Text>
+              ) : (
+                <View className="items-center py-8">
+                  <Text className="text-muted-foreground text-center">
+                    No recent activity yet. Your completed services and new bookings will appear here.
+                  </Text>
                 </View>
-              </View>
+              )}
             </CardContent>
           </Card>
         </View>
@@ -394,19 +424,19 @@ export default function ProviderDashboard() {
               <View className="flex-row justify-between items-center mb-4">
                 <View>
                   <Text className="text-2xl font-bold text-foreground">
-                    {statsLoading ? '-' : (statsData?.total_bookings || 12)}
+                    {statsLoading ? '-' : (statsData?.total_bookings || 0)}
                   </Text>
                   <Text className="text-muted-foreground text-sm">Total bookings</Text>
                 </View>
                 <View>
                   <Text className="text-2xl font-bold  text-foreground">
-                    {statsLoading ? '-' : '$1,240'}
+                    {statsLoading ? '-' : `$${statsData?.this_week_earnings?.toFixed(0) || '0'}`}
                   </Text>
                   <Text className="text-muted-foreground text-sm">Revenue</Text>
                 </View>
                 <View>
                   <Text className="text-2xl font-bold text-foreground">
-                    {statsLoading ? '-' : (statsData?.completed_bookings || 10)}
+                    {statsLoading ? '-' : (statsData?.completed_bookings || 0)}
                   </Text>
                   <Text className="text-muted-foreground text-sm">Completed</Text>
                 </View>
@@ -414,7 +444,11 @@ export default function ProviderDashboard() {
 
               <View className="bg-accent/30 rounded-lg p-3">
                 <Text className="text-sm text-muted-foreground">
-                  📈 Revenue up 15% from last week
+                  {statsLoading ? 'Loading insights...' : 
+                    statsData?.this_week_earnings && statsData.this_week_earnings > 0 
+                      ? `💰 Earned $${statsData.this_week_earnings.toFixed(0)} this week`
+                      : '📊 Track your weekly performance here'
+                  }
                 </Text>
               </View>
             </CardContent>
@@ -469,54 +503,82 @@ export default function ProviderDashboard() {
           <Text className="text-lg font-bold text-foreground mb-4">Next Appointment</Text>
           <Card>
             <CardContent className="p-4">
-              <View className="flex-row items-center gap-3 mb-4">
-                <Avatar className="w-14 h-14" alt="Client avatar">
-                  <AvatarFallback className="bg-primary/10">
-                    <Text className="text-lg font-bold text-primary">JD</Text>
-                  </AvatarFallback>
-                </Avatar>
-                <View className="flex-1">
-                  <Text className="font-semibold text-foreground text-base">Jane Doe</Text>
-                  <Text className="text-muted-foreground text-sm mt-1">Haircut & Styling</Text>
-                  <View className="flex-row items-center gap-2 mt-1">
-                    <Text className="text-xs">📅</Text>
-                    <Text className="text-muted-foreground text-xs">Tomorrow • 10:00 AM</Text>
-                  </View>
+              {nextBookingLoading ? (
+                <View className="items-center py-8">
+                  <Text className="text-muted-foreground">Loading next appointment...</Text>
                 </View>
-                <View className="items-center">
-                  <Text className="text-primary font-bold text-lg">$85</Text>
-                  <Text className="text-muted-foreground text-xs">1.5hr</Text>
-                </View>
-              </View>
-              
-              <View className="bg-accent/20 rounded-lg p-3 mb-4">
-                <Text className="text-muted-foreground text-xs">
-                  📍 Location: 123 Beauty Street, Downtown
-                </Text>
-              </View>
-              
-              <View className="gap-3">
-                {/* Primary Action - Start Service */}
-                <TouchableOpacity>
-                  <View className="bg-primary rounded-lg py-4 items-center">
-                    <Text className="text-primary-foreground font-bold text-sm">Start Service</Text>
-                  </View>
-                </TouchableOpacity>
-                
-                {/* Secondary Actions */}
-                <View className="flex-row gap-3">
-                  <TouchableOpacity className="flex-1">
-                    <View className="bg-secondary/10 border border-secondary/20 rounded-lg py-3 items-center">
-                      <Text className="text-muted-foreground font-medium text-xs">Reschedule</Text>
+              ) : nextBooking ? (
+                <>
+                  <View className="flex-row items-center gap-3 mb-4">
+                    <Avatar className="w-14 h-14" alt="Client avatar">
+                      <AvatarFallback className="bg-primary/10">
+                        <Text className="text-lg font-bold text-primary">{nextBooking.customerInitials}</Text>
+                      </AvatarFallback>
+                    </Avatar>
+                    <View className="flex-1">
+                      <Text className="font-semibold text-foreground text-base">{nextBooking.customerName}</Text>
+                      <Text className="text-muted-foreground text-sm mt-1">{nextBooking.serviceTitle}</Text>
+                      <View className="flex-row items-center gap-2 mt-1">
+                        <Text className="text-xs">📅</Text>
+                        <Text className="text-muted-foreground text-xs">
+                          {new Date(nextBooking.date).toLocaleDateString('en-US', {
+                            weekday: 'long',
+                            month: 'short',
+                            day: 'numeric'
+                          })} • {nextBooking.startTime}
+                        </Text>
+                      </View>
                     </View>
-                  </TouchableOpacity>
-                  <TouchableOpacity className="flex-1">
-                    <View className="bg-secondary/10 border border-secondary/20 rounded-lg py-3 items-center">
-                      <Text className="text-muted-foreground font-medium text-xs">Contact Client</Text>
+                    <View className="items-center">
+                      <Text className="text-primary font-bold text-lg">${nextBooking.amount}</Text>
+                      <Text className="text-muted-foreground text-xs">{nextBooking.duration}</Text>
                     </View>
+                  </View>
+
+                  <View className="bg-accent/20 rounded-lg p-3 mb-4">
+                    <Text className="text-muted-foreground text-xs">
+                      📍 Location: {nextBooking.address}
+                    </Text>
+                  </View>
+
+                  <View className="gap-3">
+                    {/* Primary Action - Start Service */}
+                    <TouchableOpacity
+                      onPress={() => router.push(`/provider/bookingdetail/${nextBooking.id}`)}
+                    >
+                      <View className="bg-primary rounded-lg py-4 items-center">
+                        <Text className="text-primary-foreground font-bold text-sm">Start Service</Text>
+                      </View>
+                    </TouchableOpacity>
+
+                    {/* Secondary Actions */}
+                    <View className="flex-row gap-3">
+                      <TouchableOpacity className="flex-1" onPress={handleReschedulePress}>
+                        <View className="bg-secondary/10 border border-secondary/20 rounded-lg py-3 items-center">
+                          <Text className="text-muted-foreground font-medium text-xs">Reschedule</Text>
+                        </View>
+                      </TouchableOpacity>
+                      <TouchableOpacity className="flex-1" onPress={handleContactClient}>
+                        <View className="bg-secondary/10 border border-secondary/20 rounded-lg py-3 items-center">
+                          <Text className="text-muted-foreground font-medium text-xs">Contact Client</Text>
+                        </View>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </>
+              ) : (
+                <View className="items-center py-8">
+                  <Text className="text-muted-foreground text-center">
+                    No upcoming appointments scheduled
+                  </Text>
+                  <TouchableOpacity
+                    className="mt-4 bg-primary rounded-lg py-3 px-6"
+                    onPress={() => router.push('/provider/calendar')}
+                  >
+                    <Text className="text-primary-foreground font-medium text-sm">Set Availability</Text>
                   </TouchableOpacity>
                 </View>
-              </View>
+              )}
             </CardContent>
           </Card>
         </View>
@@ -635,6 +697,67 @@ export default function ProviderDashboard() {
         </View>
       )}
 
+      {/* Reschedule Modal */}
+      {showRescheduleModal && (
+        <View className="absolute inset-0 bg-black/50 justify-center items-center p-4">
+          <View className="bg-background rounded-lg p-6 w-full max-w-sm">
+            <Text className="text-lg font-bold text-foreground mb-4">
+              Reschedule Appointment
+            </Text>
+
+            <View className="gap-4">
+              {/* Date Selection */}
+              <View>
+                <Text className="text-sm text-muted-foreground mb-2">New Date</Text>
+                <TouchableOpacity
+                  onPress={() => setShowRescheduleDatePicker(true)}
+                  className="border border-border rounded-lg p-3"
+                >
+                  <Text className="text-foreground">
+                    {rescheduleDate.toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric'
+                    })}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Time Selection */}
+              <View>
+                <Text className="text-sm text-muted-foreground mb-2">New Time</Text>
+                <TouchableOpacity
+                  onPress={() => setShowRescheduleTimePicker(true)}
+                  className="border border-border rounded-lg p-3"
+                >
+                  <Text className="text-foreground">{rescheduleTime}</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Action Buttons */}
+              <View className="flex-row gap-3 mt-4">
+                <TouchableOpacity
+                  className="flex-1 bg-secondary/10 border border-secondary/20 rounded-lg py-3 items-center"
+                  onPress={() => setShowRescheduleModal(false)}
+                >
+                  <Text className="text-muted-foreground font-medium">Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className="flex-1 bg-primary rounded-lg py-3 items-center"
+                  onPress={handleRescheduleConfirm}
+                  disabled={updateBookingDetails.isPending}
+                >
+                  <Text className="text-primary-foreground font-medium">
+                    {updateBookingDetails.isPending ? 'Updating...' : 'Confirm'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
+
       {/* Date Picker Modal */}
       {showDatePicker && (
         <DateTimePicker
@@ -646,6 +769,38 @@ export default function ProviderDashboard() {
             setShowDatePicker(false);
             if (date) {
               setSelectedDate(date);
+            }
+          }}
+        />
+      )}
+
+      {/* Reschedule Date Picker */}
+      {showRescheduleDatePicker && (
+        <DateTimePicker
+          value={rescheduleDate}
+          mode="date"
+          display="default"
+          minimumDate={new Date()}
+          onChange={(event, date) => {
+            setShowRescheduleDatePicker(false);
+            if (date) {
+              setRescheduleDate(date);
+            }
+          }}
+        />
+      )}
+
+      {/* Reschedule Time Picker */}
+      {showRescheduleTimePicker && (
+        <DateTimePicker
+          value={new Date(`2000-01-01T${rescheduleTime}:00`)}
+          mode="time"
+          display="default"
+          onChange={(event, date) => {
+            setShowRescheduleTimePicker(false);
+            if (date) {
+              const timeString = date.toTimeString().split(' ')[0].substring(0, 5);
+              setRescheduleTime(timeString);
             }
           }}
         />

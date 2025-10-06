@@ -54,7 +54,7 @@ export default function CustomerLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
+            <Ionicons name="home" size={size} color={color}  />
           ),
         }}
       />
@@ -177,7 +177,7 @@ export default function CustomerLayout() {
         href: null,
       }}
       />
-      
+
     </Tabs>
   );
 }

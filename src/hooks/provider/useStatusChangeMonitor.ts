@@ -6,15 +6,24 @@
 import { useEffect, useRef } from 'react';
 import { router } from 'expo-router';
 import { useProfileStore } from '@/stores/verification/useProfileStore';
+import { useAppStore } from '@/stores/auth/app';
 import { Alert } from 'react-native';
 
 export const useStatusChangeMonitor = () => {
   const { verificationStatus } = useProfileStore();
+  const { isLoggingOut } = useAppStore();
   const previousStatus = useRef<string | null>(null);
   const isHandlingChange = useRef(false);
 
   useEffect(() => {
     const currentStatus = verificationStatus;
+
+    // ✅ SKIP MONITORING DURING LOGOUT
+    if (isLoggingOut) {
+      console.log('[StatusChangeMonitor] Skipping status monitoring during logout');
+      previousStatus.current = currentStatus;
+      return;
+    }
 
     // ✅ DETECT STATUS CHANGE
     if (previousStatus.current && previousStatus.current !== currentStatus && !isHandlingChange.current) {

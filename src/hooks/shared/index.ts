@@ -23,6 +23,7 @@ export { useDebounceValue } from './useDebounce';
 export {
   useCustomerBookings,
   useUpdateBookingStatus,
+  useUpdateBookingDetails,
   useBooking,
   useCreateBooking
 } from './useBookings';

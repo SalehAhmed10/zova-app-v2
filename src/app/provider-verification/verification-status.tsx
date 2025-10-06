@@ -23,6 +23,7 @@ import { View, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,8 @@ import {
 import { SessionRecoveryBanner } from '@/components/verification/SessionRecoveryBanner';
 import { useAppStore } from '@/stores/auth/app';
 import { LogoutButton } from '@/components/ui/logout-button';
+import { supabase } from '@/lib/core/supabase';
+import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
 
 type VerificationStatus = 'pending' | 'in_review' | 'approved' | 'rejected';
 
@@ -268,9 +271,54 @@ export default function VerificationStatusScreen() {
   // ✅ ZUSTAND SELECTORS: Global state access (replaces useState)
   const { status: storeStatus, lastUpdated, isSubscribed } = useVerificationStatusSelector();
 
+  // ✅ RESTART VERIFICATION MUTATION: Updates database status and resets local state
+  const queryClient = useQueryClient();
+  const { resetVerification } = useProviderVerificationStore();
+  
+  const restartVerificationMutation = useMutation({
+    mutationFn: async () => {
+      if (!user.id) throw new Error('User ID required');
+      
+      console.log('[RestartVerification] Starting restart process for user:', user.id);
+      
+      // Update database status back to 'pending'
+      const { error } = await supabase
+        .from('profiles')
+        .update({ verification_status: 'pending' })
+        .eq('id', user.id);
+        
+      if (error) throw error;
+      
+      console.log('[RestartVerification] Database status updated to pending');
+      
+      // Reset local verification store state
+      resetVerification();
+      
+      console.log('[RestartVerification] Local store reset completed');
+      
+      return { success: true };
+    },
+    onSuccess: () => {
+      console.log('[RestartVerification] Restart completed successfully');
+      
+      // Invalidate verification status query to refetch
+      queryClient.invalidateQueries({
+        queryKey: ['verification-status', user.id],
+      });
+      
+      // Navigate to provider verification flow
+      router.replace('/provider-verification');
+    },
+    onError: (error) => {
+      console.error('[RestartVerification] Failed to restart verification:', error);
+      // Could add toast notification here
+    },
+  });
+
   // ✅ COMPUTED PROPERTIES: Pure derivation (replaces useState)
-  const currentStatus = verificationData?.status || storeStatus || 'pending'; // Default to pending
-  const config = statusConfigs[currentStatus] || statusConfigs.pending; // Fallback to pending config
+  const rawStatus = verificationData?.status || storeStatus || 'pending';
+  const currentStatus = (['pending', 'in_review', 'approved', 'rejected'].includes(rawStatus) ? rawStatus : 'pending') as VerificationStatus;
+  const config = statusConfigs[currentStatus];
   const isRefreshing = isFetching && !isLoading;
 
   // ✅ PURE NAVIGATION: No useEffect in component - navigation logic is pure computation
@@ -316,7 +364,7 @@ export default function VerificationStatusScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      {/* ✅ NAVIGATION HANDLER: Encapsulates useEffect for navigation side effects */}
+     
       <VerificationNavigationHandler
         shouldNavigateToProvider={shouldNavigateToProvider}
         shouldRedirectToAuth={shouldRedirectToAuth}
@@ -361,16 +409,16 @@ export default function VerificationStatusScreen() {
         </View>
 
         <ScreenWrapper className="flex-1">
-          {/* Status Details Card */}
+         
           <Card className="mb-6">
             <CardHeader>
               <CardTitle className="text-foreground text-xl">
-                {config.title}
+                {config?.title || 'Verification Status'}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <Text className="text-muted-foreground leading-6 mb-4">
-                {config.subtitle}
+                {config?.subtitle || 'Your verification status is being loaded.'}
               </Text>
               
               {lastUpdated && typeof lastUpdated === 'number' && lastUpdated > 0 && (
@@ -390,21 +438,21 @@ export default function VerificationStatusScreen() {
               <CardTitle className="text-foreground">Verification Progress</CardTitle>
             </CardHeader>
             <CardContent>
-              {config.timeline.map((step, index) => (
+              {(config?.timeline || []).map((step, index) => (
                 <View key={index} className="flex-row items-start mb-4 last:mb-0">
                   <View className="mr-4 mt-1">
-                    <Ionicons 
-                      name={step.icon as any} 
-                      size={20} 
-                      color={step.iconColor} 
+                    <Ionicons
+                      name={step?.icon as any || 'checkmark'}
+                      size={20}
+                      color={step?.iconColor || '#6b7280'}
                     />
                   </View>
                   <View className="flex-1">
                     <Text className="text-foreground font-medium mb-1">
-                      {step.title}
+                      {step?.title || 'Step'}
                     </Text>
                     <Text className="text-muted-foreground text-sm">
-                      {step.description}
+                      {step?.description || 'Description'}
                     </Text>
                   </View>
                 </View>
@@ -418,13 +466,13 @@ export default function VerificationStatusScreen() {
               <CardTitle className="text-foreground">What's Next?</CardTitle>
             </CardHeader>
             <CardContent>
-              {config.nextSteps.map((step, index) => (
+              {(config?.nextSteps || []).map((step, index) => (
                 <View key={index} className="flex-row items-start mb-3 last:mb-0">
                   <Text className="text-primary font-bold mr-3 mt-1">
                     {index + 1}.
                   </Text>
                   <Text className="text-muted-foreground flex-1 leading-5">
-                    {step}
+                    {step || 'Step description'}
                   </Text>
                 </View>
               ))}
@@ -432,14 +480,15 @@ export default function VerificationStatusScreen() {
           </Card>
 
           {/* Action Buttons */}
-          <View className="space-y-4 mb-8">
-            {config.showRetryButton && (
+          <View className="gap-4 mb-8">
+            {config?.showRetryButton && (
               <Button
-                onPress={() => router.push('/onboarding')}
+                onPress={() => restartVerificationMutation.mutate()}
+                disabled={restartVerificationMutation.isPending}
                 className="w-full"
               >
                 <Text className="text-primary-foreground font-semibold">
-                  Submit New Application
+                  {restartVerificationMutation.isPending ? 'Starting Over...' : 'Submit New Application'}
                 </Text>
               </Button>
             )}
@@ -455,7 +504,7 @@ export default function VerificationStatusScreen() {
               </Button>
             )}
 
-            {config.showContactSupport && (
+            {config?.showContactSupport && (
               <Button
                 variant="outline"
                 onPress={() => {

@@ -74,8 +74,34 @@ export const useProviderStats = (providerId?: string) => {
 
       const thisMonthEarnings = monthlyBookings?.reduce((sum, booking) => sum + parseFloat(booking.total_amount || '0'), 0) || 0;
 
-      // Get average rating (placeholder for now)
-      const avgRating = 4.5;
+      // Get this week's earnings
+      const currentDate = new Date();
+      const startOfWeek = new Date(currentDate);
+      startOfWeek.setDate(currentDate.getDate() - currentDate.getDay()); // Start of week (Sunday)
+      startOfWeek.setHours(0, 0, 0, 0);
+
+      const { data: weeklyBookings, error: weeklyError } = await supabase
+        .from('bookings')
+        .select('total_amount')
+        .eq('provider_id', providerId)
+        .eq('status', 'completed')
+        .gte('booking_date', startOfWeek.toISOString().split('T')[0]);
+
+      if (weeklyError) throw weeklyError;
+
+      const thisWeekEarnings = weeklyBookings?.reduce((sum, booking) => sum + parseFloat(booking.total_amount || '0'), 0) || 0;
+
+      // Get average rating from reviews table
+      const { data: reviews, error: reviewsError } = await supabase
+        .from('reviews')
+        .select('rating')
+        .eq('provider_id', providerId);
+
+      if (reviewsError) throw reviewsError;
+
+      const avgRating = reviews && reviews.length > 0
+        ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
+        : 0; // No reviews yet
 
       // Get total bookings
       const { data: totalBookings, error: totalError } = await supabase
@@ -97,6 +123,7 @@ export const useProviderStats = (providerId?: string) => {
       return {
         todays_bookings: todaysBookings?.length || 0,
         this_month_earnings: thisMonthEarnings,
+        this_week_earnings: thisWeekEarnings,
         avg_rating: avgRating,
         total_bookings: totalBookings?.length || 0,
         completed_bookings: completedBookings?.length || 0,
@@ -353,39 +380,38 @@ export const useProviderEarnings = (providerId?: string) => {
     queryFn: async () => {
       if (!providerId) throw new Error('Provider ID is required');
 
-      // Get completed bookings for earnings calculation
-      const { data: bookings, error: bookingsError } = await supabase
-        .from('bookings')
-        .select('total_amount, booking_date, status')
-        .eq('provider_id', providerId)
-        .eq('status', 'completed');
+      // Get payout records from provider_payouts table
+      const { data: payouts, error } = await supabase
+        .from('provider_payouts')
+        .select('amount, status, expected_payout_date, created_at')
+        .eq('provider_id', providerId);
 
-      if (bookingsError) throw bookingsError;
+      if (error) throw error;
 
-      // Calculate earnings
-      const totalEarnings = bookings?.reduce((sum, booking) => sum + parseFloat(booking.total_amount || '0'), 0) || 0;
+      // Calculate total earnings (paid/completed payouts)
+      const totalEarnings = payouts?.filter(p => p.status === 'paid' || p.status === 'completed')
+        .reduce((sum, payout) => sum + parseFloat(payout.amount || '0'), 0) || 0;
 
       // Calculate this month's earnings
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const thisMonthEarnings = bookings?.filter(booking => {
-        const bookingDate = new Date(booking.booking_date);
-        return bookingDate >= startOfMonth;
-      }).reduce((sum, booking) => sum + parseFloat(booking.total_amount || '0'), 0) || 0;
+      const thisMonthEarnings = payouts?.filter(payout => {
+        const payoutDate = new Date(payout.created_at);
+        return payoutDate >= startOfMonth && (payout.status === 'paid' || payout.status === 'completed');
+      }).reduce((sum, payout) => sum + parseFloat(payout.amount || '0'), 0) || 0;
 
-      // Get pending payouts (bookings that are completed but not yet paid out)
-      const { data: pendingBookings, error: pendingError } = await supabase
+      // Calculate pending payouts
+      const pendingPayouts = payouts?.filter(p => p.status === 'pending' || p.status === 'processing')
+        .reduce((sum, payout) => sum + parseFloat(payout.amount || '0'), 0) || 0;
+
+      // Get completed bookings count from bookings table
+      const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
-        .select('total_amount')
+        .select('id')
         .eq('provider_id', providerId)
-        .eq('status', 'completed')
-        .is('payout_date', null);
+        .eq('status', 'completed');
 
-      if (pendingError) throw pendingError;
-
-      const pendingPayouts = pendingBookings?.reduce((sum, booking) => sum + parseFloat(booking.total_amount || '0'), 0) || 0;
-
-      // Count completed bookings
+      if (bookingsError) throw bookingsError;
       const completedBookings = bookings?.length || 0;
 
       // Calculate next payout date (next Monday)
@@ -412,26 +438,22 @@ export const useProviderPayouts = (providerId?: string) => {
     queryFn: async () => {
       if (!providerId) throw new Error('Provider ID is required');
 
-      // Get payout history (this would typically come from a payouts table)
-      // For now, we'll simulate with booking data
-      const { data: bookings, error } = await supabase
-        .from('bookings')
-        .select('id, total_amount, booking_date, status')
+      // Get payout records from provider_payouts table
+      const { data: payouts, error } = await supabase
+        .from('provider_payouts')
+        .select('id, amount, status, expected_payout_date, actual_payout_date, booking_id, created_at')
         .eq('provider_id', providerId)
-        .eq('status', 'completed')
-        .not('payout_date', 'is', null)
-        .order('booking_date', { ascending: false })
-        .limit(10);
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      return bookings?.map(booking => ({
-        id: booking.id,
-        amount: parseFloat(booking.total_amount || '0'),
-        status: 'paid',
-        expected_payout_date: booking.booking_date,
-        actual_payout_date: booking.booking_date,
-        booking_id: booking.id,
+      return payouts?.map(payout => ({
+        id: payout.id,
+        amount: parseFloat(payout.amount || '0'),
+        status: payout.status,
+        expected_payout_date: payout.expected_payout_date,
+        actual_payout_date: payout.actual_payout_date,
+        booking_id: payout.booking_id,
       })) || [];
     },
     enabled: !!providerId,
@@ -615,5 +637,223 @@ export const useServiceCategories = () => {
       return data || [];
     },
     staleTime: 10 * 60 * 1000, // 10 minutes - categories don't change often
+  });
+};
+
+// ✅ Next upcoming booking hook - for dashboard quick actions
+export const useNextUpcomingBooking = (providerId?: string) => {
+  return useQuery({
+    queryKey: ['nextUpcomingBooking', providerId],
+    queryFn: async () => {
+      if (!providerId) throw new Error('Provider ID is required');
+
+      const today = new Date().toISOString().split('T')[0];
+      const now = new Date().toTimeString().split(' ')[0]; // HH:MM:SS format
+
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
+          id,
+          booking_date,
+          start_time,
+          end_time,
+          status,
+          total_amount,
+          service_address,
+          customer:profiles!customer_id (
+            first_name,
+            last_name
+          ),
+          service:provider_services!service_id (
+            title,
+            duration_hours
+          )
+        `)
+        .eq('provider_id', providerId)
+        .eq('status', 'confirmed')
+        .gte('booking_date', today)
+        .order('booking_date', { ascending: true })
+        .order('start_time', { ascending: true })
+        .limit(1);
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) return null;
+
+      const booking = data[0];
+      const customer = Array.isArray(booking.customer) ? booking.customer[0] : booking.customer;
+      const service = Array.isArray(booking.service) ? booking.service[0] : booking.service;
+
+      return {
+        id: booking.id,
+        date: booking.booking_date,
+        startTime: booking.start_time,
+        endTime: booking.end_time,
+        customerName: customer
+          ? `${customer.first_name || 'Unknown'} ${customer.last_name || 'Customer'}`.trim()
+          : 'Unknown Customer',
+        customerInitials: customer
+          ? `${customer.first_name?.[0] || ''}${customer.last_name?.[0] || ''}`.toUpperCase()
+          : 'UC',
+        serviceTitle: service?.title || 'Service',
+        duration: service?.duration_hours ? `${service.duration_hours}hr` : '1.5hr',
+        amount: parseFloat(booking.total_amount || '0'),
+        address: booking.service_address || 'Address not provided',
+      };
+    },
+    enabled: !!providerId,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+};
+
+export const useRecentActivity = (providerId?: string) => {
+  return useQuery({
+    queryKey: ['recentActivity', providerId],
+    queryFn: async () => {
+      if (!providerId) throw new Error('Provider ID is required');
+
+      // Get recent completed bookings (last 7 days)
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      const { data: completedBookings, error: completedError } = await supabase
+        .from('bookings')
+        .select(`
+          id,
+          booking_date,
+          start_time,
+          total_amount,
+          customer:profiles!customer_id (
+            first_name,
+            last_name
+          ),
+          service:provider_services!service_id (
+            title
+          )
+        `)
+        .eq('provider_id', providerId)
+        .eq('status', 'completed')
+        .gte('booking_date', sevenDaysAgo.toISOString().split('T')[0])
+        .order('booking_date', { ascending: false })
+        .order('start_time', { ascending: false })
+        .limit(3);
+
+      if (completedError) throw completedError;
+
+      // Get recent reviews (last 7 days)
+      const { data: recentReviews, error: reviewsError } = await supabase
+        .from('reviews')
+        .select(`
+          id,
+          rating,
+          created_at,
+          customer:profiles!customer_id (
+            first_name,
+            last_name
+          )
+        `)
+        .eq('provider_id', providerId)
+        .gte('created_at', sevenDaysAgo.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(2);
+
+      if (reviewsError) throw reviewsError;
+
+      // Get upcoming bookings (next 2 days)
+      const twoDaysFromNow = new Date();
+      twoDaysFromNow.setDate(twoDaysFromNow.getDate() + 2);
+
+      const { data: upcomingBookings, error: upcomingError } = await supabase
+        .from('bookings')
+        .select(`
+          id,
+          booking_date,
+          start_time,
+          total_amount,
+          customer:profiles!customer_id (
+            first_name,
+            last_name
+          ),
+          service:provider_services!service_id (
+            title
+          )
+        `)
+        .eq('provider_id', providerId)
+        .eq('status', 'confirmed')
+        .gte('booking_date', new Date().toISOString().split('T')[0])
+        .lte('booking_date', twoDaysFromNow.toISOString().split('T')[0])
+        .order('booking_date', { ascending: true })
+        .order('start_time', { ascending: true })
+        .limit(2);
+
+      if (upcomingError) throw upcomingError;
+
+      // Combine and sort activities by recency
+      const activities = [];
+
+      // Add completed bookings
+      completedBookings?.forEach(booking => {
+        const customer = Array.isArray(booking.customer) ? booking.customer[0] : booking.customer;
+        const service = Array.isArray(booking.service) ? booking.service[0] : booking.service;
+        const customerName = customer
+          ? `${customer.first_name || 'Unknown'} ${customer.last_name || 'Customer'}`.trim()
+          : 'Unknown Customer';
+
+        activities.push({
+          id: `completed-${booking.id}`,
+          type: 'completed',
+          title: 'Service completed',
+          description: `${service?.title || 'Service'} for ${customerName}`,
+          amount: parseFloat(booking.total_amount || '0'),
+          timestamp: new Date(`${booking.booking_date}T${booking.start_time}`),
+          icon: '✅'
+        });
+      });
+
+      // Add recent reviews
+      recentReviews?.forEach(review => {
+        const customer = Array.isArray(review.customer) ? review.customer[0] : review.customer;
+        const customerName = customer
+          ? `${customer.first_name || 'Unknown'} ${customer.last_name || 'Customer'}`.trim()
+          : 'Unknown Customer';
+
+        activities.push({
+          id: `review-${review.id}`,
+          type: 'review',
+          title: 'New review',
+          description: `${review.rating} stars from ${customerName}`,
+          amount: null,
+          timestamp: new Date(review.created_at || ''),
+          icon: '⭐',
+          rating: review.rating
+        });
+      });
+
+      // Add upcoming bookings
+      upcomingBookings?.forEach(booking => {
+        const customer = Array.isArray(booking.customer) ? booking.customer[0] : booking.customer;
+        const service = Array.isArray(booking.service) ? booking.service[0] : booking.service;
+        const customerName = customer
+          ? `${customer.first_name || 'Unknown'} ${customer.last_name || 'Customer'}`.trim()
+          : 'Unknown Customer';
+
+        activities.push({
+          id: `booking-${booking.id}`,
+          type: 'booking',
+          title: 'New booking',
+          description: `${service?.title || 'Service'} • ${new Date(booking.booking_date).toLocaleDateString()} ${booking.start_time}`,
+          amount: parseFloat(booking.total_amount || '0'),
+          timestamp: new Date(`${booking.booking_date}T${booking.start_time}`),
+          icon: '📅'
+        });
+      });
+
+      // Sort by timestamp (most recent first) and limit to 5 items
+      return activities
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+        .slice(0, 5);
+    },
+    enabled: !!providerId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };

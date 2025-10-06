@@ -12,6 +12,9 @@ import { useProviderVerificationStore } from '@/stores/verification/provider-ver
 import { useProfileStore, useProfileHydration } from '@/stores/verification/useProfileStore';
 import { supabase } from '@/lib/core/supabase';
 import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';
+import { useLoadVerificationData } from '@/hooks/provider/useProviderVerificationQueries';
+import { useVerificationStatusPure } from '@/hooks/provider/useVerificationStatusPure';
+import { useAuthOptimized } from '@/hooks';
 
 interface NavigationDecision {
   destination: string;
@@ -60,6 +63,9 @@ export const useAuthNavigation = () => {
   const appStore = useAppStore();
   const { isOnboardingComplete, isAuthenticated, userRole } = appStore;
   
+  // ✅ Get current user from auth hook
+  const { user } = useAuthOptimized();
+  
   // ✅ Get verification data from Zustand store
   const {
     documentData,
@@ -76,12 +82,23 @@ export const useAuthNavigation = () => {
   const { verificationStatus } = useProfileStore();
   const isProfileHydrated = useProfileHydration();
 
+  // ✅ LOAD VERIFICATION DATA: Load saved verification data from database when provider logs in
+  const { data: loadedVerificationData } = useLoadVerificationData(
+    isAuthenticated && userRole === 'provider' ? user?.id : undefined
+  );
+
+  // ✅ FETCH VERIFICATION STATUS: Ensure verification status is synced for providers
+  const { data: verificationStatusData } = useVerificationStatusPure(
+    isAuthenticated && userRole === 'provider' ? user?.id : undefined
+  );
+
   // ✅ React Query handles the navigation decision logic with direct state dependency
   const { data: navigationDecision } = useQuery({
     queryKey: ['navigation-decision', isOnboardingComplete, isAuthenticated, userRole, verificationStatus, isProfileHydrated, documentData, selfieData, businessData, categoryData, servicesData, portfolioData, bioData, termsData],
     queryFn: async (): Promise<NavigationDecision> => {
-      console.log('[AuthNavigation] Computing navigation decision');
-      console.log('[AuthNavigation] Current state:', { isOnboardingComplete, isAuthenticated, userRole });
+      // Temporarily disabled verbose logging to reduce console noise during form input
+      // console.log('[AuthNavigation] Computing navigation decision');
+      // console.log('[AuthNavigation] Current state:', { isOnboardingComplete, isAuthenticated, userRole });
 
       // Not completed onboarding
       if (!isOnboardingComplete) {
@@ -113,6 +130,21 @@ export const useAuthNavigation = () => {
       // Provider flow - check verification
       if (userRole === 'provider') {
         console.log('[AuthNavigation] Provider flow - verificationStatus:', verificationStatus, 'isProfileHydrated:', isProfileHydrated);
+        
+        // ✅ RESET VERIFICATION STORE FOR NEW PROVIDERS ONLY
+        // Only reset if no verification status AND no existing verification data in store
+        // This prevents wiping out progress during the verification flow
+        const hasAnyVerificationData = documentData?.documentUrl || selfieData?.selfieUrl || 
+                                     businessData?.businessName || categoryData?.selectedCategoryId ||
+                                     servicesData?.selectedServices?.length > 0 || 
+                                     portfolioData?.images?.length > 0 || bioData?.businessDescription ||
+                                     termsData?.termsAccepted;
+        
+        if (isProfileHydrated && !verificationStatus && !hasAnyVerificationData) {
+          console.log('[AuthNavigation] New provider detected with no existing data - resetting verification store');
+          const { resetVerification } = useProviderVerificationStore.getState();
+          resetVerification();
+        }
         
         // ✅ If profile is hydrated and has verification status, use it for navigation
         if (isProfileHydrated && verificationStatus) {

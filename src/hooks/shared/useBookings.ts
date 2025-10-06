@@ -241,3 +241,47 @@ export function useCompleteService() {
     },
   });
 }
+
+// Hook for updating booking details (date, time, etc.)
+export function useUpdateBookingDetails() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      bookingId,
+      bookingDate,
+      startTime,
+      endTime,
+      serviceAddress
+    }: {
+      bookingId: string;
+      bookingDate?: string;
+      startTime?: string;
+      endTime?: string;
+      serviceAddress?: string;
+    }) => {
+      const updates: any = { updated_at: new Date().toISOString() };
+
+      if (bookingDate !== undefined) updates.booking_date = bookingDate;
+      if (startTime !== undefined) updates.start_time = startTime;
+      if (endTime !== undefined) updates.end_time = endTime;
+      if (serviceAddress !== undefined) updates.service_address = serviceAddress;
+
+      const { data, error } = await supabase
+        .from('bookings')
+        .update(updates)
+        .eq('id', bookingId)
+        .select()
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['customer-bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['provider-bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['nextUpcomingBooking'] });
+    },
+  });
+}

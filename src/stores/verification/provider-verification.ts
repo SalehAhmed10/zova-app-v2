@@ -142,8 +142,8 @@ interface ProviderVerificationState {
   };
   
   termsData: {
-    depositPercentage: number;
-    cancellationFeePercentage: number;
+    depositPercentage: number | null;
+    cancellationFeePercentage: number | null;
     cancellationPolicy: string;
     houseCallAvailable: boolean;
     houseCallExtraFee: number;
@@ -363,8 +363,8 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
       },
       
       termsData: {
-        depositPercentage: 20,
-        cancellationFeePercentage: 0,
+        depositPercentage: null,
+        cancellationFeePercentage: null,
         cancellationPolicy: '',
         houseCallAvailable: false,
         houseCallExtraFee: 0,
@@ -805,6 +805,14 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
       },
       
       resetVerification: () => {
+        console.log('[Store] Resetting verification and clearing persisted storage');
+        
+        // Clear persisted storage first
+        AsyncStorage.removeItem('provider-verification-storage').catch((error) => {
+          console.warn('[Store] Failed to clear persisted storage:', error);
+        });
+        
+        // Then reset the state
         set({
           currentStep: 1,
           steps: initialSteps,
@@ -844,8 +852,8 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
             maxDescriptionLength: 150,
           },
           termsData: {
-            depositPercentage: 20,
-            cancellationFeePercentage: 0,
+            depositPercentage: null,
+            cancellationFeePercentage: null,
             cancellationPolicy: '',
             houseCallAvailable: false,
             houseCallExtraFee: 0,

@@ -42,6 +42,9 @@ export const useVerificationStateInitializer = () => {
     // First, validate and reset any inconsistent state
     validateAndResetState();
     
+    // Get current step from store
+    const currentStep = useProviderVerificationStore.getState().currentStep;
+    
     // Then, use flow manager to determine correct starting step
     const verificationData = {
       documentData,
@@ -56,8 +59,16 @@ export const useVerificationStateInitializer = () => {
     
     const correctStep = VerificationFlowManager.findFirstIncompleteStep(verificationData);
     
-    console.log(`[VerificationStateInitializer] Setting current step to: ${correctStep}`);
-    setCurrentStep(correctStep);
+    // ✅ ONLY SET STEP IF:
+    // 1. No current step is set (initial load), OR
+    // 2. Current step is trying to skip ahead to incomplete steps
+    // ❌ DO NOT override if user is on a completed step (allows backward navigation)
+    if (!currentStep || currentStep > correctStep) {
+      console.log(`[VerificationStateInitializer] Setting current step to: ${correctStep} (was: ${currentStep})`);
+      setCurrentStep(correctStep);
+    } else {
+      console.log(`[VerificationStateInitializer] Keeping current step: ${currentStep} (correct step: ${correctStep})`);
+    }
     
   }, [_hasHydrated, validateAndResetState, setCurrentStep, documentData, selfieData, businessData, categoryData, servicesData, portfolioData, bioData, termsData]);
 

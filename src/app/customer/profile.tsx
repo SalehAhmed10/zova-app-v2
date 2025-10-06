@@ -22,10 +22,10 @@ import {
   useNotificationSettings
 } from '@/hooks/shared/useProfileData';
 import { useUserFavorites } from '@/hooks/customer';
-import { PersonalInfoModal } from '@/components/profile/PersonalInfoModal';
+
 import { NotificationSettingsModal } from '@/components/profile/NotificationSettingsModal';
 import { ReviewsModal } from '@/components/profile/ReviewsModal';
-import { ReviewSection } from '@/components/customer/ReviewSection';
+
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Icon } from '@/components/ui/icon';
 import { Calendar, CheckCircle, Heart, Search, AlertTriangle, ClipboardList, Trophy, Star, DollarSign, HelpCircle, Phone } from 'lucide-react-native';
@@ -45,7 +45,7 @@ const CustomerProfile = React.memo(function CustomerProfile() {
 
   // ✅ MIGRATED: React Query for server state (was useState + useEffect)
   const { data: profileData, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useProfile(shouldFetchData ? user?.id : undefined);
-  const { data: statsData, isLoading: statsLoading, refetch: refetchStats } = useProfileStats(shouldFetchData ? user?.id : undefined);
+  const { data: statsData, isLoading: statsLoading, refetch: refetchStats } = useProfileStats(shouldFetchData ? user?.id : undefined, userRole);
   const { data: bookingsData, isLoading: bookingsLoading, refetch: refetchBookings } = useUserBookings(shouldFetchData ? user?.id : undefined);
   const { data: notificationSettings, refetch: refetchNotifications } = useNotificationSettings();
   const { data: favoritesData, refetch: refetchFavorites } = useUserFavorites(shouldFetchData ? user?.id : undefined);

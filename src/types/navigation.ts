@@ -18,7 +18,7 @@ export type RootStackParamList = {
   'provider/bookings': undefined;
   'provider/calendar': undefined;
   'provider/earnings': undefined;
-  'profiles/provider': { id: string };
+  'customer/provider': { id: string };
   providers: undefined;
   'providers/index': undefined;
   'provider-verification': undefined;

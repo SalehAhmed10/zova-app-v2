@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import Animated, { FadeIn, SlideInDown, FadeInUp } from 'react-native-reanimated';
 import * as ImagePicker from 'expo-image-picker';
+import { router } from 'expo-router';
 import { Text } from '@/components/ui/text';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
@@ -12,6 +13,7 @@ import { VerificationHeader } from '@/components/verification/VerificationHeader
 import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/verification/provider-verification';
 import { supabase } from '@/lib/core/supabase';
 import { createStorageService } from '@/lib/storage/organized-storage';
+import { normalizeImageUri } from '@/lib/utils';
 import { useStripeVerificationIntegration } from '@/lib/payment/stripe-verification-integration';
 import { useSaveVerificationStep } from '@/hooks/provider/useProviderVerificationQueries';
 import { useVerificationNavigation } from '@/hooks/provider';
@@ -435,17 +437,9 @@ export default function DocumentVerificationScreen() {
         throw new Error('No document available for submission');
       }
 
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          verification_status: 'pending',
-          is_verified: false,
-        })
-        .eq('id', providerId);
-
-      if (profileError) {
-        console.error('[DocumentSubmission] Profile update error:', profileError);
-      }
+      // Note: Profile verification_status should NOT be set here
+      // It should only be set by the verification flow manager when the entire process is complete
+      // Document verification status is handled in the provider_verification_documents table
 
       updateDocumentData({
         documentType: documentType as any,
@@ -455,7 +449,7 @@ export default function DocumentVerificationScreen() {
       
       return {
         document: documentData,
-        profile: { updated: !profileError }
+        profile: { updated: true } // Always true since we don't update profile anymore
       };
     },
     onSuccess: async (data) => {
@@ -605,7 +599,15 @@ export default function DocumentVerificationScreen() {
 
       if (!result.canceled && result.assets[0]) {
         console.log('Image selected from gallery:', result.assets[0]);
-        setSelectedImage(result.assets[0]);
+        
+        // Normalize the URI for React Native Image component compatibility
+        const normalizedUri = await normalizeImageUri(result.assets[0].uri);
+        const normalizedAsset = { ...result.assets[0], uri: normalizedUri };
+        
+        setSelectedImage(normalizedAsset);
+        setImageLoadError(false);
+        setRetryCount(0);
+        setIsRetrying(false);
       }
     } catch (error) {
       console.error('Error picking image:', error);
@@ -630,7 +632,15 @@ export default function DocumentVerificationScreen() {
 
       if (!result.canceled && result.assets[0]) {
         console.log('Photo taken:', result.assets[0]);
-        setSelectedImage(result.assets[0]);
+        
+        // Normalize the URI for React Native Image component compatibility
+        const normalizedUri = await normalizeImageUri(result.assets[0].uri);
+        const normalizedAsset = { ...result.assets[0], uri: normalizedUri };
+        
+        setSelectedImage(normalizedAsset);
+        setImageLoadError(false);
+        setRetryCount(0);
+        setIsRetrying(false);
       }
     } catch (error) {
       console.error('Error taking photo:', error);
@@ -715,20 +725,21 @@ export default function DocumentVerificationScreen() {
   const continueDisabled = !isValid || (!selectedImage && !existingDocument) || loading || fetchingExisting;
   const continueText = existingDocument && !selectedImage ? 'Use Existing' : 'Continue to Identity';
 
-  console.log('🔍 [DocumentVerificationScreen] render:', {
-    currentStep,
-    expectedStep: 1,
-    stepMismatch: currentStep !== 1,
-    screenType: 'Document Verification (Step 1)',
-    existingDocument: !!existingDocument,
-    selectedImage: !!selectedImage,
-    isValid,
-    loading,
-    fetchingExisting,
-    continueDisabled
-  });
+  // Temporarily disabled verbose logging to reduce console noise during form input
+  // console.log('🔍 [DocumentVerificationScreen] render:', {
+  //   currentStep,
+  //   expectedStep: 1,
+  //   stepMismatch: currentStep !== 1,
+  //   screenType: 'Document Verification (Step 1)',
+  //   existingDocument: !!existingDocument,
+  //   selectedImage: !!selectedImage,
+  //   isValid,
+  //   loading,
+  //   fetchingExisting,
+  //   continueDisabled
+  // });
 
-  console.log('🔍 [DocumentVerificationScreen] Rendering document verification screen');
+  // console.log('🔍 [DocumentVerificationScreen] Rendering document verification screen');
 
   return (
     <View className="flex-1 bg-background">
@@ -857,7 +868,40 @@ export default function DocumentVerificationScreen() {
                         source={{ uri: existingDocument.document_url }}
                         className="w-full h-full"
                         resizeMode="cover"
-                        onError={() => setImageLoadError(true)}
+                        onError={async () => {
+                          console.log('[ExistingDocument] Image failed to load, attempting to refresh signed URL');
+                          try {
+                            // Extract the file path from the signed URL (remove query parameters)
+                            const urlParts = existingDocument.document_url.split('?');
+                            const filePath = urlParts[0].replace('https://wezgwqqdlwybadtvripr.supabase.co/storage/v1/object/sign/', '');
+                            
+                            // Try to get a fresh signed URL
+                            const freshSignedUrl = await getDocumentSignedUrl(providerId, filePath);
+                            
+                            // Update the document in the query cache with fresh URL
+                            queryClient.setQueryData(['existingDocument', providerId], (oldData: any) => {
+                              if (oldData) {
+                                return {
+                                  ...oldData,
+                                  document_url: freshSignedUrl
+                                };
+                              }
+                              return oldData;
+                            });
+                            
+                            // Also update the store
+                            updateDocumentData({
+                              documentType: existingDocument.document_type as any,
+                              documentUrl: freshSignedUrl,
+                              verificationStatus: existingDocument.verification_status as any,
+                            });
+                            
+                            console.log('[ExistingDocument] Refreshed signed URL successfully');
+                          } catch (error) {
+                            console.error('[ExistingDocument] Failed to refresh signed URL:', error);
+                            setImageLoadError(true);
+                          }
+                        }}
                         onLoad={() => setImageLoadError(false)}
                       />
                     </ContextMenuTrigger>
@@ -962,63 +1006,165 @@ export default function DocumentVerificationScreen() {
                 )}
               </View>
             </View>
-          ) : selectedImage ? (
+          ) : selectedImage && selectedImage.uri ? (
             // Selected image view
             <View className="min-h-[400px]">
               <View className="w-full h-48 rounded-lg bg-muted mb-4 overflow-hidden border-2 border-border">
-                <ContextMenu>
-                  <ContextMenuTrigger>
-                    <Image
-                      source={{ uri: selectedImage.uri }}
-                      className="w-full h-full"
-                      resizeMode="cover"
-                    />
-                  </ContextMenuTrigger>
-                  <ContextMenuContent>
-                    <ContextMenuItem
-                      onPress={() => {
-                        Alert.alert(
-                          'Image Details',
-                          `Size: ${selectedImage.width}x${selectedImage.height}\nType: ${selectedImage.type || 'image'}\nFile: ${selectedImage.fileName || 'camera_photo.jpg'}`
-                        );
-                      }}
-                    >
-                      <Text>View Details</Text>
-                    </ContextMenuItem>
-                    <ContextMenuItem
-                      onPress={() => setSelectedImage(null)}
-                    >
-                      <Text>Remove Image</Text>
-                    </ContextMenuItem>
-                    <ContextMenuItem
-                      onPress={() => takePhoto()}
-                    >
-                      <Text>Take New Photo</Text>
-                    </ContextMenuItem>
-                    <ContextMenuItem
-                      onPress={() => pickImage()}
-                    >
-                      <Text>Choose from Gallery</Text>
-                    </ContextMenuItem>
-                  </ContextMenuContent>
-                </ContextMenu>
+                {!imageLoadError ? (
+                  <ContextMenu>
+                    <ContextMenuTrigger>
+                      <Image
+                        source={{ uri: selectedImage.uri }}
+                        className="w-full h-full"
+                        resizeMode="cover"
+                        onError={async () => {
+                          console.log('[ImagePreview] Selected image failed to load, attempting to re-normalize URI');
+                          try {
+                            // Try to re-normalize the URI
+                            const originalUri = selectedImage.uri;
+                            const reNormalizedUri = await normalizeImageUri(originalUri);
+                            
+                            if (reNormalizedUri !== originalUri) {
+                              console.log('[ImagePreview] Re-normalized URI, updating selectedImage');
+                              setSelectedImage({
+                                ...selectedImage,
+                                uri: reNormalizedUri
+                              });
+                              setImageLoadError(false);
+                            } else {
+                              console.log('[ImagePreview] URI already normalized, setting error state');
+                              setImageLoadError(true);
+                            }
+                          } catch (error) {
+                            console.error('[ImagePreview] Failed to re-normalize URI:', error);
+                            setImageLoadError(true);
+                          }
+                        }}
+                        onLoadStart={() => {
+                          console.log('[ImagePreview] Starting to load selected image');
+                          setImageLoadError(false);
+                        }}
+                        onLoad={() => {
+                          console.log('[ImagePreview] Selected image loaded successfully');
+                          setImageLoadError(false);
+                        }}
+                      />
+                    </ContextMenuTrigger>
+                    <ContextMenuContent>
+                      <ContextMenuItem
+                        onPress={() => {
+                          Alert.alert(
+                            'Image Details',
+                            `Size: ${selectedImage.width || 'Unknown'}x${selectedImage.height || 'Unknown'}\nType: ${selectedImage.type || 'image'}\nFile: ${selectedImage.fileName || 'camera_photo.jpg'}`
+                          );
+                        }}
+                      >
+                        <Text>View Details</Text>
+                      </ContextMenuItem>
+                      <ContextMenuItem
+                        onPress={() => {
+                          Alert.alert(
+                            'Remove Image',
+                            'Are you sure you want to remove this image?',
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              {
+                                text: 'Remove',
+                                onPress: () => setSelectedImage(null),
+                              },
+                            ]
+                          );
+                        }}
+                      >
+                        <Text>Remove Image</Text>
+                      </ContextMenuItem>
+                      <ContextMenuItem
+                        onPress={() => takePhoto()}
+                      >
+                        <Text>Take New Photo</Text>
+                      </ContextMenuItem>
+                      <ContextMenuItem
+                        onPress={() => pickImage()}
+                      >
+                        <Text>Choose from Gallery</Text>
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
+                ) : (
+                  <View className="w-full h-full items-center justify-center bg-muted">
+                    <Text className="text-4xl mb-2">⚠️</Text>
+                    <Text className="text-muted-foreground text-center px-4 mb-3">
+                      Failed to load image preview
+                    </Text>
+                    {!isRetrying && retryCount < 3 && (
+                      <ActionButton
+                        variant="outline"
+                        size="sm"
+                        onPress={() => {
+                          setIsRetrying(true);
+                          setRetryCount(prev => prev + 1);
+                          setImageLoadError(false);
+                          console.log(`[ImagePreview] Retrying image load (attempt ${retryCount + 1})`);
+                          
+                          // Reset retry state after a delay
+                          setTimeout(() => {
+                            setIsRetrying(false);
+                          }, 2000);
+                        }}
+                        title={`Retry (${retryCount}/3)`}
+                        disabled={isRetrying}
+                      />
+                    )}
+                    {isRetrying && (
+                      <View className="items-center">
+                        <Text className="text-sm text-muted-foreground mb-2">Retrying...</Text>
+                        <View className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      </View>
+                    )}
+                  </View>
+                )}
               </View>
 
               <View className="flex-row gap-2 mb-4">
                 <ActionButton
                   variant="outline"
                   size="sm"
-                  onPress={() => setSelectedImage(null)}
+                  onPress={() => {
+                    Alert.alert(
+                      'Remove Image',
+                      'Are you sure you want to remove this image?',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Remove',
+                          onPress: () => {
+                            setSelectedImage(null);
+                            setImageLoadError(false);
+                            setRetryCount(0);
+                            setIsRetrying(false);
+                          },
+                        },
+                      ]
+                    );
+                  }}
                   title="Remove Image"
                 />
-                <ActionButton
-                  variant="primary"
-                  size="sm"
-                  onPress={() => handleSubmit(onSubmit)()}
-                  disabled={continueDisabled || loading}
-                  loading={loading}
-                  title={loading ? 'Uploading...' : continueText}
-                />
+                {imageLoadError && (
+                  <ActionButton
+                    variant="outline"
+                    size="sm"
+                    onPress={() => {
+                      setImageLoadError(false);
+                      setRetryCount(0);
+                      setIsRetrying(false);
+                      // Force re-render by briefly setting selectedImage to null then back
+                      const tempImage = selectedImage;
+                      setSelectedImage(null);
+                      setTimeout(() => setSelectedImage(tempImage), 100);
+                    }}
+                    title="Reload Preview"
+                  />
+                )}
               </View>
             </View>
           ) : (

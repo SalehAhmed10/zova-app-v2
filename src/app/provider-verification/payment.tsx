@@ -362,6 +362,16 @@ export default function PaymentSetupScreen() {
     checkForStripeReturn();
   }, [isHydrated, checkStripeStatusMutation]);
 
+  // ✅ AUTOMATIC STATUS CHECK: Check Stripe status on mount if not already complete
+  React.useEffect(() => {
+    if (!isHydrated || accountSetupComplete) return;
+
+    // Automatically check Stripe account status when component mounts
+    // This ensures the UI reflects the current state without manual "Check Status" presses
+    console.log('[Payment Screen] Auto-checking Stripe account status on mount...');
+    checkStripeStatusMutation.mutate({ showSuccessOnChange: false }); // Silent check, no success alerts
+  }, [isHydrated, accountSetupComplete, checkStripeStatusMutation]);
+
   const getIncompleteSteps = () => {
     const incompleteSteps = [];
     for (let i = 1; i <= 8; i++) { // Check steps 1-8 (9 is payment)
@@ -410,22 +420,11 @@ export default function PaymentSetupScreen() {
         accountSetupComplete,
       });
 
-      // Update verification status in database
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({
-          verification_status: 'pending',
-          is_verified: false, // Will be set to true when admin approves
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', user.id);
+      // Note: Profile verification_status should NOT be set here
+      // It should only be set by admin approval when the entire verification process is complete
+      // Payment setup completion doesn't change the profile verification status
 
-      if (updateError) {
-        console.error('Error updating verification status:', updateError);
-        throw new Error('Failed to complete verification. Please try again.');
-      }
-
-      console.log('[Payment] Successfully updated verification status to pending');
+      console.log('[Payment] Payment setup completed successfully');
       console.log('[Payment] Navigating to complete screen');
 
       return { success: true };

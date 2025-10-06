@@ -9,6 +9,8 @@ import { useEffect } from 'react';
 import { supabase } from '@/lib/core/supabase';
 import { useAppStore } from '@/stores/auth/app';
 import { getUserProfile } from '@/lib/auth/profile';
+import { useProfileStore } from '@/stores/verification/useProfileStore';
+import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
 
 /**
  * Auth listener hook that monitors Supabase auth state changes
@@ -16,6 +18,7 @@ import { getUserProfile } from '@/lib/auth/profile';
  */
 export function useAuthListener() {
   const { setAuthenticated } = useAppStore();
+  const { clear: clearProfile } = useProfileStore();
 
   useEffect(() => {
     console.log('[AuthListener] Setting up Supabase auth listener...');
@@ -62,6 +65,12 @@ export function useAuthListener() {
         } else if (event === 'SIGNED_OUT') {
           console.log('[AuthListener] User signed out');
           setAuthenticated(false);
+          clearProfile(); // Clear profile store on sign out
+          
+          // Also clear verification store to prevent data persistence between users
+          const { resetVerification } = useProviderVerificationStore.getState();
+          resetVerification();
+          console.log('[AuthListener] Verification store reset on sign out');
         } else if (event === 'TOKEN_REFRESHED' && session?.user) {
           console.log('[AuthListener] Token refreshed, maintaining session');
           // Keep the current auth state, just log the refresh
