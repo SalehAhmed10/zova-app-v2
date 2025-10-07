@@ -84,7 +84,7 @@ export default function SubscriptionCheckoutScreen() {
               if (type === 'CUSTOMER_SOS') {
                 router.replace('/customer/subscriptions');
               } else {
-                router.replace('/provider/subscriptions');
+                router.replace('/provider/profile/subscriptions');
               }
             }
           }

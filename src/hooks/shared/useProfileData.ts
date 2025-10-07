@@ -498,6 +498,23 @@ export interface ProviderService {
   peak_hours?: string[];
 }
 
+// Hook to fetch service categories
+export const useServiceCategories = () => {
+  return useQuery({
+    queryKey: ['serviceCategories'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('service_categories')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};
+
 // Hook to fetch provider services with real data
 export const useProviderServices = (providerId?: string) => {
   console.log('[useProviderServices] Hook called with providerId:', providerId);

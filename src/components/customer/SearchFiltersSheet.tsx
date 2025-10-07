@@ -98,10 +98,10 @@ export default function SearchFiltersSheet({
               <View className="gap-4">
                 <View className="flex-row items-center justify-between">
                   <Text className="text-sm text-muted-foreground">
-                    Min: ${filters.minPrice || 0}
+                    Min: £{filters.minPrice || 0}
                   </Text>
                   <Text className="text-sm text-muted-foreground">
-                    Max: ${filters.maxPrice || 500}
+                    Max: £{filters.maxPrice || 500}
                   </Text>
                 </View>
                 <View className="gap-4">

@@ -298,7 +298,7 @@ export default function BookServiceScreen() {
                 </Text>
               )}
             </View>
-            <Text className="text-2xl font-bold text-primary">${servicePrice}</Text>
+            <Text className="text-2xl font-bold text-primary">£{servicePrice}</Text>
           </View>
         </CardHeader>
         <CardContent className="pt-0">
@@ -473,16 +473,16 @@ export default function BookServiceScreen() {
           </View>
           <View className="flex-row justify-between">
             <Text className="text-muted-foreground">Subtotal</Text>
-            <Text className="font-medium">${servicePrice}</Text>
+            <Text className="font-medium">£{servicePrice}</Text>
           </View>
           <View className="flex-row justify-between">
             <Text className="text-muted-foreground">Deposit (20%)</Text>
-            <Text className="font-medium">${(parseFloat(servicePrice as string) * 0.2).toFixed(2)}</Text>
+            <Text className="font-medium">£{(parseFloat(servicePrice as string) * 0.2).toFixed(2)}</Text>
           </View>
           <View className="border-t border-border pt-3 mt-3">
             <View className="flex-row justify-between">
               <Text className="font-bold text-lg">Total Due Today</Text>
-              <Text className="font-bold text-primary text-lg">${(parseFloat(servicePrice as string) * 0.2).toFixed(2)}</Text>
+              <Text className="font-bold text-primary text-lg">£{(parseFloat(servicePrice as string) * 0.2).toFixed(2)}</Text>
             </View>
           </View>
         </CardContent>

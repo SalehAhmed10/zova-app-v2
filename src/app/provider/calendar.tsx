@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { View, ScrollView, Platform, TouchableOpacity } from 'react-native';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { View, ScrollView, Platform, TouchableOpacity, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -7,18 +7,10 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { FlashList } from '@shopify/flash-list';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { BottomSheetModal, BottomSheetModalProvider, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { cn } from '@/lib/utils';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { THEME } from '@/lib/core/theme';
@@ -30,6 +22,19 @@ import {
 } from '@/hooks/provider/useCalendarData';
 import { useAuthPure } from '@/hooks/shared/useAuthPure';
 import { Skeleton } from '@/components/ui/skeleton';
+
+// Icons (using text symbols for now, can be replaced with proper icons)
+const CalendarIcon = '📅';
+const ClockIcon = '🕐';
+const CheckCircleIcon = '✅';
+const XCircleIcon = '❌';
+const ChevronLeftIcon = '‹';
+const ChevronRightIcon = '›';
+const SettingsIcon = '⚙️';
+const TodayIcon = '📍';
+const BookingIcon = '📋';
+const AvailableIcon = '✅';
+const BusyIcon = '🔄';
 
 // Calendar view types
 type CalendarView = 'day' | 'week';
@@ -92,11 +97,13 @@ const getCurrentDateInfo = (selectedDate: Date) => {
 const DayView = ({
   timeSlots,
   bookings,
-  selectedDate
+  selectedDate,
+  onOpenSettings
 }: {
   timeSlots: { time: string; displayTime: string; }[];
   bookings: Booking[];
   selectedDate: Date;
+  onOpenSettings: () => void;
 }) => {
   const todayString = selectedDate.toISOString().split('T')[0];
 
@@ -107,31 +114,42 @@ const DayView = ({
 
     return (
       <Card key={slot.time} className={cn(
-        "mb-2 border-l-4",
-        booking ? "border-l-primary bg-primary/10" : "border-l-muted bg-muted/20"
+        "mb-3 border-l-4 shadow-sm",
+        booking ? "border-l-primary bg-primary/5" : "border-l-muted bg-card"
       )}>
-        <CardContent className="p-3">
+        <CardContent className="p-4">
           <View className="flex-row items-center justify-between">
-            <Text className="font-semibold text-foreground">{slot.displayTime}</Text>
+            <View className="flex-row items-center flex-1">
+              <View className={cn(
+                "w-3 h-3 rounded-full mr-3",
+                booking ? "bg-primary" : "bg-muted-foreground/30"
+              )} />
+              <View className="flex-1">
+                <Text className="font-semibold text-foreground text-base">{slot.displayTime}</Text>
+                <Text className="text-sm text-muted-foreground">
+                  {booking ? 'Booked' : 'Available'}
+                </Text>
+              </View>
+            </View>
 
             {booking ? (
               <View className="flex-1 ml-4">
-                <Text className="font-medium text-foreground">{booking.customerName}</Text>
-                <Text className="text-sm text-muted-foreground">{booking.serviceTitle}</Text>
-                <View className={cn(
-                  "px-2 py-1 rounded-full self-start mt-1",
-                  booking.status === 'confirmed' ? "bg-secondary/20" : "bg-accent/30"
-                )}>
-                  <Text className={cn(
-                    "text-xs font-medium",
-                    booking.status === 'confirmed' ? "text-secondary-foreground" : "text-accent-foreground"
-                  )}>{booking.status}</Text>
+                <View className="flex-row items-center mb-1">
+                  <Text className="font-medium text-foreground text-sm">{booking.customerName}</Text>
+                  <Badge variant="secondary" className="ml-2 px-2 py-0.5">
+                    <Text className="text-xs">{booking.status}</Text>
+                  </Badge>
                 </View>
+                <Text className="text-sm text-muted-foreground mb-1">{booking.serviceTitle}</Text>
+                <Text className="text-sm font-medium text-primary">${booking.amount}</Text>
               </View>
             ) : (
-              <View className="flex-1 ml-4">
-                <Text className="text-muted-foreground font-medium">Available</Text>
-                <Text className="text-sm text-muted-foreground">Ready for booking</Text>
+              <View className="flex-1 ml-4 items-end">
+                <View className="bg-primary/10 px-3 py-1 rounded-full">
+                  <Text className="text-xs text-primary font-medium">
+                    {AvailableIcon} Available
+                  </Text>
+                </View>
               </View>
             )}
           </View>
@@ -141,21 +159,48 @@ const DayView = ({
   };
 
   const renderEmptyState = () => (
-    <View className="px-4">
+    <View className="px-4 py-8">
       {timeSlots.length === 0 ? (
-        <View className="p-6 bg-card rounded-lg border border-border">
-          <Text className="text-center font-semibold text-foreground mb-2">No working hours set</Text>
-          <Text className="text-center text-sm text-muted-foreground">
-            Set your working hours to start accepting bookings
-          </Text>
-        </View>
+        <Card className="border-2 border-dashed border-muted/50 bg-gradient-to-br from-primary/5 to-secondary/5 mx-4">
+          <CardContent className="p-8 items-center">
+            <View className="w-20 h-20 rounded-full bg-primary/10 items-center justify-center mb-6 shadow-lg">
+              <Text className="text-4xl">{ClockIcon}</Text>
+            </View>
+            <Text className="text-center font-bold text-foreground text-xl mb-3">
+              Set Your Working Hours
+            </Text>
+            <Text className="text-center text-muted-foreground mb-6 leading-5 px-2">
+              Configure your availability to start receiving booking requests from customers in your area.
+            </Text>
+            <TouchableOpacity
+              onPress={onOpenSettings}
+              className="bg-primary px-8 py-4 rounded-xl shadow-lg active:bg-primary/90"
+              accessibilityLabel="Set working hours"
+              accessibilityRole="button"
+            >
+              <Text className="text-primary-foreground font-semibold text-base">{SettingsIcon} Configure Hours</Text>
+            </TouchableOpacity>
+          </CardContent>
+        </Card>
       ) : (
-        <View className="mt-6 p-4 bg-card rounded-lg border border-border">
-          <Text className="text-center font-semibold text-foreground mb-2">No bookings yet</Text>
-          <Text className="text-center text-sm text-muted-foreground">
-            Your available time slots are ready for customers to book
-          </Text>
-        </View>
+        <Card className="border-2 border-dashed border-muted bg-gradient-to-br from-primary/5 to-accent/5 mx-4">
+          <CardContent className="p-8 items-center">
+            <View className="w-20 h-20 rounded-full bg-primary/10 items-center justify-center mb-6 shadow-lg">
+              <Text className="text-4xl text-primary">{CheckCircleIcon}</Text>
+            </View>
+            <Text className="text-center font-bold text-foreground text-xl mb-3">
+              All Slots Available!
+            </Text>
+            <Text className="text-center text-muted-foreground mb-6 leading-5 px-2">
+              Great! Your time slots are ready for customers to book. Check back later for new appointments.
+            </Text>
+            <View className="bg-primary/10 px-6 py-3 rounded-xl border border-primary/20">
+              <Text className="text-sm text-primary font-semibold">
+                {timeSlots.length} slots ready for booking
+              </Text>
+            </View>
+          </CardContent>
+        </Card>
       )}
     </View>
   );
@@ -220,40 +265,63 @@ const WeekView = ({
 
     return (
       <Card key={item.index} className={cn(
-        "mb-2",
+        "mb-3 shadow-sm",
         isToday && "border-primary/50 bg-primary/5",
         isPastDay && "opacity-60"
       )}>
-        <CardContent className="p-3">
+        <CardContent className="p-4">
           <View className="flex-row items-center justify-between">
-            <View>
-              <Text className={cn(
-                "font-semibold",
-                isToday ? "text-primary" : "text-foreground"
-              )}>
-                {day.toLocaleDateString('en', { weekday: 'short' })} {day.getDate()}
-              </Text>
-              {daySchedule?.enabled && (
-                <Text className="text-xs text-muted-foreground">
-                  {daySchedule.start} - {daySchedule.end}
+            <View className="flex-1">
+              <View className="flex-row items-center mb-2">
+                <Text className={cn(
+                  "font-semibold text-base mr-2",
+                  isToday ? "text-primary" : "text-foreground"
+                )}>
+                  {day.toLocaleDateString('en', { weekday: 'short' })} {day.getDate()}
                 </Text>
+                {isToday && (
+                  <Badge variant="default" className="px-2 py-0.5">
+                    <Text className="text-xs">{TodayIcon} Today</Text>
+                  </Badge>
+                )}
+              </View>
+
+              {daySchedule?.enabled ? (
+                <View>
+                  <View className="flex-row items-center mb-1">
+                    <Text className="text-sm text-muted-foreground mr-2">
+                      {daySchedule.start} - {daySchedule.end}
+                    </Text>
+                    <View className="w-2 h-2 rounded-full bg-primary" />
+                  </View>
+                  <View className="flex-row items-center justify-between">
+                    <Text className="text-sm font-medium text-foreground">
+                      {dayBookings.length} booking{dayBookings.length !== 1 ? 's' : ''}
+                    </Text>
+                    {!isPastDay && dayBookings.length === 0 && (
+                      <View className="bg-primary/10 px-2 py-1 rounded-full">
+                        <Text className="text-xs text-primary font-medium">
+                          {AvailableIcon} Available
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              ) : (
+                <View className="flex-row items-center">
+                  <Text className="text-sm text-muted-foreground mr-2">Closed</Text>
+                  <View className="w-2 h-2 rounded-full bg-destructive" />
+                </View>
               )}
             </View>
 
-            <View className="items-end">
-              {daySchedule?.enabled ? (
-                <>
-                  <Text className="text-sm font-medium text-foreground">
-                    {dayBookings.length} booking{dayBookings.length !== 1 ? 's' : ''}
-                  </Text>
-                  {!isPastDay && dayBookings.length === 0 && (
-                    <Text className="text-xs text-secondary">Available</Text>
-                  )}
-                </>
-              ) : (
-                <Text className="text-sm text-muted-foreground">Closed</Text>
-              )}
-            </View>
+            {dayBookings.length > 0 && (
+              <View className="ml-4">
+                <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center">
+                  <Text className="text-sm font-bold text-primary">{dayBookings.length}</Text>
+                </View>
+              </View>
+            )}
           </View>
         </CardContent>
       </Card>
@@ -303,6 +371,9 @@ export default function ProviderCalendar() {
   const { colorScheme } = useColorScheme();
   const { user } = useAuthPure();
 
+  // Bottom sheet ref
+  const bottomSheetModalRef = useRef<BottomSheetModal>(null);
+
   // Zustand store for local state management
   const {
     currentView,
@@ -323,6 +394,15 @@ export default function ProviderCalendar() {
     setShowTimePicker,
     setTempTime,
   } = useCalendarStore();
+
+  // Handle bottom sheet presentation
+  useEffect(() => {
+    if (showWeeklyDialog) {
+      bottomSheetModalRef.current?.present();
+    } else {
+      bottomSheetModalRef.current?.dismiss();
+    }
+  }, [showWeeklyDialog]);
 
   // Optimized React Query hooks with better loading states and error handling
   const {
@@ -411,101 +491,127 @@ export default function ProviderCalendar() {
   const bookingStats = stats;
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      {/* Header with Gradient */}
+    <BottomSheetModalProvider>
+      <SafeAreaView className="flex-1 bg-background">
+      {/* Enhanced Header */}
       <LinearGradient
         colors={[THEME[colorScheme].gradientStart, THEME[colorScheme].gradientEnd]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 24 }}
+        style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 }}
       >
-        <View className="flex-row items-center justify-between mb-6">
-          <View className="flex-shrink">
-            <View className='flex flex-row justify-between items-center mb-2 w-full'>
-              <View>
-                <TouchableOpacity onPress={() => router.back()}>
-                  <Text className="text-white/80 text-sm mb-2">← Back</Text>
-                </TouchableOpacity>
-              </View>
-              <View className="flex-row gap-2 ml-4">
-                <TouchableOpacity onPress={() => setShowWeeklyDialog(true)}>
-                  <View className="bg-white/20 px-3 py-2 rounded-full min-w-[80px]">
-                    <Text className="text-white font-medium text-sm text-center">📅 Hours</Text>
-                  </View>
-                </TouchableOpacity>
-              </View>
-            </View>
+        <View className="flex-row items-center justify-between mb-4">
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="w-10 h-10 rounded-full bg-white/20 items-center justify-center active:bg-white/30"
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+          >
+            <Text className="text-white text-lg font-bold">←</Text>
+          </TouchableOpacity>
 
-            <Text className="text-white text-xl font-bold">
-              Calendar & Schedule
+          <View className="flex-1 mx-4">
+            <Text className="text-white text-xl font-bold text-center">
+              {CalendarIcon} My Schedule
             </Text>
-            <Text className="text-white/70 text-sm mt-1">
-              Manage your appointments and availability
+            <Text className="text-white/80 text-sm text-center mt-1">
+              Manage your availability
             </Text>
+          </View>
+
+          <TouchableOpacity
+            onPress={() => bottomSheetModalRef.current?.present()}
+            className="w-10 h-10 rounded-full bg-white/20 items-center justify-center active:bg-white/30"
+            accessibilityLabel="Manage working hours"
+            accessibilityRole="button"
+          >
+            <Text className="text-white text-lg">{SettingsIcon}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Enhanced Date Navigation */}
+        <View className="bg-white/15 backdrop-blur-sm rounded-xl p-4 mb-4 border border-white/20">
+          <View className="flex-row items-center justify-between">
+            <TouchableOpacity
+              onPress={goToPreviousDay}
+              className="w-10 h-10 rounded-full bg-white/20 items-center justify-center active:bg-white/30"
+              accessibilityLabel="Previous day"
+              accessibilityRole="button"
+            >
+              <Text className="text-white text-xl font-bold">{ChevronLeftIcon}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={goToToday}
+              className="flex-1 mx-4 py-2"
+              accessibilityLabel="Select date"
+              accessibilityRole="button"
+            >
+              <Text className={cn(
+                "text-center font-bold text-lg",
+                isTodaySelected ? "text-accent-foreground" : "text-white"
+              )}>
+                {dateInfo.dayName}, {dateInfo.monthName} {dateInfo.date}
+              </Text>
+              {isTodaySelected && (
+                <View className="mt-1 px-3 py-1 bg-accent/20 rounded-full self-center border border-accent/30">
+                  <Text className="text-xs text-accent-foreground font-semibold">{TodayIcon} Today</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={goToNextDay}
+              className="w-10 h-10 rounded-full bg-white/20 items-center justify-center active:bg-white/30"
+              accessibilityLabel="Next day"
+              accessibilityRole="button"
+            >
+              <Text className="text-white text-xl font-bold">{ChevronRightIcon}</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Date Navigation */}
-        <View className="flex-row items-center justify-between mb-4">
-          <TouchableOpacity onPress={goToPreviousDay} className="p-2">
-            <Text className="text-white text-lg font-bold">‹</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={goToToday} className="flex-1 items-center">
-            <Text className={cn(
-              "text-lg font-semibold",
-              isTodaySelected ? "text-yellow-200" : "text-white"
-            )}>
-              {dateInfo.dayName}, {dateInfo.monthName} {dateInfo.date}
-            </Text>
-            <Text className={cn(
-              "text-sm",
-              isTodaySelected ? "text-yellow-100" : "text-white/70"
-            )}>{dateInfo.year}</Text>
-            {isTodaySelected && (
-              <View className="mt-1 px-2 py-0.5 bg-yellow-400/20 rounded-full">
-                <Text className="text-xs text-yellow-200 font-medium">Today</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={goToNextDay} className="p-2">
-            <Text className="text-white text-lg font-bold">›</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Calendar View Toggle */}
+        {/* Enhanced View Toggle */}
         <Tabs
           value={currentView}
           onValueChange={(value) => setCurrentView(value as CalendarView)}
         >
-          <TabsList className="bg-white/30 flex-row">
-            <TabsTrigger value="day" className="flex-1">
-              <Text className="font-medium">Day</Text>
+          <TabsList className="bg-white/20 h-11 backdrop-blur-sm border border-white/20">
+            <TabsTrigger value="day" className="flex-1 data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg">
+              <Text className="text-sm font-semibold">📅 Day</Text>
             </TabsTrigger>
-            <TabsTrigger value="week" className="flex-1">
-              <Text className="font-medium">Week</Text>
+            <TabsTrigger value="week" className="flex-1 data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg">
+              <Text className="text-sm font-semibold">📊 Week</Text>
             </TabsTrigger>
           </TabsList>
         </Tabs>
       </LinearGradient>
 
-      {/* Stats Overview */}
-      <View className="px-4 -mt-4 mb-6">
-        <Card>
-          <CardContent className="px-4 py-2">
+      {/* Enhanced Stats Overview */}
+      <View className="px-6 -mt-3">
+        <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
+          <CardContent className="px-6 py-2">
             <View className="flex-row justify-between items-center">
-              <View className="items-center">
-                <Text className="text-2xl font-bold text-foreground">{bookingStats.today}</Text>
-                <Text className="text-muted-foreground text-xs">Today</Text>
+              <View className="items-center flex-1">
+         
+                <Text className="text-lg font-bold text-foreground mb-0.5 text-center">{bookingStats.today}</Text>
+                <Text className="text-muted-foreground text-xs font-medium text-center">Today's Bookings</Text>
               </View>
-              <View className="items-center">
-                <Text className="text-2xl font-bold text-foreground">{bookingStats.thisWeek}</Text>
-                <Text className="text-muted-foreground text-xs">This Week</Text>
+
+              <View className="w-px h-6 bg-border/50 mx-3" />
+
+              <View className="items-center flex-1">
+         
+                <Text className="text-lg font-bold text-foreground mb-0.5 text-center">{bookingStats.thisWeek}</Text>
+                <Text className="text-muted-foreground text-xs font-medium text-center">This Week</Text>
               </View>
-              <View className="items-center">
-                <Text className="text-2xl font-bold text-foreground">{timeSlots.length}</Text>
-                <Text className="text-muted-foreground text-xs">Available Slots</Text>
+
+              <View className="w-px h-6 bg-border/50 mx-3" />
+
+              <View className="items-center flex-1">
+            
+                <Text className="text-lg font-bold text-foreground mb-0.5 text-center">{timeSlots.length}</Text>
+                <Text className="text-muted-foreground text-xs font-medium text-center">Available Slots</Text>
               </View>
             </View>
           </CardContent>
@@ -589,7 +695,7 @@ export default function ProviderCalendar() {
           )}
 
           {currentView === 'day' && (() => {
-            const dayViewData = DayView({ timeSlots, bookings, selectedDate });
+            const dayViewData = DayView({ timeSlots, bookings, selectedDate, onOpenSettings: () => bottomSheetModalRef.current?.present() });
             return (
               <FlashList
                 data={dayViewData.data}
@@ -620,124 +726,139 @@ export default function ProviderCalendar() {
       {/* Bottom spacing */}
       <View className={cn("h-6", Platform.OS === 'ios' && "h-24")} />
 
-      {/* Weekly Schedule Dialog */}
-      <AlertDialog open={showWeeklyDialog} onOpenChange={setShowWeeklyDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Working Hours</AlertDialogTitle>
-            <AlertDialogDescription>
-              Set your availability for each day of the week
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+      {/* Enhanced Weekly Schedule Bottom Sheet */}
+      <BottomSheetModal
+        ref={bottomSheetModalRef}
+        index={0}
+        snapPoints={['85%']}
+        backgroundStyle={{ backgroundColor: THEME[colorScheme].background }}
+        handleIndicatorStyle={{ backgroundColor: THEME[colorScheme].mutedForeground }}
+        onDismiss={() => setShowWeeklyDialog(false)}
+      >
+        <BottomSheetScrollView className="flex-1 px-4">
+          {/* Header */}
+          <View className="flex-row items-center justify-between py-4 border-b border-border">
+            <View className="flex-row items-center">
+              <Text className="text-lg mr-2">{SettingsIcon}</Text>
+              <Text className="text-xl font-bold text-foreground">Working Hours</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => bottomSheetModalRef.current?.dismiss()}
+              className="w-8 h-8 rounded-full bg-muted items-center justify-center"
+              accessibilityLabel="Close"
+              accessibilityRole="button"
+            >
+              <Text className="text-muted-foreground font-bold">×</Text>
+            </TouchableOpacity>
+          </View>
 
-          <ScrollView className="max-h-96 my-4">
-            {/* Quick Presets */}
-            <View className="mb-4 p-3 bg-accent/10 rounded-lg">
-              <Text className="font-semibold text-foreground mb-2">Quick Presets</Text>
-              <View className="flex-row gap-2 flex-wrap">
-                <TouchableOpacity
-                  onPress={() => {
-                    const allDayHours = { start: '09:00', end: '17:00', enabled: true };
+          {/* Description */}
+          <View className="py-3">
+            <Text className="text-sm text-muted-foreground">
+              Configure your availability for each day. Toggle days on/off and set custom working hours.
+            </Text>
+          </View>
 
-                    handleUpdateWorkingHours('monday', allDayHours);
-                    handleUpdateWorkingHours('tuesday', allDayHours);
-                    handleUpdateWorkingHours('wednesday', allDayHours);
-                    handleUpdateWorkingHours('thursday', allDayHours);
-                    handleUpdateWorkingHours('friday', allDayHours);
-                    handleUpdateWorkingHours('saturday', allDayHours);
-                    handleUpdateWorkingHours('sunday', allDayHours);
-                  }}
-                  className="px-3 py-1 bg-green-500/20 rounded-full"
-                >
-                  <Text className="text-xs font-medium text-green-700 dark:text-green-400">All Available</Text>
-                </TouchableOpacity>
+            {/* Enhanced Individual Day Settings */}
+            <View className="mb-4">
+            <Text className="font-semibold text-foreground mb-3">Working Hours</Text>
+              {(() => {
+                return Object.entries(weeklySchedule || {}).map(([day, hours]) => {
+                  const dayHours = hours as WorkingHours;
+                  return (
+                    <Card key={day} className={cn(
+                      "mb-3 border-l-4",
+                      dayHours.enabled ? "border-l-primary" : "border-l-muted"
+                    )}>
+                      <CardContent className="p-4">
+                        <View className="flex-row items-center justify-between mb-3">
+                          <View className="flex-row items-center">
+                            <Text className="font-semibold text-foreground capitalize mr-2">
+                              {day}
+                            </Text>
+                            <View className={cn(
+                              "w-2 h-2 rounded-full",
+                              dayHours.enabled ? "bg-primary" : "bg-destructive"
+                            )} />
+                          </View>
+                          <TouchableOpacity
+                            onPress={() => handleUpdateWorkingHours(day as keyof WeeklySchedule, {
+                              ...dayHours,
+                              enabled: !dayHours.enabled
+                            })}
+                            className={cn(
+                              "px-3 py-1 rounded-full border",
+                              dayHours.enabled
+                                ? "bg-primary/10 border-primary/30"
+                                : "bg-muted border-muted-foreground/30"
+                            )}
+                            accessibilityLabel={`Toggle ${day} availability`}
+                            accessibilityRole="button"
+                          >
+                            <Text className={cn(
+                              "text-xs font-medium",
+                              dayHours.enabled ? "text-primary" : "text-muted-foreground"
+                            )}>
+                              {dayHours.enabled ? 'Open' : 'Closed'}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
 
-                <TouchableOpacity
-                  onPress={() => {
-                    const businessHours = { start: '09:00', end: '17:00', enabled: true };
-                    const weekendHours = { start: '10:00', end: '16:00', enabled: true };
+                        {dayHours.enabled && (
+                          <View className="flex-row items-center gap-3">
+                            <TouchableOpacity
+                              onPress={() => handleTimePickerPress(day as keyof WeeklySchedule, 'start')}
+                              className="flex-1 p-3 bg-secondary/20 rounded-lg border border-border"
+                              accessibilityLabel={`Set start time for ${day}`}
+                              accessibilityRole="button"
+                            >
+                              <Text className="text-center text-foreground font-medium">{dayHours.start}</Text>
+                              <Text className="text-xs text-center text-muted-foreground">Start Time</Text>
+                            </TouchableOpacity>
 
-                    handleUpdateWorkingHours('monday', businessHours);
-                    handleUpdateWorkingHours('tuesday', businessHours);
-                    handleUpdateWorkingHours('wednesday', businessHours);
-                    handleUpdateWorkingHours('thursday', businessHours);
-                    handleUpdateWorkingHours('friday', businessHours);
-                    handleUpdateWorkingHours('saturday', weekendHours);
-                    handleUpdateWorkingHours('sunday', weekendHours);
-                  }}
-                  className="px-3 py-1 bg-primary/20 rounded-full"
-                >
-                  <Text className="text-xs font-medium text-primary">9-5 Business</Text>
-                </TouchableOpacity>
-              </View>
+                            <View className="w-8 items-center">
+                              <Text className="text-muted-foreground font-medium">→</Text>
+                            </View>
+
+                            <TouchableOpacity
+                              onPress={() => handleTimePickerPress(day as keyof WeeklySchedule, 'end')}
+                              className="flex-1 p-3 bg-secondary/20 rounded-lg border border-border"
+                              accessibilityLabel={`Set end time for ${day}`}
+                              accessibilityRole="button"
+                            >
+                              <Text className="text-center text-foreground font-medium">{dayHours.end}</Text>
+                              <Text className="text-xs text-center text-muted-foreground">End Time</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                });
+              })()}
             </View>
 
-            {/* Individual Day Settings */}
-            {(() => {
-              return Object.entries(weeklySchedule || {}).map(([day, hours]) => {
-                const dayHours = hours as WorkingHours;
-                return (
-                  <View key={day} className="mb-4 p-3 bg-card rounded-lg border border-border">
-                    <View className="flex-row items-center justify-between mb-2">
-                      <Text className="font-semibold text-foreground capitalize">
-                        {day}
-                      </Text>
-                      <TouchableOpacity
-                        onPress={() => handleUpdateWorkingHours(day as keyof WeeklySchedule, {
-                          ...dayHours,
-                          enabled: !dayHours.enabled
-                        })}
-                        className={cn(
-                          "px-3 py-1 rounded-full",
-                          dayHours.enabled ? "bg-primary/20" : "bg-muted"
-                        )}
-                      >
-                        <Text className={cn(
-                          "text-xs font-medium",
-                          dayHours.enabled ? "text-primary" : "text-muted-foreground"
-                        )}>
-                          {dayHours.enabled ? 'Open' : 'Closed'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    {dayHours.enabled && (
-                      <View className="flex-row items-center gap-2">
-                        <TouchableOpacity
-                          onPress={() => handleTimePickerPress(day as keyof WeeklySchedule, 'start')}
-                          className="flex-1 p-2 bg-secondary/20 rounded"
-                        >
-                          <Text className="text-center text-foreground">{dayHours.start}</Text>
-                          <Text className="text-xs text-center text-muted-foreground">Start</Text>
-                        </TouchableOpacity>
-
-                        <Text className="text-muted-foreground">to</Text>
-
-                        <TouchableOpacity
-                          onPress={() => handleTimePickerPress(day as keyof WeeklySchedule, 'end')}
-                          className="flex-1 p-2 bg-secondary/20 rounded"
-                        >
-                          <Text className="text-center text-foreground">{dayHours.end}</Text>
-                          <Text className="text-xs text-center text-muted-foreground">End</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                );
-              });
-            })()}
-          </ScrollView>
-
-          <AlertDialogFooter>
-            <AlertDialogCancel>
-              <Text className="font-medium">Cancel</Text>
-            </AlertDialogCancel>
-            <AlertDialogAction onPress={() => setShowWeeklyDialog(false)}>
-              <Text className="font-medium">💾 Save Hours</Text>
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          {/* Footer Actions */}
+          <View className="flex-row gap-3 pb-4 pt-4 border-t border-border">
+            <TouchableOpacity
+              onPress={() => bottomSheetModalRef.current?.dismiss()}
+              className="flex-1 py-3 bg-muted rounded-lg items-center"
+              accessibilityLabel="Cancel"
+              accessibilityRole="button"
+            >
+              <Text className="font-medium text-muted-foreground">Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => bottomSheetModalRef.current?.dismiss()}
+              className="flex-1 py-3 bg-primary rounded-lg items-center"
+              accessibilityLabel="Save hours"
+              accessibilityRole="button"
+            >
+              <Text className="font-medium text-primary-foreground">{CheckCircleIcon} Save Hours</Text>
+            </TouchableOpacity>
+          </View>
+        </BottomSheetScrollView>
+      </BottomSheetModal>
 
       {/* Time Picker */}
       {showTimePicker && (
@@ -751,5 +872,6 @@ export default function ProviderCalendar() {
       )}
 
     </SafeAreaView>
+    </BottomSheetModalProvider>
   );
 }

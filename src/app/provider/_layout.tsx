@@ -6,13 +6,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { THEME } from '@/lib/core/theme';
 import { useAuthOptimized, useProfileSync } from '@/hooks';
-import { useProfileStore, useProfileHydration } from '@/stores/verification/useProfileStore';
+import { useProfileHydration } from '@/stores/verification/useProfileStore';
 import { useAppStore } from '@/stores/auth/app';
 import { Redirect } from 'expo-router';
 import { Text } from '@/components/ui/text';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useNavigationDecision } from '@/hooks/shared/useNavigationDecision';
-import { useStatusChangeMonitor } from '@/hooks/provider/useStatusChangeMonitor';
 import { useEffect, useRef } from 'react';
 
 export default function ProviderLayout() {
@@ -22,14 +21,10 @@ export default function ProviderLayout() {
   const { isLoggingOut } = useAppStore();
   const isHydrated = useProfileHydration();
   const navigationDecision = useNavigationDecision();
-  const statusMonitor = useStatusChangeMonitor();
   const lastRedirectReason = useRef<string | null>(null);
 
   // ✅ React Query + Zustand pattern: Server state sync
   useProfileSync(user?.id); // Keeps Zustand in sync with Supabase
-
-  console.log('[ProviderLayout] Navigation decision:', navigationDecision);
-  console.log('[ProviderLayout] Status monitor:', statusMonitor);
 
   // ✅ PREVENT RAPID REDIRECTS: If user was just approved and now status changed back,
   // the status monitor will handle it with user notification
@@ -37,20 +32,18 @@ export default function ProviderLayout() {
     if (navigationDecision.shouldRedirect &&
         navigationDecision.reason !== 'access-granted' &&
         lastRedirectReason.current === 'access-granted') {
-      console.log('[ProviderLayout] Status changed from approved - status monitor will handle notification');
+      // Status changed from approved - could add notification here
     }
     lastRedirectReason.current = navigationDecision.reason;
   }, [navigationDecision]);
 
   // ✅ CRITICAL FIX: Don't render anything during logout to prevent flash
   if (isLoggingOut) {
-    console.log('[ProviderLayout] Logout in progress, hiding layout');
     return null;
   }
 
   // Wait for store hydration
   if (!isHydrated) {
-    console.log('[ProviderLayout] Waiting for store hydration...');
     return (
       <View className="flex-1 bg-background items-center justify-center">
         <Skeleton className="w-32 h-32 rounded-full mb-4" />
@@ -61,7 +54,6 @@ export default function ProviderLayout() {
 
   // ✅ CRITICAL FIX: Show loading during verification checks to prevent flash
   if (navigationDecision.reason === 'loading') {
-    console.log('[ProviderLayout] Verification checks in progress, showing loading...');
     return (
       <View className="flex-1 bg-background items-center justify-center px-6">
         <View className="items-center">
@@ -78,20 +70,15 @@ export default function ProviderLayout() {
 
   // ✅ PURE: Use centralized navigation decisions
   if (navigationDecision.shouldRedirect) {
-    console.log(`[ProviderLayout] Status changed - redirecting to ${navigationDecision.targetRoute} - ${navigationDecision.reason}`);
-
-    // ✅ Show user-friendly message for status changes
+    // Show user-friendly message for status changes
     if (navigationDecision.reason.includes('provider-pending') ||
         navigationDecision.reason.includes('provider-in_review') ||
         navigationDecision.reason === 'provider-rejected') {
-      console.log('[ProviderLayout] Verification status changed - user will be redirected');
       // Could add a toast notification here in the future
     }
 
     return <Redirect href={navigationDecision.targetRoute as any} />;
   }
-
-  console.log('[ProviderLayout] Access granted - rendering provider tabs');
 
   return (
     <Tabs
@@ -175,6 +162,46 @@ export default function ProviderLayout() {
             href: null, // This hides it from the tab bar
           }}
         />
+
+        <Tabs.Screen
+          name="profile/personal-info"
+          options={{
+            title: 'Personal Info',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="person-circle" size={size} color={color} />
+            ),
+            href: null, // This hides it from the tab bar
+          }}
+        />
+        <Tabs.Screen
+          name="profile/notifications"
+          options={{
+            title: 'Notifications',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="notifications" size={size} color={color} />
+            ),
+            href: null, // This hides it from the tab bar
+          }}
+        />
+
+        <Tabs.Screen
+          name='profile/services'
+          options={{
+            href: null, // Hide from bottom tab
+          }}
+        />
+      <Tabs.Screen
+        name='profile/payments'
+        options={{
+          href: null, // Hide from bottom tab
+        }}
+      />
+      <Tabs.Screen
+        name='profile/analytics'
+        options={{
+          href: null, // Hide from bottom tab
+        }}
+      />
       </Tabs>
   );
 }

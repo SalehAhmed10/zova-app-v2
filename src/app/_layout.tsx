@@ -83,7 +83,7 @@ import { Text } from '@/components/ui/text';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { StripeProvider } from '@/app-providers/stripe-provider';
 import { useAuthStateNavigation, useAuthNavigation } from '@/hooks/shared/useAuthNavigation';
-import { ReviewPrompt } from '@/components/customer/review-prompt';
+
 import { ReviewModal } from '@/components/customer/review-modal';
 import { useReviewPrompt } from '@/hooks/customer/useReviewPrompt';
 
@@ -245,15 +245,7 @@ function RootNavigator() {
       {/* ✅ App-level logout loading screen - persists during layout changes */}
       <LogoutLoadingScreen visible={isLoggingOut} />
       {/* ✅ Review prompt - shows for authenticated customers with reviewable bookings */}
-      {isAuthenticated && userRole === 'customer' && showPrompt && (
-        <ReviewPrompt
-          visible={showPrompt}
-          providerName={providerName}
-          serviceName={serviceName}
-          onSkip={dismissPrompt}
-          onReview={() => setShowReviewModal(true)}
-        />
-      )}
+ 
       {/* ✅ Review modal - opens when user taps "Leave Review" */}
       <ReviewModal
         visible={showReviewModal}

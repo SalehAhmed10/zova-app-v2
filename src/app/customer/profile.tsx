@@ -23,9 +23,6 @@ import {
 } from '@/hooks/shared/useProfileData';
 import { useUserFavorites } from '@/hooks/customer';
 
-import { NotificationSettingsModal } from '@/components/profile/NotificationSettingsModal';
-import { ReviewsModal } from '@/components/profile/ReviewsModal';
-
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Icon } from '@/components/ui/icon';
 import { Calendar, CheckCircle, Heart, Search, AlertTriangle, ClipboardList, Trophy, Star, DollarSign, HelpCircle, Phone } from 'lucide-react-native';
@@ -74,12 +71,6 @@ const CustomerProfile = React.memo(function CustomerProfile() {
 
   // Use Zustand store for modal state management
   const {
-    notificationModalVisible,
-    reviewsModalVisible,
-    openNotificationModal,
-    closeNotificationModal,
-    openReviewsModal,
-    closeReviewsModal,
     _hasHydrated
   } = useProfileModalStore();
 
@@ -153,7 +144,7 @@ const CustomerProfile = React.memo(function CustomerProfile() {
       subtitle: 'View and manage your reviews',
       icon: '⭐',
       iconBg: getIconBgColor('yellow'),
-      onPress: openReviewsModal,
+      onPress: () => router.push('/customer/profile/reviews'),
     },
     {
       id: 'sos-booking',
@@ -185,7 +176,7 @@ const CustomerProfile = React.memo(function CustomerProfile() {
       subtitle: 'Customize your alerts',
       icon: '🔔',
       iconBg: getIconBgColor('yellow'),
-      onPress: openNotificationModal,
+      onPress: () => router.push('/customer/profile/notifications'),
     },
     {
       id: 'logout',
@@ -608,23 +599,6 @@ const CustomerProfile = React.memo(function CustomerProfile() {
         <View className={cn("h-6", Platform.OS === 'ios' && "h-24")} />
       </ScrollView>
 
-      {/* Modals - Only Notification Settings and Reviews remain as modals */}
-      {notificationModalVisible && (
-        <NotificationSettingsModal
-          visible={notificationModalVisible}
-          onClose={closeNotificationModal}
-          settings={notificationSettings}
-          userId={user?.id || ''}
-        />
-      )}
-
-      {reviewsModalVisible && (
-        <ReviewsModal
-          visible={reviewsModalVisible}
-          onClose={closeReviewsModal}
-          userId={user?.id}
-        />
-      )}
     </SafeAreaView>
   );
 });

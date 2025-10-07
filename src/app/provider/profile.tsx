@@ -28,10 +28,7 @@ import { THEME } from '@/lib/core/theme';
 
 // Import modals
 
-import { NotificationSettingsModal } from '@/components/profile/NotificationSettingsModal';
 
-import { StripeIntegrationModal } from '@/components/profile/StripeIntegrationModal';
-import ServicesModal from '@/components/profile/ServicesModal';
 
 export default React.memo(function ProfileScreen() {
   const { userRole } = useAppStore();
@@ -44,21 +41,9 @@ export default React.memo(function ProfileScreen() {
 
   // Use Zustand store for modal state management
   const {
-    personalInfoModalVisible,
-    notificationModalVisible,
     bookingHistoryModalVisible,
-    stripeIntegrationModalVisible,
-    servicesModalVisible,
-    openPersonalInfoModal,
-    closePersonalInfoModal,
-    openNotificationModal,
-    closeNotificationModal,
     openBookingHistoryModal,
     closeBookingHistoryModal,
-    openStripeIntegrationModal,
-    closeStripeIntegrationModal,
-    openServicesModal,
-    closeServicesModal,
     _hasHydrated
   } = useProfileModalStore();
 
@@ -99,8 +84,9 @@ export default React.memo(function ProfileScreen() {
     return colorMap[color] || THEME[colorScheme].muted;
   };
 
-  // Memoized menu data structures for performance
+  // Memoized menu data structures for performance - ORDERED BY PRIORITY
   const businessManagementMenu = React.useMemo(() => [
+    // HIGH PRIORITY: Core business operations
     {
       id: 'calendar',
       icon: 'calendar-outline' as keyof typeof Ionicons.glyphMap,
@@ -117,8 +103,9 @@ export default React.memo(function ProfileScreen() {
       iconColor: 'text-purple-600',
       title: 'Services & Pricing',
       subtitle: 'Update your service offerings and rates',
-      onPress: openServicesModal,
+      onPress: () => router.push('/provider/profile/services'),
     },
+    // CRITICAL: Revenue generation
     {
       id: 'payments',
       icon: 'card-outline' as keyof typeof Ionicons.glyphMap,
@@ -126,8 +113,9 @@ export default React.memo(function ProfileScreen() {
       iconColor: 'text-green-600',
       title: 'Payment Integration',
       subtitle: 'Connect Stripe for secure payments',
-      onPress: openStripeIntegrationModal,
+      onPress: () => router.push('/provider/profile/payments'),
     },
+    // MEDIUM PRIORITY: Performance monitoring
     {
       id: 'analytics',
       icon: 'bar-chart-outline' as keyof typeof Ionicons.glyphMap,
@@ -135,8 +123,9 @@ export default React.memo(function ProfileScreen() {
       iconColor: 'text-orange-600',
       title: 'Business Analytics',
       subtitle: 'Track performance and earnings',
-      onPress: () => {},
+      onPress: () => router.push('/provider/profile/analytics'),
     },
+    // LOW PRIORITY: Premium features
     {
       id: 'subscriptions',
       icon: 'diamond-outline' as keyof typeof Ionicons.glyphMap,
@@ -146,9 +135,10 @@ export default React.memo(function ProfileScreen() {
       subtitle: 'Unlock advanced business features',
       onPress: () => router.push('/provider/profile/subscriptions'),
     },
-  ], [openStripeIntegrationModal, openServicesModal]);
+  ], []);
 
   const customerRelationsMenu = React.useMemo(() => [
+    // HIGH PRIORITY: Reputation management
     {
       id: 'reviews',
       icon: 'star-outline' as keyof typeof Ionicons.glyphMap,
@@ -180,6 +170,7 @@ export default React.memo(function ProfileScreen() {
   ], [statsData?.avg_rating]);
 
   const accountSettingsMenu = React.useMemo(() => [
+    // HIGH PRIORITY: Business identity
     {
       id: 'profile',
       icon: 'person-outline' as keyof typeof Ionicons.glyphMap,
@@ -187,8 +178,9 @@ export default React.memo(function ProfileScreen() {
       iconColor: 'text-indigo-600',
       title: 'Business Profile',
       subtitle: 'Update your business information',
-      onPress: openPersonalInfoModal,
+      onPress: () => router.push('/provider/profile/personal-info'),
     },
+    // HIGH PRIORITY: Availability settings
     {
       id: 'hours',
       icon: 'time-outline' as keyof typeof Ionicons.glyphMap,
@@ -198,64 +190,7 @@ export default React.memo(function ProfileScreen() {
       subtitle: 'Set your availability schedule',
       onPress: () => router.push('/provider/calendar'),
     },
-    {
-      id: 'notifications',
-      icon: 'notifications-outline' as keyof typeof Ionicons.glyphMap,
-      iconBg: 'bg-orange-500/10',
-      iconColor: 'text-orange-600',
-      title: 'Notifications',
-      subtitle: 'Customize business alerts',
-      onPress: openNotificationModal,
-    },
-    {
-      id: 'security',
-      icon: 'shield-checkmark-outline' as keyof typeof Ionicons.glyphMap,
-      iconBg: 'bg-red-500/10',
-      iconColor: 'text-red-600',
-      title: 'Privacy & Security',
-      subtitle: 'Manage account security settings',
-      onPress: () => {},
-    },
-  ], [openPersonalInfoModal, openNotificationModal]);
-
-  const supportResourcesMenu = React.useMemo(() => [
-    {
-      id: 'resources',
-      icon: 'library-outline' as keyof typeof Ionicons.glyphMap,
-      iconBg: 'bg-emerald-500/10',
-      iconColor: 'text-emerald-600',
-      title: 'Provider Resources',
-      subtitle: 'Tips, guides, and best practices',
-      onPress: () => {},
-    },
-    {
-      id: 'help',
-      icon: 'help-circle-outline' as keyof typeof Ionicons.glyphMap,
-      iconBg: 'bg-slate-500/10',
-      iconColor: 'text-slate-600',
-      title: 'Help Center',
-      subtitle: 'FAQs and documentation',
-      onPress: () => {},
-    },
-    {
-      id: 'support',
-      icon: 'headset-outline' as keyof typeof Ionicons.glyphMap,
-      iconBg: 'bg-blue-500/10',
-      iconColor: 'text-blue-600',
-      title: 'Contact Support',
-      subtitle: '24/7 business support team',
-      onPress: () => {},
-    },
-    {
-      id: 'history',
-      icon: 'document-text-outline' as keyof typeof Ionicons.glyphMap,
-      iconBg: 'bg-green-500/10',
-      iconColor: 'text-green-600',
-      title: 'Service History',
-      subtitle: 'View completed bookings',
-      onPress: openBookingHistoryModal,
-    },
-  ], [openBookingHistoryModal]);
+  ], []);
 
   // Define menu item type
   type MenuItem = {
@@ -517,35 +452,9 @@ export default React.memo(function ProfileScreen() {
           </View>
         </View>
 
-        {/* Menu Sections */}
+        {/* Menu Sections - ORDERED BY BUSINESS PRIORITY */}
         <View className="px-6 gap-8">
-          {/* Business Management Section */}
-          <View>
-            <View className="flex-row items-center mb-5">
-              <View className="w-1 h-6 bg-primary rounded-full mr-3" />
-              <Text className="text-xl font-bold text-foreground">Business Management</Text>
-            </View>
-            <View className="gap-3">
-              {businessManagementMenu.map((item) => (
-                <MenuItemComponent key={item.id} item={item} />
-              ))}
-            </View>
-          </View>
-
-          {/* Customer Relations Section */}
-          <View>
-            <View className="flex-row items-center mb-5">
-              <View className="w-1 h-6 bg-secondary rounded-full mr-3" />
-              <Text className="text-xl font-bold text-foreground">Customer Relations</Text>
-            </View>
-            <View className="gap-3">
-              {customerRelationsMenu.map((item) => (
-                <MenuItemComponent key={item.id} item={item} />
-              ))}
-            </View>
-          </View>
-
-          {/* Account Settings Section */}
+          {/* SECTION 1: HIGH PRIORITY - Account Configuration */}
           <View>
             <View className="flex-row items-center mb-5">
               <View className="w-1 h-6 bg-orange-500 rounded-full mr-3" />
@@ -558,24 +467,33 @@ export default React.memo(function ProfileScreen() {
             </View>
           </View>
 
-          {/* Support & Resources Section */}
+          {/* SECTION 2: HIGH PRIORITY - Core Business Operations */}
           <View>
             <View className="flex-row items-center mb-5">
-              <View className="w-1 h-6 bg-green-500 rounded-full mr-3" />
-              <Text className="text-xl font-bold text-foreground">Support & Resources</Text>
+              <View className="w-1 h-6 bg-primary rounded-full mr-3" />
+              <Text className="text-xl font-bold text-foreground">Business Management</Text>
             </View>
             <View className="gap-3">
-              {supportResourcesMenu.map((item) => (
+              {businessManagementMenu.map((item) => (
                 <MenuItemComponent key={item.id} item={item} />
               ))}
-              
-              {/* Theme Toggle */}
-          
-               
-                  <ThemeToggle />
-            
             </View>
           </View>
+
+          {/* SECTION 3: MEDIUM PRIORITY - Client Relations */}
+          <View>
+            <View className="flex-row items-center mb-5">
+              <View className="w-1 h-6 bg-secondary rounded-full mr-3" />
+              <Text className="text-xl font-bold text-foreground">Customer Relations</Text>
+            </View>
+            <View className="gap-3">
+              {customerRelationsMenu.map((item) => (
+                <MenuItemComponent key={item.id} item={item} />
+              ))}
+            </View>
+          </View>
+
+          {/* Support & Resources Section - REMOVED: Empty section */}
 
           {/* App Version & Footer */}
           <View className="items-center py-6">
@@ -600,6 +518,15 @@ export default React.memo(function ProfileScreen() {
           </View>
         </View>
 
+        {/* Theme Toggle */}
+        <View className="px-6 mt-4 mb-6">
+          <Card className="bg-card border-border">
+            <CardContent className="p-4">
+              <ThemeToggle />
+            </CardContent>
+          </Card>
+        </View>
+
         {/* Bottom spacing for tab bar */}
         <View className={cn("h-6", Platform.OS === 'ios' && "h-24")} />
       </ScrollView>
@@ -607,30 +534,6 @@ export default React.memo(function ProfileScreen() {
 
 
 
-      {notificationModalVisible && (
-        <NotificationSettingsModal
-          visible={notificationModalVisible}
-          onClose={closeNotificationModal}
-          settings={notificationSettings}
-          userId={user?.id || ''}
-        />
-      )}
-
-  
-
-      {stripeIntegrationModalVisible && (
-        <StripeIntegrationModal
-          visible={stripeIntegrationModalVisible}
-          onClose={closeStripeIntegrationModal}
-        />
-      )}
-
-      {servicesModalVisible && (
-        <ServicesModal
-          visible={servicesModalVisible}
-          onClose={closeServicesModal}
-        />
-      )}
     </SafeAreaView>
   );
 });

@@ -30,7 +30,14 @@ export {
 } from './customer';
 
 // Additional provider exports to resolve conflicts
-export { useProviderServices, useProviderBookings } from './shared/useProfileData';
+export { 
+  useProviderServices, 
+  useProviderBookings,
+  useCreateService,
+  useUpdateService,
+  useDeleteService,
+  useToggleServiceStatus
+} from './shared/useProfileData';
 
 // Type exports for compatibility
 export type BookingData = any;

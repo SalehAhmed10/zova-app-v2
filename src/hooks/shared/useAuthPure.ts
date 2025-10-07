@@ -77,12 +77,13 @@ export const useAuthPure = () => {
     queryFn: async () => {
       if (!sessionQuery.data?.user?.id) return null;
       
-      console.log('[AuthPure] Fetching user profile:', sessionQuery.data.user.id);
       return await getUserProfile(sessionQuery.data.user.id);
     },
     enabled: !!sessionQuery.data?.user?.id && !!sessionQuery.data?.user?.email_confirmed_at,
     staleTime: 2 * 60 * 1000, // 2 minutes
     gcTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   // ✅ PURE COMPUTED VALUES: Auth state derived from React Query + Zustand

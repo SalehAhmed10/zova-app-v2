@@ -115,7 +115,7 @@ export default function SearchScreen() {
                       />
                     </TouchableOpacity>
                     <Text className="text-base font-bold text-primary">
-                      ${item.price}
+                      £{item.price}
                     </Text>
                     <Text className="text-xs text-muted-foreground">
                       {item.price_type === 'hourly' ? '/hr' : 'fixed'}

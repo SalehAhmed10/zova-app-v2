@@ -89,7 +89,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
               </Text>
               <View className="items-end">
                 <Text className="text-xl font-bold text-primary">
-                  ${service.base_price}
+                  £{service.base_price}
                 </Text>
                 <Text className="text-xs text-muted-foreground">
                   {service.price_type === 'hourly' ? 'per hour' : 'fixed price'}

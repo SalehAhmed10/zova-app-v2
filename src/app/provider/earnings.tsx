@@ -67,6 +67,7 @@ export default function ProviderEarningsScreen() {
   const { user, profile } = useAuthOptimized();
   const { isDarkColorScheme } = useColorScheme();
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('30d');
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'payouts'>('overview');
 
   // React Query hooks
   const {
@@ -140,26 +141,26 @@ export default function ProviderEarningsScreen() {
 
   // Enhanced chart configuration with better colors
   const chartConfig = {
-    backgroundColor: 'transparent',
-    backgroundGradientFrom: isDarkColorScheme ? THEME.dark.card : THEME.light.card,
-    backgroundGradientTo: isDarkColorScheme ? THEME.dark.card : THEME.light.card,
+    backgroundColor: isDarkColorScheme ? '#1e293b' : '#ffffff',
+    backgroundGradientFrom: isDarkColorScheme ? '#1e293b' : '#ffffff',
+    backgroundGradientTo: isDarkColorScheme ? '#0f172a' : '#f8fafc',
     decimalPlaces: 0,
-    color: (opacity = 1) => isDarkColorScheme ? `rgba(255, 255, 255, ${opacity})` : `rgba(0, 0, 0, ${opacity})`,
-    labelColor: (opacity = 1) => isDarkColorScheme ? `rgba(255, 255, 255, ${opacity})` : `rgba(0, 0, 0, ${opacity})`,
+    color: (opacity = 1) => isDarkColorScheme ? `rgba(248, 250, 252, ${opacity})` : `rgba(15, 23, 42, ${opacity})`,
+    labelColor: (opacity = 1) => isDarkColorScheme ? `rgba(148, 163, 184, ${opacity})` : `rgba(100, 116, 139, ${opacity})`,
     style: {
       borderRadius: 16,
     },
     propsForDots: {
       r: '6',
       strokeWidth: '2',
-      stroke: THEME.light.primary,
+      stroke: isDarkColorScheme ? '#22c55e' : '#16a34a',
     },
     propsForLabels: {
-      fontSize: 12,
+      fontSize: 11,
     },
   };
 
-  const screenWidth = Math.min(Dimensions.get('window').width - 80, 400); // Account for padding, max width for better mobile experience
+  const screenWidth = Dimensions.get('window').width - 64; // Account for padding (32px on each side)
 
   const calculateGrowth = () => {
     if (!analytics?.monthlyEarnings || analytics.monthlyEarnings.length < 2) return 0;
@@ -178,7 +179,7 @@ export default function ProviderEarningsScreen() {
           onPress={() => router.back()}
           className="p-2 rounded-full bg-muted active:bg-muted/80"
         >
-          <Icon as={ArrowUpRight} className="rotate-[-135deg]" size={20} />
+          <Icon as={ArrowUpRight} className="rotate-[-135deg]" size={20} color={isDarkColorScheme ? '#ef4444' : '#dc2626'} />
         </TouchableOpacity>
         <View className="flex-1 items-center">
           <Text className="text-xl font-bold text-foreground">Earnings</Text>
@@ -192,33 +193,65 @@ export default function ProviderEarningsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View className="px-1 py-6 gap-6">
-          {/* Stripe Status Alert - Enhanced */}
-          {stripeStatus && !isStripeReady && (
-            <Card className="border-yellow-200 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border-l-4 border-l-yellow-500">
-              <CardContent className="p-4">
-                <View className="flex-row items-start gap-3">
-                  <View className="p-2 bg-yellow-100 dark:bg-yellow-900/50 rounded-full">
-                    <Icon as={Wallet} className="text-yellow-600 dark:text-yellow-400" size={20} />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-yellow-800 dark:text-yellow-200 font-semibold mb-1">
-                      Payment Setup Required
-                    </Text>
-                    <Text className="text-yellow-700 dark:text-yellow-300 text-sm mb-3">
-                      Complete your Stripe account setup to receive payments from customers.
-                    </Text>
-                    <Button
-                      size="sm"
-                      onPress={() => router.push('/provider-verification/payment')}
-                      className="self-start bg-yellow-600 hover:bg-yellow-700"
-                    >
-                      <Text className="text-primary-foreground font-medium">Complete Setup</Text>
-                    </Button>
-                  </View>
-                </View>
-              </CardContent>
-            </Card>
-          )}
+          {/* Tab Navigation */}
+          <View className=" py-4 bg-card border-b border-border">
+            <View className="flex-row bg-muted rounded-lg p-1">
+              {[
+                { key: 'overview' as const, label: 'Overview', icon: Activity },
+                { key: 'analytics' as const, label: 'Analytics', icon: BarChart3 },
+                { key: 'payouts' as const, label: 'Payouts', icon: Wallet }
+              ].map((tab) => (
+                <TouchableOpacity
+                  key={tab.key}
+                  onPress={() => setActiveTab(tab.key)}
+                  className={`flex-1 flex-row items-center justify-center py-2  rounded-md ${
+                    activeTab === tab.key ? 'bg-primary' : 'bg-transparent'
+                  }`}
+                >
+                  <Icon
+                    as={tab.icon}
+                    size={16}
+                    color={activeTab === tab.key ? (isDarkColorScheme ? '#ffffff' : '#ffffff') : (isDarkColorScheme ? '#9ca3af' : '#6b7280')}
+                  />
+                  <Text className={`text-sm font-medium ml-2 ${
+                    activeTab === tab.key ? 'text-primary-foreground' : 'text-muted-foreground'
+                  }`}>
+                    {tab.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+          {/* Tab Content */}
+          {activeTab === 'overview' && (
+            <>
+              {/* Stripe Status Alert - Enhanced */}
+              {stripeStatus && !isStripeReady && (
+                <Card className="border-yellow-200 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border-l-4 border-l-yellow-500">
+                  <CardContent className="p-4">
+                    <View className="flex-row items-start gap-3">
+                      <View className="p-2 bg-yellow-100 dark:bg-yellow-900/50 rounded-full">
+                        <Icon as={Wallet} size={20} color={isDarkColorScheme ? '#fbbf24' : '#d97706'} />
+                      </View>
+                      <View className="flex-1">
+                        <Text className="text-yellow-800 dark:text-yellow-200 font-semibold mb-1">
+                          Payment Setup Required
+                        </Text>
+                        <Text className="text-yellow-700 dark:text-yellow-300 text-sm mb-3">
+                          Complete your Stripe account setup to receive payments from customers.
+                        </Text>
+                        <Button
+                          size="sm"
+                          onPress={() => router.push('/provider-verification/payment')}
+                          className="self-start bg-yellow-600 hover:bg-yellow-700"
+                        >
+                          <Text className="text-primary-foreground font-medium">Complete Setup</Text>
+                        </Button>
+                      </View>
+                    </View>
+                  </CardContent>
+                </Card>
+              )}
 
           {/* Enhanced Earnings Summary Cards - Enhanced with Icons and Gradients */}
           <View className="gap-4">
@@ -228,7 +261,7 @@ export default function ProviderEarningsScreen() {
                 onPress={() => Alert.alert('Coming Soon', 'Detailed earnings breakdown will be available soon!')}
                 className="flex-row items-center px-3 py-1 bg-primary/10 rounded-full"
               >
-                <Icon as={BarChart3} className="text-primary mr-1" size={14} />
+                <Icon as={BarChart3} size={14} color={isDarkColorScheme ? '#10b981' : '#059669'} />
                 <Text className="text-primary text-sm font-medium">Details</Text>
               </TouchableOpacity>
             </View>
@@ -237,9 +270,9 @@ export default function ProviderEarningsScreen() {
               <Card className="bg-gradient-to-br from-green-500 to-emerald-600 border-0 shadow-lg">
                 <CardContent className="p-4">
                   <View className="flex-row items-center justify-between mb-2">
-                    <Icon as={DollarSign} className="text-primary-foreground/80" size={20} />
+                    <Icon as={DollarSign} size={20} color={isDarkColorScheme ? '#f1f5f9' : '#ffffff'} />
                     <View className="flex-row items-center">
-                      {growthRate > 0 && <Icon as={ArrowUpRight} className="text-primary-foreground/80 mr-1" size={14} />}
+                      {growthRate > 0 && <Icon as={ArrowUpRight} size={14} color={isDarkColorScheme ? '#f1f5f9' : '#ffffff'} />}
                       <Text className="text-primary-foreground/80 text-xs">
                         {growthRate > 0 ? '+' : ''}{growthRate.toFixed(1)}%
                       </Text>
@@ -260,7 +293,7 @@ export default function ProviderEarningsScreen() {
               <Card className="bg-gradient-to-br from-blue-500 to-cyan-600 border-0 shadow-lg">
                 <CardContent className="p-4">
                   <View className="flex-row items-center justify-between mb-2">
-                    <Icon as={Calendar} className="text-primary-foreground/80" size={20} />
+                    <Icon as={Calendar} size={20} color={isDarkColorScheme ? '#f1f5f9' : '#ffffff'} />
                     <Badge className="bg-white/20 text-primary-foreground text-xs px-2 py-0.5">
                       <Text className="text-primary-foreground">This Month</Text>
                     </Badge>
@@ -280,7 +313,7 @@ export default function ProviderEarningsScreen() {
               <Card className="bg-gradient-to-br from-yellow-500 to-orange-600 border-0 shadow-lg">
                 <CardContent className="p-4">
                   <View className="flex-row items-center justify-between mb-2">
-                    <Icon as={Clock} className="text-primary-foreground/80" size={20} />
+                    <Icon as={Clock} size={20} color={isDarkColorScheme ? '#f1f5f9' : '#ffffff'} />
                     <Badge className="bg-white/20 text-primary-foreground text-xs px-2 py-0.5">
                       <Text className="text-primary-foreground">Pending</Text>
                     </Badge>
@@ -300,7 +333,7 @@ export default function ProviderEarningsScreen() {
               <Card className="bg-gradient-to-br from-purple-500 to-pink-600 border-0 shadow-lg">
                 <CardContent className="p-4">
                   <View className="flex-row items-center justify-between mb-2">
-                    <Icon as={CheckCircle} className="text-primary-foreground/80" size={20} />
+                    <Icon as={CheckCircle} size={20} color={isDarkColorScheme ? '#f1f5f9' : '#ffffff'} />
                     <Badge className="bg-white/20 text-primary-foreground text-xs px-2 py-0.5">
                       <Text className="text-primary-foreground">Completed</Text>
                     </Badge>
@@ -342,11 +375,16 @@ export default function ProviderEarningsScreen() {
             </View>
           </View>
 
+            </>
+          )}
+
           {/* Analytics Section */}
-          <View className="gap-4">
-            <View className="flex-row items-center justify-between">
-              <Text className="text-lg font-semibold text-foreground">Analytics</Text>
-              <View className="flex-row bg-muted rounded-lg p-1">
+          {activeTab === 'analytics' && (
+            <>
+              <View className="gap-4">
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-lg font-semibold text-foreground">Analytics</Text>
+                  <View className="flex-row bg-muted rounded-lg p-1">
                 {(['7d', '30d', '90d', '1y'] as TimePeriod[]).map((period) => (
                   <TouchableOpacity
                     key={period}
@@ -370,7 +408,7 @@ export default function ProviderEarningsScreen() {
               <CardHeader className="pb-2">
                 <View>
                   <CardTitle className="flex-row items-center">
-                    <Icon as={TrendingUp} className="mr-2 text-primary" size={20} />
+                    <Icon as={TrendingUp} size={20} color={isDarkColorScheme ? '#10b981' : '#059669'} />
                     Earnings Trend
                   </CardTitle>
                   <Text className="text-sm text-muted-foreground mt-1">
@@ -382,34 +420,39 @@ export default function ProviderEarningsScreen() {
                 {analyticsLoading ? (
                   <Skeleton className="w-full h-64 rounded-lg" />
                 ) : analytics?.monthlyEarnings && analytics.monthlyEarnings.length > 0 ? (
-                  <LineChart
-                    data={{
-                      labels: analytics.monthlyEarnings.slice(-6).map(d => d.month),
-                      datasets: [{
-                        data: analytics.monthlyEarnings.slice(-6).map(d => d.value),
-                        color: (opacity = 1) => `rgba(34, 197, 94, ${opacity})`,
-                        strokeWidth: 3,
-                      }],
-                    }}
-                    width={screenWidth}
-                    height={220}
-                    chartConfig={{
-                      ...chartConfig,
-                      color: (opacity = 1) => `rgba(34, 197, 94, ${opacity})`,
-                    }}
-                    bezier
-                    style={{
-                      marginVertical: 8,
-                      borderRadius: 16,
-                    }}
-                    withDots={true}
-                    withShadow={false}
-                    withInnerLines={false}
-                    withOuterLines={false}
-                  />
+                  <View style={{ backgroundColor: isDarkColorScheme ? '#1e293b' : '#ffffff', borderRadius: 16, padding: 8 }}>
+                    <LineChart
+                      data={{
+                        labels: analytics.monthlyEarnings.slice(-6).map(d => d.month),
+                        datasets: [{
+                          data: analytics.monthlyEarnings.slice(-6).map(d => d.value),
+                          color: (opacity = 1) => `rgba(34, 197, 94, ${opacity})`,
+                          strokeWidth: 3,
+                        }],
+                      }}
+                      width={screenWidth - 16}
+                      height={220}
+                      chartConfig={{
+                        ...chartConfig,
+                        backgroundColor: 'transparent',
+                        backgroundGradientFrom: 'transparent',
+                        backgroundGradientTo: 'transparent',
+                      }}
+                      bezier
+                      style={{
+                        borderRadius: 16,
+                      }}
+                      withDots={true}
+                      withShadow={false}
+                      withInnerLines={false}
+                      withOuterLines={false}
+                      withHorizontalLabels={true}
+                      withVerticalLabels={true}
+                    />
+                  </View>
                 ) : (
                   <View className="items-center justify-center py-12">
-                    <Icon as={BarChart3} className="text-muted-foreground mb-3" size={48} />
+                    <Icon as={BarChart3} size={48} color={isDarkColorScheme ? '#9ca3af' : '#6b7280'} />
                     <Text className="text-muted-foreground text-center">
                       No earnings data yet{'\n'}Complete your first booking to see trends
                     </Text>
@@ -424,7 +467,7 @@ export default function ProviderEarningsScreen() {
                 <View className="flex-row items-center justify-between">
                   <View>
                     <CardTitle className="flex-row items-center">
-                      <Icon as={PieChartIcon} className="mr-2 text-primary" size={20} />
+                      <Icon as={PieChartIcon} size={20} color={isDarkColorScheme ? '#10b981' : '#059669'} />
                       Top Services
                     </CardTitle>
                     <Text className="text-sm text-muted-foreground mt-1">
@@ -440,31 +483,35 @@ export default function ProviderEarningsScreen() {
                 {analyticsLoading ? (
                   <Skeleton className="w-full h-64 rounded-lg" />
                 ) : analytics?.servicePerformance && analytics.servicePerformance.length > 0 ? (
-                  <BarChart
-                    data={{
-                      labels: analytics.servicePerformance.slice(0, 5).map(s => s.service.substring(0, 8) + (s.service.length > 8 ? '...' : '')),
-                      datasets: [{
-                        data: analytics.servicePerformance.slice(0, 5).map(s => s.revenue),
-                      }],
-                    }}
-                    width={screenWidth}
-                    height={220}
-                    yAxisLabel="£"
-                    yAxisSuffix=""
-                    chartConfig={{
-                      ...chartConfig,
-                      color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
-                    }}
-                    showValuesOnTopOfBars
-                    style={{
-                      marginVertical: 8,
-                      borderRadius: 16,
-                    }}
-                    withInnerLines={false}
-                  />
+                  <View style={{ backgroundColor: isDarkColorScheme ? '#1e293b' : '#ffffff', borderRadius: 16, padding: 8 }}>
+                    <BarChart
+                      data={{
+                        labels: analytics.servicePerformance.slice(0, 5).map(s => s.service.substring(0, 8) + (s.service.length > 8 ? '...' : '')),
+                        datasets: [{
+                          data: analytics.servicePerformance.slice(0, 5).map(s => s.revenue),
+                        }],
+                      }}
+                      width={screenWidth - 16}
+                      height={220}
+                      yAxisLabel="£"
+                      yAxisSuffix=""
+                      chartConfig={{
+                        ...chartConfig,
+                        color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
+                        backgroundColor: 'transparent',
+                        backgroundGradientFrom: 'transparent',
+                        backgroundGradientTo: 'transparent',
+                      }}
+                      showValuesOnTopOfBars
+                      style={{
+                        borderRadius: 16,
+                      }}
+                      withInnerLines={false}
+                    />
+                  </View>
                 ) : (
                   <View className="items-center justify-center py-12">
-                    <Icon as={Target} className="text-muted-foreground mb-3" size={48} />
+                    <Icon as={Target} size={48} color={isDarkColorScheme ? '#9ca3af' : '#6b7280'} />
                     <Text className="text-muted-foreground text-center">
                       No service data yet{'\n'}Add services and complete bookings to see performance
                     </Text>
@@ -474,111 +521,15 @@ export default function ProviderEarningsScreen() {
             </Card>
           </View>
 
-          {/* Enhanced Commission Breakdown Section */}
-          <Card className="bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 dark:from-primary/10 dark:via-primary/20 dark:to-primary/10 border-primary/20 shadow-lg">
-            <CardHeader className="pb-4">
-              <View className="flex-row items-center justify-between">
-                <View>
-                  <CardTitle className="flex-row items-center text-primary">
-                    <Icon as={Percent} className="mr-3" size={24} />
-                    <View>
-                      <Text className="text-lg font-bold text-primary">Commission Structure</Text>
-                      <Text className="text-sm text-muted-foreground font-normal">How your earnings are calculated</Text>
-                    </View>
-                  </CardTitle>
-                </View>
-                <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 px-3 py-1">
-                  <Text className="text-orange-800 dark:text-orange-200 font-medium">15% Platform Fee</Text>
-                </Badge>
-              </View>
-            </CardHeader>
-            <CardContent className="gap-4">
-              {/* Visual Earnings Flow */}
-              <View className="bg-card/50 dark:bg-card/20 rounded-xl p-4 mb-2">
-                <Text className="text-sm font-semibold text-foreground mb-4 text-center">Earnings Flow</Text>
-                <View className="gap-3">
-                  {/* Service Revenue */}
-                  <View className="flex-row items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200/50 dark:border-green-800/50">
-                    <View className="w-10 h-10 bg-green-100 dark:bg-green-900/50 rounded-full items-center justify-center flex-shrink-0">
-                      <Icon as={DollarSign} className="text-green-600 dark:text-green-400" size={18} />
-                    </View>
-                    <View className="flex-1 min-w-0">
-                      <Text className="font-semibold text-green-800 dark:text-green-200">Service Revenue</Text>
-                      <Text className="text-sm text-green-700 dark:text-green-300">Amount charged to customer</Text>
-                    </View>
-                    <Text className="font-bold text-green-600 text-lg flex-shrink-0">
-                      {formatCurrency(earnings?.totalEarnings || 0)}
-                    </Text>
-                  </View>
-
-                  {/* Arrow Down */}
-                  <View className="items-center py-1">
-                    <Icon as={ArrowDownRight} className="text-muted-foreground rotate-90" size={16} />
-                  </View>
-
-                  {/* Platform Commission */}
-                  <View className="flex-row items-center gap-3 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200/50 dark:border-orange-800/50">
-                    <View className="w-10 h-10 bg-orange-100 dark:bg-orange-900/50 rounded-full items-center justify-center flex-shrink-0">
-                      <Icon as={Percent} className="text-orange-600 dark:text-orange-400" size={16} />
-                    </View>
-                    <View className="flex-1 min-w-0">
-                      <Text className="font-semibold text-orange-800 dark:text-orange-200">Platform Commission</Text>
-                      <Text className="text-sm text-orange-700 dark:text-orange-300">15% service fee deducted</Text>
-                    </View>
-                    <Text className="font-bold text-orange-600 text-lg flex-shrink-0">
-                      -{formatCurrency((earnings?.totalEarnings || 0) * 0.15)}
-                    </Text>
-                  </View>
-
-                  {/* Arrow Down */}
-                  <View className="items-center py-1">
-                    <Icon as={ArrowDownRight} className="text-primary rotate-90" size={16} />
-                  </View>
-
-                  {/* Your Earnings - Highlighted */}
-                  <View className="flex-row items-center gap-3 p-4 bg-primary/10 rounded-lg border-2 border-primary/30">
-                    <View className="w-12 h-12 bg-primary/20 rounded-full items-center justify-center flex-shrink-0">
-                      <Icon as={Wallet} className="text-primary" size={20} />
-                    </View>
-                    <View className="flex-1 min-w-0">
-                      <Text className="font-bold text-primary text-lg">Your Earnings</Text>
-                      <Text className="text-sm text-muted-foreground">Amount you receive</Text>
-                    </View>
-                    <Text className="font-black text-primary text-2xl flex-shrink-0">
-                      {formatCurrency((earnings?.totalEarnings || 0) * 0.85)}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Enhanced Info Section */}
-              <View className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg p-4 border border-blue-200/50 dark:border-blue-800/50">
-                <View className="flex-row items-start gap-3">
-                  <View className="w-8 h-8 bg-blue-100 dark:bg-blue-900/50 rounded-full items-center justify-center flex-shrink-0 mt-0.5">
-                    <Icon as={Info} className="text-blue-600 dark:text-blue-400" size={16} />
-                  </View>
-                  <View className="flex-1 min-w-0">
-                    <Text className="text-blue-800 dark:text-blue-200 font-semibold mb-2">
-                      💰 Transparent Commission Structure
-                    </Text>
-                    <Text className="text-blue-700 dark:text-blue-300 text-sm leading-relaxed">
-                      ZOVA charges a competitive 15% platform fee on all completed services. This covers secure payment processing, 24/7 customer support, platform maintenance, and continuous feature development. Your earnings are paid out automatically every Monday.
-                    </Text>
-                    <View className="flex-row items-center gap-2 mt-3">
-                      <View className="w-2 h-2 bg-green-500 rounded-full"></View>
-                      <Text className="text-xs text-blue-600 dark:text-blue-400 font-medium">No hidden fees • Weekly payouts • Secure payments</Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-            </CardContent>
-          </Card>
-
-          {/* Enhanced Next Payout Card */}
-          <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border-indigo-200 dark:border-indigo-800">
+            </>
+          )}
+          {activeTab === 'payouts' && (
+            <>
+              {/* Enhanced Next Payout Card */}
+              <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border-indigo-200 dark:border-indigo-800">
             <CardHeader>
               <CardTitle className="flex-row items-center text-indigo-900 dark:text-indigo-100">
-                <Icon as={Wallet} className="mr-2" size={20} />
+                <Icon as={Wallet} size={20} color={isDarkColorScheme ? '#10b981' : '#059669'} />
                 Next Payout
               </CardTitle>
             </CardHeader>
@@ -610,7 +561,7 @@ export default function ProviderEarningsScreen() {
             <CardHeader>
               <View className="flex-row items-center justify-between">
                 <CardTitle className="flex-row items-center">
-                  <Icon as={Activity} className="mr-2 text-primary" size={20} />
+                  <Icon as={Activity} size={20} color={isDarkColorScheme ? '#10b981' : '#059669'} />
                   Recent Payouts
                 </CardTitle>
                 <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
@@ -649,7 +600,7 @@ export default function ProviderEarningsScreen() {
                           </Badge>
                         </View>
                         <View className="flex-row items-center">
-                          <Icon as={Calendar} className="text-muted-foreground mr-2" size={14} />
+                          <Icon as={Calendar} size={14} color={isDarkColorScheme ? '#9ca3af' : '#6b7280'} />
                           <Text className="text-sm text-muted-foreground">
                             {new Date(payout.expected_payout_date || payout.actual_payout_date || '').toLocaleDateString('en-GB', {
                               weekday: 'short',
@@ -683,14 +634,14 @@ export default function ProviderEarningsScreen() {
                     <TouchableOpacity className="items-center py-3 mt-2 border-t border-border">
                       <View className="flex-row items-center px-4 py-2 bg-primary/10 rounded-full">
                         <Text className="text-primary font-medium mr-2">View All Payouts</Text>
-                        <Icon as={ArrowUpRight} className="text-primary" size={14} />
+                        <Icon as={ArrowUpRight} size={14} color={isDarkColorScheme ? '#10b981' : '#059669'} />
                       </View>
                     </TouchableOpacity>
                   )}
                 </View>
               ) : (
                 <View className="items-center justify-center py-12">
-                  <Icon as={Wallet} className="text-muted-foreground mb-3" size={48} />
+                  <Icon as={Wallet} size={48} color={isDarkColorScheme ? '#9ca3af' : '#6b7280'} />
                   <Text className="text-muted-foreground text-center mb-2">
                     No payouts yet
                   </Text>
@@ -706,7 +657,7 @@ export default function ProviderEarningsScreen() {
           <Card className="bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 dark:from-primary/10 dark:via-primary/20 dark:to-primary/10 border-primary/20 shadow-lg">
             <CardHeader className="pb-4">
               <CardTitle className="flex-row items-center text-primary">
-                <Icon as={Target} className="mr-3" size={24} />
+                <Icon as={Target} size={24} color={isDarkColorScheme ? '#10b981' : '#059669'} />
                 <View>
                   <Text className="text-lg font-bold text-primary">How Earnings Work</Text>
                   <Text className="text-sm text-muted-foreground font-normal">Transparent breakdown of your earnings</Text>
@@ -741,7 +692,7 @@ export default function ProviderEarningsScreen() {
               <View className="gap-3">
                 <View className="flex-row items-start gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-200/50 dark:border-green-800/50">
                   <View className="w-10 h-10 bg-green-100 dark:bg-green-900/50 rounded-full items-center justify-center flex-shrink-0">
-                    <Icon as={DollarSign} className="text-green-600 dark:text-green-400" size={18} />
+                    <Icon as={DollarSign} size={18} color={isDarkColorScheme ? '#4ade80' : '#16a34a'} />
                   </View>
                   <View className="flex-1 min-w-0">
                     <View className="flex-row items-center gap-2 mb-1 flex-wrap">
@@ -756,7 +707,7 @@ export default function ProviderEarningsScreen() {
 
                 <View className="flex-row items-start gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200/50 dark:border-blue-800/50">
                   <View className="w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-full items-center justify-center flex-shrink-0">
-                    <Icon as={Percent} className="text-blue-600 dark:text-blue-400" size={16} />
+                    <Icon as={Percent} size={16} color={isDarkColorScheme ? '#60a5fa' : '#2563eb'} />
                   </View>
                   <View className="flex-1 min-w-0">
                     <View className="flex-row items-center gap-2 mb-1 flex-wrap">
@@ -771,7 +722,7 @@ export default function ProviderEarningsScreen() {
 
                 <View className="flex-row items-start gap-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-xl border border-purple-200/50 dark:border-purple-800/50">
                   <View className="w-10 h-10 bg-purple-100 dark:bg-purple-900/50 rounded-full items-center justify-center flex-shrink-0">
-                    <Icon as={Calendar} className="text-purple-600 dark:text-purple-400" size={16} />
+                    <Icon as={Calendar} size={16} color={isDarkColorScheme ? '#c084fc' : '#9333ea'} />
                   </View>
                   <View className="flex-1 min-w-0">
                     <View className="flex-row items-center gap-2 mb-1 flex-wrap">
@@ -786,7 +737,7 @@ export default function ProviderEarningsScreen() {
 
                 <View className="flex-row items-start gap-3 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-xl border border-orange-200/50 dark:border-orange-800/50">
                   <View className="w-10 h-10 bg-orange-100 dark:bg-orange-900/50 rounded-full items-center justify-center flex-shrink-0">
-                    <Icon as={Wallet} className="text-orange-600 dark:text-orange-400" size={16} />
+                    <Icon as={Wallet} size={16} color={isDarkColorScheme ? '#fb923c' : '#ea580c'} />
                   </View>
                   <View className="flex-1 min-w-0">
                     <View className="flex-row items-center gap-2 mb-1 flex-wrap">
@@ -803,12 +754,14 @@ export default function ProviderEarningsScreen() {
               {/* Trust Indicator */}
               <View className="bg-primary/5 dark:bg-primary/10 rounded-lg p-3 mt-2 border border-primary/20">
                 <View className="flex-row items-center gap-2">
-                  <Icon as={CheckCircle} className="text-primary" size={16} />
+                  <Icon as={CheckCircle} size={16} color={isDarkColorScheme ? '#10b981' : '#059669'} />
                   <Text className="text-sm font-medium text-primary">100% Transparent • No Hidden Fees</Text>
                 </View>
               </View>
             </CardContent>
           </Card>
+            </>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>

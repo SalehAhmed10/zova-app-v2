@@ -41,18 +41,7 @@ export const useNavigationDecision = (): NavigationDecision => {
     termsData
   } = useProviderVerificationStore();
 
-  console.log('[NavigationDecision] State check:', {
-    isAuthenticated,
-    userRole,
-    user: !!user,
-    profile: !!profile,
-    isLoading,
-    verificationStatus,
-    isProfileHydrated,
-    shouldResumeVerification,
-    hasIncompleteSession,
-    recoveryLoading
-  });
+  // Debug logging removed for production - was causing UI noise on every reload
 
   return useMemo(() => {
     /**
@@ -74,7 +63,7 @@ export const useNavigationDecision = (): NavigationDecision => {
       const firstIncompleteStep = VerificationFlowManager.findFirstIncompleteStep(verificationData);
       const route = VerificationFlowManager.getRouteForStep(firstIncompleteStep as any);
       
-      console.log(`[NavigationDecision] First incomplete step: ${firstIncompleteStep}, route: ${route}`);
+      // Debug logging removed for production
       return route;
     };
     // ✅ During logout - no redirects, let loading screen handle
@@ -83,6 +72,17 @@ export const useNavigationDecision = (): NavigationDecision => {
         shouldRedirect: false,
         targetRoute: null,
         reason: 'logout-in-progress'
+      };
+    }
+
+    // ✅ SMART OPTIMIZATION: If we already know verification status from store,
+    // make immediate decisions without waiting for recovery loading
+    if (userRole === 'provider' && isProfileHydrated && verificationStatus === 'approved') {
+      // ✅ Only approved providers get dashboard access - skip all loading checks
+      return {
+        shouldRedirect: false,
+        targetRoute: null,
+        reason: 'access-granted'
       };
     }
 
@@ -95,17 +95,9 @@ export const useNavigationDecision = (): NavigationDecision => {
       };
     }
 
-    // ✅ SMART OPTIMIZATION: If we already know verification status from store,
-    // make immediate decisions without waiting for recovery loading
-    if (userRole === 'provider' && isProfileHydrated) {
-      if (verificationStatus === 'approved') {
-        // ✅ Only approved providers get dashboard access
-        return {
-          shouldRedirect: false,
-          targetRoute: null,
-          reason: 'access-granted'
-        };
-      } else if (verificationStatus === 'in_review' || verificationStatus === 'pending') {
+    // ✅ Provider verification status checks
+    if (userRole === 'provider') {
+      if (verificationStatus === 'in_review' || verificationStatus === 'pending') {
         // ⏳ Pending/In review providers go to status screen
         return {
           shouldRedirect: true,
@@ -119,7 +111,7 @@ export const useNavigationDecision = (): NavigationDecision => {
           targetRoute: getVerificationRoute(),
           reason: 'provider-rejected'
         };
-      } else {
+      } else if (!verificationStatus) {
         // User has no verification status - redirect to verification at first incomplete step
         return {
           shouldRedirect: true,

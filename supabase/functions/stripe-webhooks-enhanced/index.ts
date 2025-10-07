@@ -70,6 +70,12 @@ serve(async (req) => {
       case 'invoice.payment_failed':
         await handleInvoicePaymentFailure(event.data.object);
         break;
+      case 'payout.paid':
+        await handlePayoutPaid(event.data.object);
+        break;
+      case 'payout.failed':
+        await handlePayoutFailed(event.data.object);
+        break;
       default:
         console.log(`[WEBHOOK] Unhandled event type: ${event.type}`);
     }
@@ -514,4 +520,129 @@ async function handleInvoicePaymentFailure(invoice) {
     .eq('id', userId);
 
   console.log(`[WEBHOOK] Invoice payment failed for user ${userId}`);
+}
+
+// Handle successful payout to provider bank account
+async function handlePayoutPaid(payout) {
+  console.log(`[WEBHOOK] Payout paid - ID: ${payout.id}, Amount: £${payout.amount / 100}`);
+
+  try {
+    // Find the payout record by stripe_transfer_id from payout metadata
+    const transferId = payout.metadata?.transfer_id;
+
+    if (!transferId) {
+      console.error('[WEBHOOK] No transfer_id in payout metadata');
+      return;
+    }
+
+    const { data: payoutRecord, error } = await supabaseClient
+      .from('provider_payouts')
+      .update({
+        status: 'completed',
+        actual_payout_date: new Date().toISOString()
+      })
+      .eq('stripe_transfer_id', transferId)
+      .select();
+
+    if (error) {
+      console.error('[WEBHOOK] Error updating payout status to completed:', error);
+    } else if (payoutRecord && payoutRecord.length > 0) {
+      console.log(`[WEBHOOK] Payout marked as completed for transfer ${transferId}`);
+
+      // Optional: Send notification to provider
+      await createPayoutNotification(payoutRecord[0]);
+    } else {
+      console.warn(`[WEBHOOK] No payout record found for transfer ${transferId}`);
+    }
+  } catch (error) {
+    console.error(`[WEBHOOK] Error processing payout.paid event:`, error);
+  }
+}
+
+// Handle failed payout to provider bank account
+async function handlePayoutFailed(payout) {
+  console.log(`[WEBHOOK] Payout failed - ID: ${payout.id}, Amount: £${payout.amount / 100}, Reason: ${payout.failure_message}`);
+
+  try {
+    // Find the payout record by stripe_transfer_id from payout metadata
+    const transferId = payout.metadata?.transfer_id;
+
+    if (!transferId) {
+      console.error('[WEBHOOK] No transfer_id in payout metadata');
+      return;
+    }
+
+    const { data: payoutRecord, error } = await supabaseClient
+      .from('provider_payouts')
+      .update({
+        status: 'failed',
+        failure_reason: payout.failure_message || 'Payout failed'
+      })
+      .eq('stripe_transfer_id', transferId)
+      .select();
+
+    if (error) {
+      console.error('[WEBHOOK] Error updating payout status to failed:', error);
+    } else if (payoutRecord && payoutRecord.length > 0) {
+      console.log(`[WEBHOOK] Payout marked as failed for transfer ${transferId}`);
+
+      // Optional: Send notification to provider about failed payout
+      await createPayoutFailureNotification(payoutRecord[0]);
+    } else {
+      console.warn(`[WEBHOOK] No payout record found for transfer ${transferId}`);
+    }
+  } catch (error) {
+    console.error(`[WEBHOOK] Error processing payout.failed event:`, error);
+  }
+}
+
+// Helper function to create payout completion notification
+async function createPayoutNotification(payoutRecord) {
+  try {
+    const { error } = await supabaseClient
+      .from('notifications')
+      .insert({
+        user_id: payoutRecord.provider_id,
+        type: 'payout_completed',
+        title: 'Payment Received',
+        message: `£${payoutRecord.amount / 100} has been deposited to your bank account`,
+        data: {
+          payout_id: payoutRecord.id,
+          amount: payoutRecord.amount,
+          transfer_id: payoutRecord.transfer_id
+        }
+      });
+
+    if (error) {
+      console.error('[WEBHOOK] Error creating payout notification:', error);
+    }
+  } catch (error) {
+    console.error('[WEBHOOK] Error in createPayoutNotification:', error);
+  }
+}
+
+// Helper function to create payout failure notification
+async function createPayoutFailureNotification(payoutRecord) {
+  try {
+    const { error } = await supabaseClient
+      .from('notifications')
+      .insert({
+        user_id: payoutRecord.provider_id,
+        type: 'payout_failed',
+        title: 'Payment Failed',
+        message: `Payment of £${payoutRecord.amount / 100} could not be deposited. Reason: ${payoutRecord.failure_reason}`,
+        data: {
+          payout_id: payoutRecord.id,
+          amount: payoutRecord.amount,
+          transfer_id: payoutRecord.transfer_id,
+          failure_reason: payoutRecord.failure_reason
+        }
+      });
+
+    if (error) {
+      console.error('[WEBHOOK] Error creating payout failure notification:', error);
+    }
+  } catch (error) {
+    console.error('[WEBHOOK] Error in createPayoutFailureNotification:', error);
+  }
 }

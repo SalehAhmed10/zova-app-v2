@@ -254,7 +254,7 @@ export default function ProviderDashboard() {
             <Card className="bg-card">
               <CardContent className="p-4">
                 <TouchableOpacity
-                  onPress={() => router.push('/provider/profile')}
+                  onPress={() => router.push('/provider/profile/services')}
                   className="flex-row items-center justify-between"
                 >
                   <View className="flex-row items-center">
@@ -317,7 +317,7 @@ export default function ProviderDashboard() {
                 </Card>
               </TouchableOpacity>
               
-              <TouchableOpacity className="flex-1" onPress={() => router.push('/provider/profile')}>
+              <TouchableOpacity className="flex-1" onPress={() => router.push('/provider/profile/services')}>
                 <Card className='bg-card'>
                   <CardContent className=" p-4 items-center">
                     <Text className="text-xl mb-2">➕</Text>
@@ -336,7 +336,7 @@ export default function ProviderDashboard() {
               <TouchableOpacity className="flex-1" onPress={() => router.push('/provider/bookings')}>
                 <Card className='bg-card'>
                   <CardContent className=" p-4 items-center">
-                    <Text className="text-xl mb-2">�</Text>
+                    <Text className="text-xl mb-2">📋</Text>
                     <Text className="font-semibold text-foreground text-center text-xs">
                       Bookings
                     </Text>
@@ -347,7 +347,7 @@ export default function ProviderDashboard() {
                 </Card>
               </TouchableOpacity>
               
-              <TouchableOpacity className="flex-1" onPress={() => router.push('/provider/earnings')}>
+              <TouchableOpacity className="flex-1" onPress={() => router.push('/provider/profile/analytics')}>
                 <Card className='bg-card'>
                   <CardContent className=" p-4 items-center">
                     <Text className="text-xl mb-2">📊</Text>
@@ -461,7 +461,7 @@ export default function ProviderDashboard() {
           <Card>
             <CardContent className="p-4">
               <View className="gap-4">
-                <TouchableOpacity className="flex-row items-center" onPress={() => router.push('/provider/profile')}>
+                <TouchableOpacity className="flex-row items-center" onPress={() => router.push('/provider/profile/services')}>
                   <View className="w-10 h-10 bg-primary/10 rounded-full items-center justify-center mr-3">
                     <Text className="text-lg">✏️</Text>
                   </View>
@@ -472,7 +472,7 @@ export default function ProviderDashboard() {
                   <Text className="text-muted-foreground">→</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity className="flex-row items-center" onPress={() => router.push('/provider/profile')}>
+                <TouchableOpacity className="flex-row items-center" onPress={() => router.push('/provider/profile/services')}>
                   <View className="w-10 h-10 bg-accent/50 rounded-full items-center justify-center mr-3">
                     <Text className="text-lg">📋</Text>
                   </View>
