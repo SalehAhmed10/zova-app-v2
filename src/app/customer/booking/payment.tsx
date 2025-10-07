@@ -41,6 +41,8 @@ export default function PaymentScreen() {
   console.log('[Payment] Booking details from params:', bookingDetails);
 
   const depositAmount = bookingDetails.servicePrice * 0.2; // 20% deposit
+  const platformFee = bookingDetails.servicePrice * 0.1; // 10% platform fee (as per requirements)
+  const totalCustomerPays = bookingDetails.servicePrice + platformFee;
 
   // Create booking mutation
   const createBookingMutation = useCreateBooking();
@@ -50,11 +52,14 @@ export default function PaymentScreen() {
     setIsProcessing(true);
 
     try {
-      // Step 1: Create payment intent on backend
-      console.log('[Payment] Creating payment intent...');
+      // Step 1: Create payment intent with Authorization + Capture
+      console.log('[Payment] Creating payment intent with Authorization + Capture...');
+      console.log('[Payment] Authorization amount (full amount):', totalCustomerPays);
+      console.log('[Payment] Deposit amount to capture immediately:', depositAmount);
       const { data: paymentData, error: paymentError } = await supabase.functions.invoke('create-payment-intent', {
         body: {
-          amount: Math.round(depositAmount * 100), // Convert to cents
+          amount: Math.round(totalCustomerPays * 100), // Authorize full amount (service + platform fee)
+          depositAmount: Math.round(depositAmount * 100), // Deposit to capture immediately  
           currency: 'gbp',
           serviceId: bookingDetails.serviceId,
           providerId: bookingDetails.providerId,
@@ -108,7 +113,25 @@ export default function PaymentScreen() {
 
       console.log('[Payment] Payment sheet completed successfully');
 
-      // Step 4: Create booking after successful payment
+      // Step 4: Capture deposit amount immediately after successful authorization
+      console.log('[Payment] Capturing deposit amount...');
+      const { data: captureData, error: captureError } = await supabase.functions.invoke('capture-deposit', {
+        body: {
+          paymentIntentId: paymentIntentId,
+          depositAmount: Math.round(depositAmount * 100), // Amount in cents
+        },
+      });
+
+      if (captureError) {
+        console.error('[Payment] Deposit capture failed:', captureError);
+        Alert.alert('Payment Error', 'Payment authorized but deposit capture failed. Please contact support.');
+        setIsProcessing(false);
+        return;
+      }
+
+      console.log('[Payment] Deposit captured successfully:', captureData);
+
+      // Step 5: Create booking after successful payment and deposit capture
       if (!user) {
         console.error('[Payment] User not authenticated');
         throw new Error('User not authenticated');
@@ -139,12 +162,29 @@ export default function PaymentScreen() {
           depositAmount: depositAmount,
           totalAmount: bookingDetails.servicePrice,
           paymentIntentId: paymentIntentId,
+          authorizationAmount: totalCustomerPays, // Full amount authorized
+          capturedDeposit: depositAmount, // Amount captured as deposit
         });
         console.log('[Payment] Booking response received:', bookingResponse);
       } catch (bookingError) {
         console.error('[Payment] Booking creation failed:', bookingError);
         console.error('[Payment] Error details:', JSON.stringify(bookingError, null, 2));
-        throw bookingError;
+        
+        // Extract error details for better user experience
+        let errorMessage = 'Booking creation failed. Please try again.';
+        if (bookingError && typeof bookingError === 'object') {
+          const errorBody = (bookingError as any).message;
+          if (errorBody && errorBody.includes('{"error":')) {
+            try {
+              const parsed = JSON.parse(errorBody.match(/\{"error"[^}]*\}/)[0]);
+              errorMessage = parsed.error;
+            } catch (e) {
+              // Use default message
+            }
+          }
+        }
+        
+        throw new Error(errorMessage);
       }
 
       console.log('[Payment] Booking created successfully:', bookingResponse);
@@ -217,7 +257,7 @@ export default function PaymentScreen() {
           <CardHeader>
             <CardTitle>Booking Summary</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="gap-2">
             <View className="flex-row justify-between">
               <Text className="text-muted-foreground">Service</Text>
               <Text className="font-medium">{bookingDetails.serviceTitle}</Text>
@@ -234,12 +274,47 @@ export default function PaymentScreen() {
               <Text className="text-muted-foreground">Time</Text>
               <Text className="font-medium">{bookingDetails.selectedTime}</Text>
             </View>
-            <View className="border-t border-border pt-2 mt-2">
+            <View className="border-t border-border pt-2 mt-2 gap-2">
               <View className="flex-row justify-between">
-                <Text className="font-bold">Deposit Due Today</Text>
-                <Text className="font-bold text-primary">£{depositAmount.toFixed(2)}</Text>
+                <Text className="text-muted-foreground">Service Price</Text>
+                <Text className="font-medium">£{bookingDetails.servicePrice.toFixed(2)}</Text>
+              </View>
+              <View className="flex-row justify-between">
+                <Text className="text-muted-foreground">Platform Fee (10%)</Text>
+                <Text className="font-medium">£{platformFee.toFixed(2)}</Text>
+              </View>
+              <View className="flex-row justify-between">
+                <Text className="font-bold">Total Amount</Text>
+                <Text className="font-bold">£{totalCustomerPays.toFixed(2)}</Text>
+              </View>
+              <View className="border-t border-border pt-2">
+                <View className="flex-row justify-between">
+                  <Text className="font-bold text-primary">Deposit Due Today (20%)</Text>
+                  <Text className="font-bold text-primary">£{depositAmount.toFixed(2)}</Text>
+                </View>
+                <View className="flex-row justify-between mt-1">
+                  <Text className="text-sm text-muted-foreground">Remaining on service day</Text>
+                  <Text className="text-sm text-muted-foreground">£{(totalCustomerPays - depositAmount).toFixed(2)}</Text>
+                </View>
               </View>
             </View>
+          </CardContent>
+        </Card>
+
+        {/* Payment Information */}
+        <Card className="mx-4 mt-4">
+          <CardContent className="gap-3">
+            <View className="flex-row items-center">
+              <Ionicons name="information-circle" size={20} color={isDarkColorScheme ? THEME.dark.primary : THEME.light.primary} />
+              <Text className="font-medium text-foreground ml-2">Payment Details</Text>
+            </View>
+            <Text className="text-sm text-muted-foreground">
+              • Authorizing full amount (£{totalCustomerPays.toFixed(2)}) to secure your booking{'\n'}
+              • Only charging deposit (£{depositAmount.toFixed(2)}) today{'\n'}
+              • Remaining balance (£{(totalCustomerPays - depositAmount).toFixed(2)}) charged automatically when service is completed{'\n'}
+              • Provider receives full service price (£{bookingDetails.servicePrice.toFixed(2)}){'\n'}
+              • Platform fee (£{platformFee.toFixed(2)}) supports secure payments & customer service
+            </Text>
           </CardContent>
         </Card>
 
@@ -248,9 +323,9 @@ export default function PaymentScreen() {
           <CardContent className="flex-row items-center">
             <Ionicons name="shield-checkmark" size={24} color="#22c55e" />
             <View className="ml-3 flex-1">
-              <Text className="font-medium text-foreground">Secure Payment</Text>
+              <Text className="font-medium text-foreground">Protected Payment</Text>
               <Text className="text-sm text-muted-foreground">
-                Your payment information is collected securely by Stripe
+                Payment secured by Stripe. Full amount authorized but only deposit charged today.
               </Text>
             </View>
           </CardContent>

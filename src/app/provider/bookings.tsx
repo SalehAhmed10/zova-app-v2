@@ -15,6 +15,9 @@ import { usePendingBookings } from '@/hooks/provider';
 import { BookingRequestCard } from '@/components/provider';
 import { FlashList } from '@shopify/flash-list';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/core/supabase';
+
+
 
 interface BookingItem {
   id: string;
@@ -109,10 +112,21 @@ export default function ProviderBookingsScreen() {
 
   const handleCompleteBooking = async (bookingId: string) => {
     try {
-      await updateBookingStatusMutation.mutateAsync({
-        bookingId,
-        status: 'completed',
+      // Use the enterprise complete-service Edge Function for proper payment capture
+      const { data, error } = await supabase.functions.invoke('complete-service', {
+        body: {
+          booking_id: bookingId,
+          test_mode: false // Set to false for production
+        }
       });
+
+      if (error) {
+        console.error('Error completing service:', error);
+        // Show user-friendly error message
+        return;
+      }
+
+      console.log('Service completed successfully:', data);
       await Promise.all([refetch(), refetchPending()]);
     } catch (error) {
       console.error('Error completing booking:', error);
@@ -151,14 +165,14 @@ export default function ProviderBookingsScreen() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return 'bg-yellow-500';
-      case 'confirmed': return 'bg-green-500';
-      case 'in_progress': return 'bg-blue-500';
-      case 'completed': return 'bg-emerald-500';
-      case 'cancelled': return 'bg-red-500';
-      case 'declined': return 'bg-red-500';
-      case 'expired': return 'bg-gray-500';
-      default: return 'bg-gray-500';
+      case 'pending': return 'bg-yellow-600 dark:bg-yellow-500';
+      case 'confirmed': return 'bg-green-600 dark:bg-green-500';
+      case 'in_progress': return 'bg-blue-600 dark:bg-blue-500';
+      case 'completed': return 'bg-emerald-600 dark:bg-emerald-500';
+      case 'cancelled': return 'bg-red-600 dark:bg-red-500';
+      case 'declined': return 'bg-red-600 dark:bg-red-500';
+      case 'expired': return 'bg-muted-foreground';
+      default: return 'bg-muted-foreground';
     }
   };
 
@@ -216,8 +230,8 @@ export default function ProviderBookingsScreen() {
           {/* Header with Customer and Status */}
           <View className="flex-row justify-between items-start mb-3">
             <View className="flex-row items-center flex-1">
-              <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center mr-3">
-                <Ionicons name="person" size={20} color="#8B5CF6" />
+              <View className="w-10 h-10 rounded-full bg-primary/10 dark:bg-primary/20 items-center justify-center mr-3">
+                <Ionicons name="person" size={20} color={isDarkColorScheme ? '#8b5cf6' : '#7c3aed'} />
               </View>
               <View className="flex-1">
                 <Text className="font-semibold text-foreground text-base">
@@ -232,15 +246,15 @@ export default function ProviderBookingsScreen() {
               className={cn("ml-2", getStatusColor(booking.status))}
               variant="secondary"
             >
-              <Text className="text-white text-xs font-medium">
+              <Text className="text-white dark:text-white text-xs font-medium">
                 {getStatusText(booking.status)}
               </Text>
             </Badge>
           </View>
 
           {/* Service Info */}
-          <View className="flex-row items-center mb-3 bg-muted/30 p-3 rounded-lg">
-            <Ionicons name="cut" size={18} color="#8B5CF6" />
+          <View className="flex-row items-center mb-3 bg-muted/50 dark:bg-muted/30 p-3 rounded-lg">
+            <Ionicons name="cut" size={18} color={isDarkColorScheme ? '#8b5cf6' : '#7c3aed'} />
             <Text className="text-sm text-foreground font-medium ml-2 flex-1">
               {booking.serviceTitle}
             </Text>
@@ -249,13 +263,13 @@ export default function ProviderBookingsScreen() {
           {/* Date/Time and Price Row */}
           <View className="flex-row justify-between items-center mb-3">
             <View className="flex-row items-center flex-1">
-              <Ionicons name="calendar" size={16} color="#8B5CF6" />
+              <Ionicons name="calendar" size={16} color={isDarkColorScheme ? '#8b5cf6' : '#7c3aed'} />
               <Text className="text-sm text-foreground ml-2">
                 {formatDateTime(booking.date, booking.startTime)}
               </Text>
             </View>
             <View className="flex-row items-center">
-              <Ionicons name="cash" size={16} color="#10B981" />
+              <Ionicons name="cash" size={16} color="#10b981" />
               <Text className="text-lg font-bold text-primary ml-1">
                 {formatCurrency(booking.amount)}
               </Text>
@@ -267,7 +281,7 @@ export default function ProviderBookingsScreen() {
             <Text className="text-xs text-muted-foreground mr-1">
               Tap for details
             </Text>
-            <Ionicons name="chevron-forward" size={12} color="#8B5CF6" />
+            <Ionicons name="chevron-forward" size={12} color={isDarkColorScheme ? '#8b5cf6' : '#7c3aed'} />
           </View>
 
           {/* Quick Action Buttons - Only show for pending/confirmed/in_progress */}
@@ -384,7 +398,7 @@ export default function ProviderBookingsScreen() {
             onPress={() => router.back()}
             className="w-8 h-8 p-0"
           >
-            <Ionicons name="chevron-back" size={24} color="#8B5CF6" />
+            <Ionicons name="chevron-back" size={24} color={isDarkColorScheme ? '#8b5cf6' : '#7c3aed'} />
           </Button>
           <Text className="text-xl font-bold text-foreground">
             My Bookings
@@ -452,24 +466,47 @@ export default function ProviderBookingsScreen() {
           </View>
         ) : (
           <FlashList
-            data={[
-              ...(activeTab === 'pending' && pendingBookingsWithDeadline.length > 0 
-                ? [{ type: 'urgent-header' as const }] 
-                : []),
-              ...(activeTab === 'pending' && pendingBookingsWithDeadline.length > 0
-                ? pendingBookingsWithDeadline.map(b => ({ type: 'urgent' as const, booking: b }))
-                : []),
-              ...(activeTab === 'pending' && filteredBookings.length > 0 && pendingBookingsWithDeadline.length > 0
-                ? [{ type: 'divider' as const }]
-                : []),
-              ...filteredBookings.map(b => ({ type: 'regular' as const, booking: b })),
-            ]}
+            data={(() => {
+              const items = [];
+              
+              // Add urgent header if there are urgent bookings
+              if (activeTab === 'pending' && pendingBookingsWithDeadline.length > 0) {
+                items.push({ type: 'urgent-header' as const, id: 'urgent-header' });
+              }
+              
+              // Add urgent booking cards
+              if (activeTab === 'pending' && pendingBookingsWithDeadline.length > 0) {
+                pendingBookingsWithDeadline.forEach((booking, index) => {
+                  items.push({ 
+                    type: 'urgent' as const, 
+                    booking, 
+                    id: `urgent-${booking.id}-${index}` 
+                  });
+                });
+              }
+              
+              // Add divider if both urgent and regular bookings exist
+              if (activeTab === 'pending' && filteredBookings.length > 0 && pendingBookingsWithDeadline.length > 0) {
+                items.push({ type: 'divider' as const, id: 'divider' });
+              }
+              
+              // Add regular booking cards
+              filteredBookings.forEach((booking, index) => {
+                items.push({ 
+                  type: 'regular' as const, 
+                  booking, 
+                  id: `regular-${booking.id}-${index}` 
+                });
+              });
+              
+              return items;
+            })()}
             renderItem={({ item }) => {
               if (item.type === 'urgent-header') {
                 return (
-                  <View className="px-4 pt-4 pb-2">
+                  <View className="px-4 pt-2 pb-2">
                     <View className="flex-row items-center bg-destructive/10 p-3 rounded-lg">
-                      <Ionicons name="alert-circle" size={20} color="#EF4444" />
+                      <Ionicons name="alert-circle" size={20} color="#ef4444" />
                       <Text className="ml-2 text-sm font-bold text-destructive flex-1">
                         ⏰ Urgent: Requires Response
                       </Text>
@@ -484,14 +521,14 @@ export default function ProviderBookingsScreen() {
               }
               if (item.type === 'urgent') {
                 return (
-                  <View className="px-4 pb-2">
+                  <View className="px-4 pb-3">
                     <BookingRequestCard booking={item.booking} />
                   </View>
                 );
               }
               if (item.type === 'divider') {
                 return (
-                  <View className="px-4 py-2">
+                  <View className="px-4 py-3">
                     <View className="flex-row items-center">
                       <View className="flex-1 h-px bg-border" />
                       <Text className="mx-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -503,29 +540,25 @@ export default function ProviderBookingsScreen() {
                 );
               }
               return (
-                <View className="px-4 pb-2">
+                <View className="px-4 pb-3">
                   <BookingCard booking={item.booking} />
                 </View>
               );
             }}
-            keyExtractor={(item, index) => {
-              if (item.type === 'urgent-header') return 'urgent-header';
-              if (item.type === 'divider') return 'divider';
-              return item.booking.id;
-            }}
+            keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingVertical: 8 }}
+            contentContainerStyle={{ paddingTop: 4, paddingBottom: 8 }}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={onRefresh}
-                colors={['#8B5CF6']}
-                tintColor="#8B5CF6"
+                colors={[isDarkColorScheme ? '#8b5cf6' : '#7c3aed']}
+                tintColor={isDarkColorScheme ? '#8b5cf6' : '#7c3aed'}
               />
             }
             ListEmptyComponent={
               <View className="items-center justify-center py-16 px-6">
-                <View className="w-20 h-20 rounded-full bg-primary/10 items-center justify-center mb-4">
+                <View className="w-20 h-20 rounded-full bg-primary/10 dark:bg-primary/20 items-center justify-center mb-4">
                   <Ionicons 
                     name={
                       activeTab === 'pending' ? 'time-outline' :
@@ -535,7 +568,7 @@ export default function ProviderBookingsScreen() {
                       'close-circle-outline'
                     } 
                     size={40} 
-                    color="#8B5CF6" 
+                    color={isDarkColorScheme ? '#8b5cf6' : '#7c3aed'}
                   />
                 </View>
                 <Text className="text-xl font-bold text-foreground mb-2">

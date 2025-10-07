@@ -2,10 +2,12 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 
 interface PaymentIntentRequest {
-  amount: number;
+  amount: number;           // This is now the FULL amount (not just deposit)
+  depositAmount: number;    // The deposit portion to capture immediately
   currency: string;
   serviceId: string;
   providerId: string;
+  bookingId?: string;       // Optional booking ID for tracking
 }
 
 Deno.serve(async (req) => {
@@ -15,32 +17,45 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const authHeader = req.headers.get('Authorization');
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       {
         global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
+          headers: authHeader ? { Authorization: authHeader } : {},
         },
       }
     );
 
-    // Get the user from the auth token
+    // Get the user from the auth token - required for payment processing
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
 
     if (authError || !user) {
+      console.error('Authentication error:', authError);
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
+        JSON.stringify({ 
+          error: 'Authentication required for payment processing',
+          details: authError?.message
+        }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const { amount, currency, serviceId, providerId }: PaymentIntentRequest = await req.json();
+    const { amount, depositAmount, currency, serviceId, providerId, bookingId }: PaymentIntentRequest = await req.json();
 
     // Validate required fields
-    if (!amount || !currency || !serviceId || !providerId) {
+    if (!amount || !depositAmount || !currency || !serviceId || !providerId) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields' }),
+        JSON.stringify({ error: 'Missing required fields: amount, depositAmount, currency, serviceId, providerId' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate that deposit is less than total amount
+    if (depositAmount >= amount) {
+      return new Response(
+        JSON.stringify({ error: 'Deposit amount must be less than total amount' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -90,18 +105,28 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Create payment intent using fetch
+    // Calculate remaining amount for metadata
+    const remainingAmount = amount - depositAmount;
+    
+    // Create payment intent for FULL amount with manual capture
     const paymentIntentParams = new URLSearchParams({
-      amount: amount.toString(),
+      amount: amount.toString(),                    // FULL amount (e.g., 8500 for £85)
       currency: currency.toLowerCase(),
       customer: customerId,
-      description: 'Deposit for service booking',
+      capture_method: 'manual',                     // Key change: manual capture
+      description: `Service booking - Full: £${(amount/100).toFixed(2)}, Deposit: £${(depositAmount/100).toFixed(2)}`,
     });
     
-    // Add metadata
+    // Add comprehensive metadata for tracking
     paymentIntentParams.append('metadata[service_id]', serviceId);
     paymentIntentParams.append('metadata[provider_id]', providerId);
     paymentIntentParams.append('metadata[customer_id]', user.id);
+    paymentIntentParams.append('metadata[total_amount]', amount.toString());
+    paymentIntentParams.append('metadata[deposit_amount]', depositAmount.toString());
+    paymentIntentParams.append('metadata[remaining_amount]', remainingAmount.toString());
+    if (bookingId) {
+      paymentIntentParams.append('metadata[booking_id]', bookingId);
+    }
     
     // Add automatic payment methods
     paymentIntentParams.append('automatic_payment_methods[enabled]', 'true');
@@ -127,6 +152,10 @@ Deno.serve(async (req) => {
       JSON.stringify({
         clientSecret: paymentIntentData.client_secret,
         paymentIntentId: paymentIntentData.id,
+        amount: amount,                    // Full amount authorized
+        depositAmount: depositAmount,      // Amount to capture immediately
+        remainingAmount: remainingAmount,  // Amount to capture later
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

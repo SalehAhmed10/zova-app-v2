@@ -109,6 +109,9 @@ Deno.serve(async (req) => {
       id: booking.id,
       status: booking.status,
       payment_intent_id: booking.stripe_payment_intent_id,
+      authorization_amount: booking.authorization_amount,
+      remaining_to_capture: booking.remaining_to_capture,
+      remaining_captured_at: booking.remaining_captured_at,
       provider_stripe_account: booking.provider_profile?.stripe_account_id
     });
 
@@ -139,50 +142,132 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 4. Get payment intent details
-    console.log('Fetching payment intent...');
-    let paymentIntent;
+    // 4. Check if using new Authorization + Capture system
+    console.log('Checking payment system type...');
+    const isAuthCapture = booking.payment_intent_id && booking.authorization_amount;
     let paymentIntentData;
-    try {
-      paymentIntent = await stripe.paymentIntents.retrieve(booking.stripe_payment_intent_id);
-      console.log('Payment intent retrieved from Stripe:', paymentIntent.status);
-      paymentIntentData = {
-        amount: paymentIntent.amount,
-        currency: paymentIntent.currency,
-        status: paymentIntent.status
-      };
-    } catch (error) {
-      console.error('Error fetching payment intent from Stripe:', error);
-      console.log('Falling back to local payment_intents table data...');
+    
+    if (isAuthCapture) {
+      console.log('Using Authorization + Capture system');
       
-      // Fallback to local payment_intents table data
-      const { data: localPaymentIntent, error: localError } = await supabase
-        .from('payment_intents')
-        .select('amount, currency, status')
-        .eq('stripe_payment_intent_id', booking.stripe_payment_intent_id)
-        .single();
+      // Check if remaining payment has been captured
+      if (!booking.remaining_captured_at && booking.remaining_to_capture > 0) {
+        console.log('Capturing remaining payment before service completion...');
         
-      if (localError || !localPaymentIntent) {
-        console.error('Payment intent not found in local database either:', localError);
-        return new Response(JSON.stringify({
-          error: 'Payment intent not found'
-        }), {
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'application/json'
-          },
-          status: 400
-        });
+        // Call our capture-remaining-payment function
+        try {
+          const captureResponse = await fetch(`${supabaseUrl}/functions/v1/capture-remaining-payment`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              bookingId: booking_id
+            })
+          });
+
+          if (!captureResponse.ok) {
+            const captureError = await captureResponse.json();
+            console.error('Failed to capture remaining payment:', captureError);
+            return new Response(JSON.stringify({
+              error: 'Cannot complete service: Failed to capture remaining payment',
+              details: captureError.error
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              status: 400
+            });
+          }
+
+          const captureResult = await captureResponse.json();
+          console.log('Remaining payment captured successfully:', captureResult);
+          
+          // Refresh booking data to get updated payment status
+          const { data: updatedBooking, error: refreshError } = await supabase
+            .from('bookings')
+            .select('*')
+            .eq('id', booking_id)
+            .single();
+          
+          if (refreshError || !updatedBooking) {
+            console.error('Failed to refresh booking data:', refreshError);
+            return new Response(JSON.stringify({
+              error: 'Failed to refresh booking data after payment capture'
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              status: 500
+            });
+          }
+          
+          // Update our local booking object
+          Object.assign(booking, updatedBooking);
+        } catch (error) {
+          console.error('Error calling capture-remaining-payment function:', error);
+          return new Response(JSON.stringify({
+            error: 'Cannot complete service: Payment capture failed',
+            details: error instanceof Error ? error.message : 'Unknown error'
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500
+          });
+        }
       }
       
-      // Convert amount from pounds to cents for calculation
+      // Use authorization amount for calculations
       paymentIntentData = {
-        amount: Math.round(localPaymentIntent.amount * 100), // Convert pounds to cents
-        currency: localPaymentIntent.currency.toUpperCase(),
-        status: localPaymentIntent.status
+        amount: Math.round(booking.authorization_amount * 100), // Convert to cents
+        currency: 'GBP',
+        status: 'succeeded'
       };
+      console.log('Using Authorization + Capture data:', paymentIntentData);
       
-      console.log('Using local payment intent data:', paymentIntentData);
+    } else {
+      console.log('Using legacy payment system');
+      
+      // 4. Get payment intent details (legacy system)
+      console.log('Fetching payment intent...');
+      let paymentIntent;
+      try {
+        paymentIntent = await stripe.paymentIntents.retrieve(booking.stripe_payment_intent_id);
+        console.log('Payment intent retrieved from Stripe:', paymentIntent.status);
+        paymentIntentData = {
+          amount: paymentIntent.amount,
+          currency: paymentIntent.currency,
+          status: paymentIntent.status
+        };
+      } catch (error) {
+        console.error('Error fetching payment intent from Stripe:', error);
+        console.log('Falling back to local payment_intents table data...');
+        
+        // Fallback to local payment_intents table data
+        const { data: localPaymentIntent, error: localError } = await supabase
+          .from('payment_intents')
+          .select('amount, currency, status')
+          .eq('stripe_payment_intent_id', booking.stripe_payment_intent_id)
+          .single();
+          
+        if (localError || !localPaymentIntent) {
+          console.error('Payment intent not found in local database either:', localError);
+          return new Response(JSON.stringify({
+            error: 'Payment intent not found'
+          }), {
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json'
+            },
+            status: 400
+          });
+        }
+        
+        // Convert amount from pounds to cents for calculation
+        paymentIntentData = {
+          amount: Math.round(localPaymentIntent.amount * 100), // Convert pounds to cents
+          currency: localPaymentIntent.currency.toUpperCase(),
+          status: localPaymentIntent.status
+        };
+        
+        console.log('Using local payment intent data:', paymentIntentData);
+      }
     }
 
     // 5. Calculate payout amount (90% to provider, 10% commission)
@@ -199,7 +284,7 @@ Deno.serve(async (req) => {
     // 6. Create transfer to provider's Stripe account
     console.log('Creating transfer to provider...');
     let transfer;
-    const usingLocalData = !paymentIntent; // If we didn't get data from Stripe API
+    const usingLocalData = isAuthCapture || paymentIntentData?.status !== 'succeeded';
     
     try {
       if (test_mode || usingLocalData) {
@@ -346,6 +431,7 @@ Deno.serve(async (req) => {
       transfer_id: transfer.id,
       payout_amount: payoutAmount,
       commission_amount: commissionAmount,
+      payment_system: isAuthCapture ? 'authorization_capture' : 'legacy',
       message: 'Service completed successfully and payment released'
     }), {
       headers: {

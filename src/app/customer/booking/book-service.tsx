@@ -16,7 +16,7 @@ import { supabase } from '@/lib/core/supabase';
 
 // React Query hooks
 import { useServiceDetails } from '@/hooks/customer/useServiceDetails';
-import { useProviderAvailability, useProviderSchedule } from '@/hooks/customer/useProviderAvailability';
+import { useProviderAvailability, useProviderSchedule, useProviderBlackouts } from '@/hooks/customer/useProviderAvailability';
 
 export default function BookServiceScreen() {
   const { serviceId, providerId, providerName, serviceTitle, servicePrice } = useLocalSearchParams();
@@ -47,6 +47,9 @@ export default function BookServiceScreen() {
 
   // Get provider schedule and availability
   const { data: providerSchedule } = useProviderSchedule(providerId as string);
+  
+  // Get provider blackout dates
+  const { data: blackoutDates = [] } = useProviderBlackouts(providerId as string);
 
   // Get provider availability for selected date
   const { data: availability, isLoading: availabilityLoading } = useProviderAvailability(
@@ -54,13 +57,13 @@ export default function BookServiceScreen() {
     selectedDate
   );
 
-  // Calculate disabled dates based on provider schedule
+  // Calculate disabled dates based on provider schedule AND blackout dates
   const disabledDates = React.useMemo(() => {
     const disabled: string[] = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Check next 90 days
+    // Check next 90 days for schedule-based disabled dates
     for (let i = 0; i < 90; i++) {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
@@ -76,8 +79,14 @@ export default function BookServiceScreen() {
       }
     }
 
-    return disabled;
-  }, [providerSchedule]);
+    // Add blackout dates to disabled dates
+    if (blackoutDates.length > 0) {
+      disabled.push(...blackoutDates);
+    }
+
+    // Remove duplicates and return
+    return [...new Set(disabled)];
+  }, [providerSchedule, blackoutDates]);
 
   // Helper function to get default time within working hours
   const getDefaultTime = React.useMemo(() => {
@@ -240,7 +249,7 @@ export default function BookServiceScreen() {
       params: {
         serviceId,
         providerId,
-        providerName,
+        providerName: service?.provider?.name || providerName || 'Provider',
         serviceTitle,
         servicePrice,
         selectedDate,

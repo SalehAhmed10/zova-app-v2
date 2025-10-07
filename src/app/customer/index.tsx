@@ -198,7 +198,7 @@ export default function CustomerDashboard() {
                   />
                   <TodaysStat
                     icon="💰"
-                    value={bookingsLoading ? '-' : `$${realStats.totalSpent.toFixed(0)}`}
+                    value={bookingsLoading ? '-' : `£${realStats.totalSpent.toFixed(0)}`}
                     label="Total Spent"
                     trend="up"
                     isLoading={bookingsLoading}
@@ -258,7 +258,9 @@ export default function CustomerDashboard() {
                   </CardContent>
                 </Card>
               </TouchableOpacity>
-            </View>            <View className="flex-row">
+            </View>
+            
+            <View className="flex-row">
               <TouchableOpacity 
                 className="flex-1" 
                 onPress={() => hasSOSAccess ? router.push('/customer/sos-booking') : router.push('/customer/subscriptions')}
@@ -334,7 +336,7 @@ export default function CustomerDashboard() {
                         {booking.provider_first_name} {booking.provider_last_name} • {booking.booking_date}
                       </Text>
                     </View>
-                    <Text className="text-primary font-bold">${booking.total_amount}</Text>
+                    <Text className="text-primary font-bold">£{booking.total_amount}</Text>
                   </View>
                 )) || (
                   <View className="items-center py-8">
@@ -363,7 +365,7 @@ export default function CustomerDashboard() {
                 </View>
                 <View>
                   <Text className="text-2xl font-bold text-foreground">
-                    {bookingsLoading ? '-' : `$${realStats.totalSpent.toFixed(0)}`}
+                    {bookingsLoading ? '-' : `£${realStats.totalSpent.toFixed(0)}`}
                   </Text>
                   <Text className="text-muted-foreground text-sm">Total spent</Text>
                 </View>
@@ -501,7 +503,7 @@ export default function CustomerDashboard() {
                     </View>
                   </View>
                   <View className="items-center">
-                    <Text className="text-primary font-bold text-lg">${nextBooking.total_amount}</Text>
+                    <Text className="text-primary font-bold text-lg">£{nextBooking.total_amount}</Text>
                     <Text className="text-muted-foreground text-xs">{nextBooking.status}</Text>
                   </View>
                 </View>
@@ -513,14 +515,11 @@ export default function CustomerDashboard() {
                 </View>
 
                 <View className="gap-3">
-             
-                                  <View>
                   <TouchableOpacity onPress={() => router.push(`/customer/booking/${nextBooking.id}` as any)}>
                     <View className="bg-primary rounded-lg py-4 items-center">
                       <Text className="text-primary-foreground font-bold text-sm">View Details</Text>
                     </View>
                   </TouchableOpacity>
-                </View>
                 </View>
               </CardContent>
             </Card>

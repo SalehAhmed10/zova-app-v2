@@ -14,6 +14,8 @@ type CreateBookingParams = {
   depositAmount: number;
   totalAmount: number;
   paymentIntentId: string;
+  authorizationAmount?: number; // Full amount authorized
+  capturedDeposit?: number; // Amount already captured as deposit
 };
 
 // Hook for creating a booking
@@ -34,6 +36,8 @@ export function useCreateBooking() {
         customer_notes: params.specialRequests,
         service_address: params.address,
         payment_intent_id: params.paymentIntentId,
+        authorization_amount: params.authorizationAmount,
+        captured_deposit: params.capturedDeposit,
       });
 
       const response = await supabase.functions.invoke('create-booking', {
@@ -46,6 +50,8 @@ export function useCreateBooking() {
           customer_notes: params.specialRequests,
           service_address: params.address,
           payment_intent_id: params.paymentIntentId,
+          authorization_amount: params.authorizationAmount,
+          captured_deposit: params.capturedDeposit,
         },
       });
 

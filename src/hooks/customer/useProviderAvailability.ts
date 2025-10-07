@@ -132,6 +132,53 @@ export function useProviderAvailability(providerId: string, date: string) {
 }
 
 /**
+ * Interface for provider blackout periods
+ */
+export interface ProviderBlackout {
+  id: string;
+  start_date: string;
+  end_date: string;
+  reason: string | null;
+  provider_id: string;
+}
+
+/**
+ * Hook to fetch provider blackout dates
+ * Uses Edge Function to bypass RLS
+ */
+export function useProviderBlackouts(providerId: string) {
+  return useQuery({
+    queryKey: ['provider-blackouts', providerId],
+    queryFn: async (): Promise<string[]> => {
+      if (!providerId) return [];
+
+      try {
+        console.log('[useProviderBlackouts] Fetching blackouts for provider:', providerId);
+
+        // Use edge function to bypass RLS
+        const { data, error } = await supabase.functions.invoke('get-provider-blackouts', {
+          body: { providerId }
+        });
+
+        if (error) {
+          console.error('Error fetching provider blackouts:', error);
+          return [];
+        }
+
+        const disabledDates = data?.disabledDates || [];
+        console.log('[useProviderBlackouts] Disabled dates:', disabledDates);
+        return disabledDates;
+      } catch (error) {
+        console.error('Error in useProviderBlackouts:', error);
+        return [];
+      }
+    },
+    enabled: !!providerId,
+    staleTime: 5 * 60 * 1000, // 5 minutes - blackouts don't change frequently
+  });
+}
+
+/**
  * Hook to check if a specific time slot is available
  */
 export function useTimeSlotAvailability(providerId: string, date: string, time: string, duration: number = 60) {

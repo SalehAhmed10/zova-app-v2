@@ -18,3 +18,17 @@ verify_jwt = false
 
 [functions.stripe-redirect]
 verify_jwt = false
+
+# Disable JWT verification for payment functions
+# These functions handle JWT manually for better error handling
+[functions.create-payment-intent]
+verify_jwt = false
+
+[functions.create-booking]
+verify_jwt = false
+
+[functions.capture-deposit]
+verify_jwt = false
+
+[functions.capture-remaining-payment]
+verify_jwt = false

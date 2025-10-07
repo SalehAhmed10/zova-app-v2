@@ -772,16 +772,20 @@ export const useProviderEarnings = (providerId?: string) => {
 
       if (error) throw error;
 
-      // Calculate total earnings (paid/completed payouts)
-      const totalEarnings = payouts?.filter(p => p.status === 'paid' || p.status === 'completed')
-        .reduce((sum, payout) => sum + parseFloat(payout.amount || '0'), 0) || 0;
+      // Calculate total earnings (all legitimate payouts including pending)
+      const totalEarnings = payouts?.filter(p => 
+        p.status === 'paid' || p.status === 'completed' || p.status === 'pending' || p.status === 'processing'
+      ).reduce((sum, payout) => sum + parseFloat(payout.amount || '0'), 0) || 0;
 
-      // Calculate this month's earnings
+      // Calculate this month's earnings (all legitimate payouts including pending)
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const thisMonthEarnings = payouts?.filter(payout => {
         const payoutDate = new Date(payout.created_at);
-        return payoutDate >= startOfMonth && (payout.status === 'paid' || payout.status === 'completed');
+        return payoutDate >= startOfMonth && (
+          payout.status === 'paid' || payout.status === 'completed' || 
+          payout.status === 'pending' || payout.status === 'processing'
+        );
       }).reduce((sum, payout) => sum + parseFloat(payout.amount || '0'), 0) || 0;
 
       // Calculate pending payouts

@@ -177,7 +177,18 @@ export default function CustomerLayout() {
         href: null,
       }}
       />
-
+      <Tabs.Screen
+        name='profile/reviews'
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name='profile/notifications'
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

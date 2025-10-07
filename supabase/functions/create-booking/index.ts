@@ -10,6 +10,8 @@ interface BookingRequest {
   customer_notes?: string;
   service_address?: string;
   payment_intent_id: string;
+  authorization_amount?: number; // Full amount authorized
+  captured_deposit?: number; // Amount already captured as deposit
 }
 
 Deno.serve(async (req) => {
@@ -176,7 +178,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     console.log('Request body parsed successfully');
 
-    const { service_id, provider_id, customer_id, booking_date, start_time, customer_notes, service_address, payment_intent_id }: BookingRequest = body;
+    const { service_id, provider_id, customer_id, booking_date, start_time, customer_notes, service_address, payment_intent_id, authorization_amount, captured_deposit }: BookingRequest = body;
 
     console.log('Parsed booking request:', {
       service_id,
@@ -186,7 +188,9 @@ Deno.serve(async (req) => {
       start_time,
       customer_notes: customer_notes ? 'Present' : 'Not provided',
       service_address: service_address ? 'Present' : 'Not provided',
-      payment_intent_id
+      payment_intent_id,
+      authorization_amount,
+      captured_deposit
     });
 
     // Validate required fields
@@ -372,7 +376,7 @@ Deno.serve(async (req) => {
 
     // Calculate amounts
     const baseAmount = service.base_price;
-    const platformFee = Math.round(baseAmount * 0.15 * 100) / 100; // 15% platform fee
+    const platformFee = Math.round(baseAmount * 0.10 * 100) / 100; // 10% platform fee
     const totalAmount = baseAmount + platformFee;
 
     // Retrieve and validate the existing PaymentIntent
@@ -397,13 +401,27 @@ Deno.serve(async (req) => {
 
     const paymentIntent = await paymentIntentResponse.json();
 
-    // Verify the payment was successful
-    if (paymentIntent.status !== 'succeeded') {
+    // Verify the payment was authorized (handle both old and new payment flows)
+    const validStatuses = ['succeeded', 'requires_capture', 'partially_captured'];
+    if (!validStatuses.includes(paymentIntent.status)) {
+      console.log('PaymentIntent status check:', {
+        current_status: paymentIntent.status,
+        valid_statuses: validStatuses,
+        capture_method: paymentIntent.capture_method
+      });
       return new Response(
-        JSON.stringify({ error: 'Payment not completed' }),
+        JSON.stringify({ error: 'Payment not authorized or completed' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log('PaymentIntent validation passed:', {
+      status: paymentIntent.status,
+      capture_method: paymentIntent.capture_method,
+      amount: paymentIntent.amount,
+      amount_capturable: paymentIntent.amount_capturable,
+      amount_received: paymentIntent.amount_received
+    });
 
     // Verify the PaymentIntent metadata matches our booking
     const metadata = paymentIntent.metadata || {};
@@ -436,6 +454,10 @@ Deno.serve(async (req) => {
 
     console.log('Provider auto-confirm setting:', { autoConfirm, bookingStatus, autoConfirmed });
 
+    // Calculate authorization expiry (7 days from now, same as PaymentIntent)
+    const authorizationExpiry = new Date();
+    authorizationExpiry.setDate(authorizationExpiry.getDate() + 7);
+
     // Create booking record using service role (bypass RLS)
     // Status will be 'pending' if manual acceptance required, 'confirmed' if auto-accept
     const { data: booking, error: bookingError } = await supabaseService
@@ -455,6 +477,13 @@ Deno.serve(async (req) => {
         status: bookingStatus, // 'pending' or 'confirmed' based on provider setting
         payment_status: 'paid', // Payment succeeded
         auto_confirmed: autoConfirmed, // Track if this was auto-confirmed
+        // Authorization + Capture fields
+        payment_intent_id: payment_intent_id,
+        authorization_amount: authorization_amount || totalAmount,
+        captured_deposit: captured_deposit || (authorization_amount ? authorization_amount * 0.2 : totalAmount * 0.2),
+        remaining_to_capture: (authorization_amount || totalAmount) - (captured_deposit || (authorization_amount ? authorization_amount * 0.2 : totalAmount * 0.2)),
+        deposit_captured_at: new Date().toISOString(),
+        authorization_expires_at: authorizationExpiry.toISOString(),
         // provider_response_deadline set by trigger if status='pending'
       })
       .select()
@@ -466,18 +495,6 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: `Failed to create booking: ${bookingError.message}` }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
-    }
-
-    // Update booking with payment intent ID using service role
-    const { error: updateError } = await supabaseService
-      .from('bookings')
-      .update({
-        stripe_payment_intent_id: payment_intent_id,
-      })
-      .eq('id', booking.id);
-
-    if (updateError) {
-      console.error('Booking update error:', updateError);
     }
 
     // Create payment_intents record for tracking

@@ -282,9 +282,14 @@ export default function ProviderEarningsScreen() {
                   {earningsLoading ? (
                     <Skeleton className="w-20 h-8 bg-white/20" />
                   ) : (
-                    <Text className="text-primary-foreground text-2xl font-bold">
-                      {formatCurrency(earnings?.totalEarnings || 0)}
-                    </Text>
+                    <>
+                      <Text className="text-primary-foreground text-2xl font-bold">
+                        {formatCurrency(earnings?.totalEarnings || 0)}
+                      </Text>
+                      <Text className="text-primary-foreground/50 text-xs mt-1">
+                        Includes pending & completed
+                      </Text>
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -302,9 +307,14 @@ export default function ProviderEarningsScreen() {
                   {earningsLoading ? (
                     <Skeleton className="w-20 h-8 bg-white/20" />
                   ) : (
-                    <Text className="text-primary-foreground text-2xl font-bold">
-                      {formatCurrency(earnings?.thisMonth || 0)}
-                    </Text>
+                    <>
+                      <Text className="text-primary-foreground text-2xl font-bold">
+                        {formatCurrency(earnings?.thisMonth || 0)}
+                      </Text>
+                      <Text className="text-primary-foreground/50 text-xs mt-1">
+                        This month's earnings
+                      </Text>
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -322,9 +332,14 @@ export default function ProviderEarningsScreen() {
                   {earningsLoading ? (
                     <Skeleton className="w-20 h-8 bg-white/20" />
                   ) : (
-                    <Text className="text-yellow-100 text-2xl font-bold">
-                      {formatCurrency(earnings?.pendingPayouts || 0)}
-                    </Text>
+                    <>
+                      <Text className="text-yellow-100 text-2xl font-bold">
+                        {formatCurrency(earnings?.pendingPayouts || 0)}
+                      </Text>
+                      <Text className="text-primary-foreground/50 text-xs mt-1">
+                        Being processed to bank
+                      </Text>
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -671,15 +686,15 @@ export default function ProviderEarningsScreen() {
                 <View className="gap-3">
                   <View className="flex-row items-center gap-3">
                     <View className="flex-1 bg-green-500 rounded-full h-3 min-w-0">
-                      <View className="bg-green-500 rounded-full h-3" style={{width: '85%'}} />
+                      <View className="bg-green-500 rounded-full h-3" style={{width: '90%'}} />
                     </View>
-                    <Text className="text-xs font-bold text-green-600 dark:text-green-400 flex-shrink-0">85%</Text>
+                    <Text className="text-xs font-bold text-green-600 dark:text-green-400 flex-shrink-0">90%</Text>
                   </View>
                   <View className="flex-row items-center gap-3">
                     <View className="flex-1 bg-blue-500 rounded-full h-2 min-w-0">
-                      <View className="bg-blue-500 rounded-full h-2" style={{width: '15%'}} />
+                      <View className="bg-blue-500 rounded-full h-2" style={{width: '10%'}} />
                     </View>
-                    <Text className="text-xs font-bold text-blue-600 dark:text-blue-400 flex-shrink-0">15%</Text>
+                    <Text className="text-xs font-bold text-blue-600 dark:text-blue-400 flex-shrink-0">10%</Text>
                   </View>
                 </View>
                 <View className="flex-row justify-between mt-2 px-1">
@@ -696,7 +711,7 @@ export default function ProviderEarningsScreen() {
                   </View>
                   <View className="flex-1 min-w-0">
                     <View className="flex-row items-center gap-2 mb-1 flex-wrap">
-                      <Text className="text-base font-bold text-green-800 dark:text-green-200">85% You Keep</Text>
+                      <Text className="text-base font-bold text-green-800 dark:text-green-200">90% You Keep</Text>
                       <View className="bg-green-100 dark:bg-green-900/50 px-2 py-0.5 rounded-full">
                         <Text className="text-xs font-bold text-green-700 dark:text-green-300">Highest Rate</Text>
                       </View>
@@ -711,7 +726,7 @@ export default function ProviderEarningsScreen() {
                   </View>
                   <View className="flex-1 min-w-0">
                     <View className="flex-row items-center gap-2 mb-1 flex-wrap">
-                      <Text className="text-base font-bold text-blue-800 dark:text-blue-200">15% Platform Fee</Text>
+                      <Text className="text-base font-bold text-blue-800 dark:text-blue-200">10% Platform Fee</Text>
                       <View className="bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded-full">
                         <Text className="text-xs font-bold text-blue-700 dark:text-blue-300">Lowest Fee</Text>
                       </View>
