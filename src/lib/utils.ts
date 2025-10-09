@@ -7,6 +7,15 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Centralized currency formatting utility
+ * Ensures consistent currency display across the entire app
+ */
+export function formatCurrency(amount: number | string): string {
+  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  return `£${numAmount.toFixed(2)}`;
+}
+
+/**
  * Normalizes an image URI for React Native Image component display.
  * On Android, converts content:// URIs to file:// URIs that React Native can handle.
  */

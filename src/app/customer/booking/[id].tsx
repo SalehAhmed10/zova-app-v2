@@ -136,7 +136,7 @@ export default function BookingDetailScreen() {
 
         <View className="px-4 py-4">
           {/* Service Information */}
-          <Card className="mb-4">
+          <Card className="mb-4 bg-card">
             <CardHeader>
               <CardTitle className="flex-row items-center justify-between">
                 <View className="flex-row items-center gap-3 flex-1">
@@ -219,7 +219,7 @@ export default function BookingDetailScreen() {
           </Card>
 
           {/* Price Information */}
-          <Card className="mb-4">
+          <Card className="mb-4 bg-card">
             <CardHeader>
               <CardTitle>
                 <Text className="text-lg font-semibold text-foreground">Price Details</Text>

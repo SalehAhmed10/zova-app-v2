@@ -176,7 +176,7 @@ function DefaultErrorFallback({ error, errorInfo, retry, level }: ErrorFallbackP
         )}
 
         {/* Action Buttons */}
-        <View className="space-y-3">
+        <View className="gap-3">
           <Button onPress={handleRestart} size="lg" className="w-full">
             <Text className="text-primary-foreground font-semibold">
               {isAppLevel ? 'Restart App' : 'Try Again'}

@@ -418,7 +418,7 @@ export const useProviderStats = (providerId?: string) => {
     queryKey: ['providerStats', providerId],
     queryFn: async () => {
       if (!providerId) throw new Error('Provider ID is required');
-      
+
       // Get booking stats for provider
       const { data: bookingStats, error: bookingError } = await supabase
         .from('bookings')
@@ -427,13 +427,29 @@ export const useProviderStats = (providerId?: string) => {
 
       if (bookingError) throw bookingError;
 
+      // Get payout stats for consistent earnings calculation
+      const { data: payoutStats, error: payoutError } = await supabase
+        .from('provider_payouts')
+        .select('amount, status, created_at')
+        .eq('provider_id', providerId);
+
+      if (payoutError) throw payoutError;
+
       // Get today's bookings
       const today = new Date().toISOString().split('T')[0];
       const todaysBookings = bookingStats?.filter(b => b.booking_date === today) || [];
-      
-      // Get this month's earnings
+
+      // Get this month's earnings from payouts (consistent with earnings screen)
       const currentMonth = new Date().getMonth();
       const currentYear = new Date().getFullYear();
+      const thisMonthPayouts = payoutStats?.filter(p => {
+        const payoutDate = new Date(p.created_at);
+        return payoutDate.getMonth() === currentMonth &&
+               payoutDate.getFullYear() === currentYear &&
+               (p.status === 'paid' || p.status === 'completed' || p.status === 'pending' || p.status === 'processing');
+      }) || [];
+
+      // Get this month's bookings for comparison
       const thisMonthBookings = bookingStats?.filter(b => {
         const bookingDate = new Date(b.booking_date);
         return bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear;
@@ -450,9 +466,9 @@ export const useProviderStats = (providerId?: string) => {
       const totalBookings = bookingStats?.length || 0;
       const completedBookings = bookingStats?.filter(b => b.status === 'completed').length || 0;
       const todaysBookingCount = todaysBookings.length;
-      const thisMonthEarnings = thisMonthBookings.reduce((sum, b) => sum + parseFloat(b.total_amount || '0'), 0);
-      const avgRating = reviewStats?.length > 0 
-        ? reviewStats.reduce((sum, r) => sum + r.rating, 0) / reviewStats.length 
+      const thisMonthEarnings = thisMonthPayouts.reduce((sum, p) => sum + parseFloat(p.amount || '0'), 0);
+      const avgRating = reviewStats?.length > 0
+        ? reviewStats.reduce((sum, r) => sum + r.rating, 0) / reviewStats.length
         : 0;
 
       return {

@@ -168,7 +168,7 @@ export function StripeOnboardingComplete({
           {isAccountReady ? '✅ Account Setup Complete' : '⚠️ Complete Account Setup'}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="gap-4">
         {isAccountReady ? (
           <Text className="text-accent-foreground">
             Your Stripe account is fully set up and ready to receive payments.

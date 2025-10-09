@@ -101,7 +101,7 @@ export const PaymentSetupStatusCard: React.FC<PaymentSetupStatusProps> = ({ user
           }
         </Text>
 
-        <View className="space-y-2 mb-4">
+        <View className="gap-2 mb-4">
           <View className="flex-row items-center">
             <Text className="text-lg mr-2">⚡</Text>
             <Text className="text-sm text-muted-foreground">Fast 2-3 minute setup</Text>

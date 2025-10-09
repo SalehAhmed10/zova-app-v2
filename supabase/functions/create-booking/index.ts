@@ -477,11 +477,11 @@ Deno.serve(async (req) => {
         status: bookingStatus, // 'pending' or 'confirmed' based on provider setting
         payment_status: 'paid', // Payment succeeded
         auto_confirmed: autoConfirmed, // Track if this was auto-confirmed
-        // Authorization + Capture fields
+        // Authorization + Capture fields (convert decimals to integers for database)
         payment_intent_id: payment_intent_id,
-        authorization_amount: authorization_amount || totalAmount,
-        captured_deposit: captured_deposit || (authorization_amount ? authorization_amount * 0.2 : totalAmount * 0.2),
-        remaining_to_capture: (authorization_amount || totalAmount) - (captured_deposit || (authorization_amount ? authorization_amount * 0.2 : totalAmount * 0.2)),
+        authorization_amount: Math.round(authorization_amount || totalAmount),
+        captured_deposit: Math.round(captured_deposit || (authorization_amount ? authorization_amount * 0.2 : totalAmount * 0.2)),
+        remaining_to_capture: Math.round((authorization_amount || totalAmount) - (captured_deposit || (authorization_amount ? authorization_amount * 0.2 : totalAmount * 0.2))),
         deposit_captured_at: new Date().toISOString(),
         authorization_expires_at: authorizationExpiry.toISOString(),
         // provider_response_deadline set by trigger if status='pending'

@@ -8,7 +8,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { THEME } from '@/lib/core/theme';
+import { THEME } from '@/lib/theme';
+import { useTrackView } from '@/hooks/shared/useTrackView';
 
 interface FavoriteProvider {
   id: string;
@@ -38,8 +39,14 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({
 }) => {
   const router = useRouter();
   const { isDarkColorScheme } = useColorScheme();
+  const trackView = useTrackView();
 
   const handlePress = () => {
+    // Track profile view
+    trackView.mutate({
+      type: 'profile',
+      targetId: provider.id,
+    });
     router.push(`/customer/provider/${provider.id}`);
   };
 
@@ -55,7 +62,7 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({
   const avatarSize = variant === 'compact' ? 'w-12 h-12' : 'w-14 h-14';
 
   return (
-    <Card className={`bg-card border border-border/50 mb-3 shadow-sm overflow-hidden ${cardPadding}`}>
+    <Card className={`bg-card border border-border/50 mb-3  overflow-hidden ${cardPadding}`}>
       <CardContent className="p-0">
         <View className="flex-row items-start gap-3">
           {/* Avatar Section */}

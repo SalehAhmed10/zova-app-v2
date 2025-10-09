@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Star, X } from 'lucide-react-native';
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { THEME } from '@/lib/core/theme';
+import { THEME } from '@/lib/theme';
 
 interface ReviewModalProps {
   bookingId: string;
@@ -102,7 +102,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
             </View>
           </CardHeader>
 
-          <CardContent className="space-y-4">
+          <CardContent className="gap-4">
             <View className="text-center">
               <Text className="text-sm text-muted-foreground mb-1">
                 Service: {serviceName}
@@ -136,7 +136,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
               </Text>
             </View>
 
-            <View className="flex-row items-center space-x-2">
+            <View className="flex-row items-center gap-2">
               <TouchableOpacity
                 onPress={() => setIsAnonymous(!isAnonymous)}
                 className="flex-row items-center"
@@ -150,7 +150,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
               </TouchableOpacity>
             </View>
 
-            <View className="flex-row space-x-3 pt-4">
+            <View className="flex-row gap-3 pt-4">
               <Button
                 variant="outline"
                 onPress={onClose}

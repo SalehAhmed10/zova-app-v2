@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { THEME } from '@/lib/core/theme';
+import { THEME } from '@/lib/theme';
 import { useAuthOptimized, useProfileSync } from '@/hooks';
 import { useProfileHydration } from '@/stores/verification/useProfileStore';
 import { useAppStore } from '@/stores/auth/app';

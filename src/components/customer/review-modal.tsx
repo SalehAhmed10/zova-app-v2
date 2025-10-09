@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useSubmitReview } from '@/hooks/shared/useSubmitReview';
 import { cn } from '@/lib/utils';
-import { THEME } from '@/lib/core/theme';
+import { THEME } from '@/lib/theme';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 
 interface ReviewModalProps {

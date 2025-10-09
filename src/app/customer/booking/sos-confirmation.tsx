@@ -105,8 +105,8 @@ export default function SOSConfirmationScreen() {
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         <View className="p-4 gap-6">
           {/* Success Header */}
-          <View className="bg-green-50 dark:bg-green-950/30 rounded-2xl p-6 border border-green-200 dark:border-green-800 items-center">
-            <View className="w-16 h-16 bg-green-500 rounded-full items-center justify-center mb-4">
+          <View className="bg-success/10 rounded-2xl p-6 border border-success/20 items-center">
+            <View className="w-16 h-16 bg-success rounded-full items-center justify-center mb-4">
               <CheckCircle2 size={32} className="text-white" />
             </View>
             <Text className="text-xl font-bold text-foreground text-center mb-2">

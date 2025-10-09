@@ -12,14 +12,14 @@ import { useUserFavorites, useToggleFavorite } from '@/hooks/customer/useFavorit
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChevronLeft } from 'lucide-react-native';
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { THEME } from '@/lib/core/theme';
+import { THEME } from '@/lib/theme';
 import { ProviderCard, ServiceCard } from '@/components/customer';
 
 
 
 const FavoritesSkeleton = () => (
   <View className="mb-3">
-    <Card className="bg-card border border-border/50 shadow-sm">
+    <Card className="bg-card border border-border/50 ">
       <CardContent className="p-3">
         <View className="flex-row items-start gap-3 mb-3">
           <Skeleton className="w-12 h-12 rounded-full" />

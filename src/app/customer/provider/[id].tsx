@@ -9,7 +9,7 @@ import Animated, { FadeInDown, FadeInUp, FadeInLeft } from 'react-native-reanima
 import { LinearGradient } from 'expo-linear-gradient';
 import { useProviderDetails, ProviderDetails } from '@/hooks/customer/useProviderDetails';
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { THEME } from '@/lib/core/theme';
+import { ServiceCard } from '@/components/customer/ServiceCard';
 
 export default function ProviderDetailsScreen() {
   const { id } = useLocalSearchParams();
@@ -26,7 +26,7 @@ export default function ProviderDetailsScreen() {
             className="items-center"
           >
             <View className="w-12 h-12 rounded-full bg-primary/20 items-center justify-center mb-4">
-              <Ionicons name="refresh" size={24} color={isDarkColorScheme ? THEME.dark.primary : THEME.light.primary} />
+              <Ionicons name="refresh" size={24} className="text-primary" />
             </View>
             <Text className="text-muted-foreground text-lg">Loading provider details...</Text>
           </Animated.View>
@@ -44,7 +44,7 @@ export default function ProviderDetailsScreen() {
             className="items-center"
           >
             <View className="w-20 h-20 rounded-full bg-destructive/10 items-center justify-center mb-6">
-              <Ionicons name="alert-circle" size={40} color={isDarkColorScheme ? THEME.dark.destructive : THEME.light.destructive} />
+              <Ionicons name="alert-circle" size={40} className="text-destructive" />
             </View>
             <Text className="text-xl font-bold text-foreground mb-2">
               Provider not found
@@ -72,8 +72,8 @@ export default function ProviderDetailsScreen() {
           <View className="h-32 relative">
             <LinearGradient
               colors={[
-                isDarkColorScheme ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.1)',
-                isDarkColorScheme ? 'rgba(59, 130, 246, 0.05)' : 'rgba(59, 130, 246, 0.02)',
+                isDarkColorScheme ? 'rgba(238, 68, 83, 0.15)' : 'rgba(238, 68, 83, 0.1)',
+                isDarkColorScheme ? 'rgba(238, 68, 83, 0.05)' : 'rgba(238, 68, 83, 0.02)',
                 'transparent'
               ]}
               className="absolute inset-0"
@@ -86,7 +86,7 @@ export default function ProviderDetailsScreen() {
                 <Ionicons
                   name="arrow-back"
                   size={20}
-                  color={isDarkColorScheme ? THEME.dark.foreground : THEME.light.foreground}
+                  className="text-foreground"
                 />
               </TouchableOpacity>
             </View>
@@ -97,7 +97,7 @@ export default function ProviderDetailsScreen() {
             entering={FadeInUp.duration(600).delay(400)}
             className="absolute -bottom-12 left-6"
           >
-            <View className="w-24 h-24 rounded-full bg-card border-4 border-background shadow-lg items-center justify-center">
+            <View className="w-24 h-24 rounded-full bg-card border-4 border-background  items-center justify-center">
               <Text className="text-3xl font-bold text-primary">
                 {provider.first_name?.[0]}{provider.last_name?.[0]}
               </Text>
@@ -143,7 +143,7 @@ export default function ProviderDetailsScreen() {
             </View>
             <View className="items-center flex-1">
               <View className="flex-row items-center">
-                <Ionicons name="star" size={16} color={isDarkColorScheme ? THEME.dark.primary : THEME.light.primary} />
+                <Ionicons name="star" size={16} className="text-primary" />
                 <Text className="text-2xl font-bold text-primary ml-1">
                   {(provider as any).average_rating?.toFixed(1) || '0.0'}
                 </Text>
@@ -190,7 +190,7 @@ export default function ProviderDetailsScreen() {
               {provider.phone_number && (
                 <View className="flex-row items-center mb-3">
                   <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center mr-3">
-                    <Ionicons name="call" size={20} color={isDarkColorScheme ? THEME.dark.primary : THEME.light.primary} />
+                    <Ionicons name="call" size={20} className="text-primary" />
                   </View>
                   <Text className="text-foreground">{provider.phone_number}</Text>
                 </View>
@@ -198,7 +198,7 @@ export default function ProviderDetailsScreen() {
               {provider.email && (
                 <View className="flex-row items-center mb-3">
                   <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center mr-3">
-                    <Ionicons name="mail" size={20} color={isDarkColorScheme ? THEME.dark.primary : THEME.light.primary} />
+                    <Ionicons name="mail" size={20} className="text-primary" />
                   </View>
                   <Text className="text-foreground">{provider.email}</Text>
                 </View>
@@ -206,7 +206,7 @@ export default function ProviderDetailsScreen() {
               {provider.address && (
                 <View className="flex-row items-center">
                   <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center mr-3">
-                    <Ionicons name="location" size={20} color={isDarkColorScheme ? THEME.dark.primary : THEME.light.primary} />
+                    <Ionicons name="location" size={20} className="text-primary" />
                   </View>
                   <Text className="text-foreground">{provider.address}</Text>
                 </View>
@@ -214,7 +214,7 @@ export default function ProviderDetailsScreen() {
               {provider.website && (
                 <View className="flex-row items-center">
                   <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center mr-3">
-                    <Ionicons name="globe" size={20} color={isDarkColorScheme ? THEME.dark.primary : THEME.light.primary} />
+                    <Ionicons name="globe" size={20} className="text-primary" />
                   </View>
                   <Text className="text-foreground">{provider.website}</Text>
                 </View>
@@ -233,7 +233,7 @@ export default function ProviderDetailsScreen() {
                 {(provider as any).total_reviews > 2 && (
                   <TouchableOpacity className="flex-row items-center">
                     <Text className="text-primary font-medium mr-1">View all</Text>
-                    <Ionicons name="chevron-forward" size={16} color={isDarkColorScheme ? THEME.dark.primary : THEME.light.primary} />
+                    <Ionicons name="chevron-forward" size={16} className="text-primary" />
                   </TouchableOpacity>
                 )}
               </View>
@@ -242,7 +242,7 @@ export default function ProviderDetailsScreen() {
                   <Animated.View
                     key={review.id}
                     entering={FadeInLeft.duration(400).delay(1600 + index * 200)}
-                    className="bg-card rounded-xl p-4 border border-border shadow-sm"
+                    className="bg-card rounded-xl p-4 border border-border "
                   >
                     <View className="flex-row items-start justify-between mb-3">
                       <View className="flex-row items-center flex-1 mr-3">
@@ -261,7 +261,7 @@ export default function ProviderDetailsScreen() {
                                 key={starIndex}
                                 name={starIndex < (review.rating || 0) ? "star" : "star-outline"}
                                 size={16}
-                                color={starIndex < (review.rating || 0) ? (isDarkColorScheme ? THEME.dark.primary : THEME.light.primary) : (isDarkColorScheme ? THEME.dark.muted : THEME.light.muted)}
+                                className={starIndex < (review.rating || 0) ? "text-primary" : "text-muted-foreground"}
                                 style={{ marginRight: starIndex < 4 ? 2 : 0 }}
                               />
                             ))}
@@ -291,21 +291,47 @@ export default function ProviderDetailsScreen() {
           )}
 
           {/* Services */}
-        </Animated.View>
-
-        {/* Book Button */}
-        <Animated.View
-          entering={FadeInUp.duration(600).delay(1800)}
-          className="px-6 pb-6"
-        >
-          <TouchableOpacity
-            className="bg-primary py-4 rounded-xl items-center shadow-lg"
-            activeOpacity={0.8}
-          >
-            <Text className="text-primary-foreground font-semibold text-lg">
-              Book Appointment
-            </Text>
-          </TouchableOpacity>
+          {(provider as any).provider_services && (provider as any).provider_services.length > 0 && (
+            <Animated.View
+              entering={FadeInUp.duration(600).delay(1300)}
+              className="mb-6"
+            >
+              <Text className="text-lg font-semibold text-foreground mb-3">Services Offered</Text>
+              <View className="gap-4">
+                {(provider as any).provider_services.map((service: any, index: number) => (
+                  <Animated.View
+                    key={service.id}
+                    entering={FadeInUp.duration(400).delay(1400 + index * 100)}
+                  >
+                    <ServiceCard
+                      service={{
+                        id: service.id,
+                        title: service.title,
+                        description: service.description,
+                        base_price: service.price || service.base_price || 0,
+                        price_type: service.price_type || 'fixed',
+                        provider: {
+                          id: provider.id,
+                          first_name: provider.first_name,
+                          last_name: provider.last_name,
+                          business_name: provider.business_name,
+                          avatar_url: provider.avatar_url,
+                          rating: (provider as any).average_rating
+                        },
+                        category_name: service.service_subcategories?.service_categories?.name || 'General',
+                        subcategory_name: service.service_subcategories?.name || 'Service'
+                      }}
+                      showFavoriteButton={false}
+                      actionButtonText="Book Service"
+                      onActionPress={() => {
+                        router.push(`/customer/service/${service.id}`);
+                      }}
+                    />
+                  </Animated.View>
+                ))}
+              </View>
+            </Animated.View>
+          )}
         </Animated.View>
       </ScrollView>
     </SafeAreaView>

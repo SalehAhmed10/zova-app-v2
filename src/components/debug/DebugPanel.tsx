@@ -100,7 +100,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ providerId, onClose }) =
             {isLoading ? (
               <Text className="text-muted-foreground">Running diagnostics...</Text>
             ) : debugInfo ? (
-              <View className="space-y-3">
+              <View className="gap-3">
                 <View>
                   <Text className="font-medium text-foreground">Supabase Connection:</Text>
                   <Text className={debugInfo.connection?.success ? "text-green-600" : "text-red-600"}>

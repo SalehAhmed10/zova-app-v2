@@ -27,7 +27,7 @@ export const ThemeToggle = React.memo(() => {
         <Button
           variant={preference === 'light' ? 'default' : 'ghost'}
           size="sm"
-          className={`rounded-full px-4 ${preference === 'light' ? 'bg-background shadow-sm' : ''}`}
+          className={`rounded-full px-4 ${preference === 'light' ? 'bg-background ' : ''}`}
           onPress={handleLightPress}
         >
           <Text className="text-lg">☀️</Text>
@@ -36,7 +36,7 @@ export const ThemeToggle = React.memo(() => {
         <Button
           variant={preference === 'dark' ? 'default' : 'ghost'}
           size="sm"
-          className={`rounded-full px-4 ${preference === 'dark' ? 'bg-background shadow-sm' : ''}`}
+          className={`rounded-full px-4 ${preference === 'dark' ? 'bg-background ' : ''}`}
           onPress={handleDarkPress}
         >
           <Text className="text-lg">🌙</Text>
@@ -45,7 +45,7 @@ export const ThemeToggle = React.memo(() => {
         <Button
           variant={preference === 'system' ? 'default' : 'ghost'}
           size="sm"
-          className={`rounded-full px-4 ${preference === 'system' ? 'bg-background shadow-sm' : ''}`}
+          className={`rounded-full px-4 ${preference === 'system' ? 'bg-background ' : ''}`}
           onPress={handleSystemPress}
         >
           <Text className="text-lg">🖥️</Text>

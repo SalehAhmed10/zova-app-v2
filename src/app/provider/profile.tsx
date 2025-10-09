@@ -1,14 +1,49 @@
+/**
+ * Provider Profile Screen - Modern UI Design
+ *
+ * Features:
+ * - Clean header with profile information
+ * - Key performance metrics in organized cards
+ * - Quick action buttons for common tasks
+ * - Well-organized menu sections by priority
+ * - Professional spacing and visual hierarchy
+ *
+ * Design Principles:
+ * - Uses theme colors exclusively (no hardcoded colors)
+ * - Lucide icons for consistency
+ * - Proper contrast and accessibility
+ * - No gradients or shadows (NativeWind compatibility)
+ * - Professional spacing and typography
+ */
+
 import React from 'react';
 import { View, ScrollView, Platform, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { FlashList } from '@shopify/flash-list';
-import { Ionicons } from '@expo/vector-icons';
+import type { LucideIcon } from 'lucide-react-native';
+import {
+  Calendar,
+  User,
+  Clock,
+  Star,
+  CheckCircle,
+  Settings,
+  CreditCard,
+  BarChart3,
+  Diamond,
+  MessageCircle,
+  Megaphone,
+  ChevronRight,
+  Wallet,
+  TrendingUp,
+  Trophy
+} from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { LogoutButton } from '@/components/ui/logout-button';
 import { useAppStore } from '@/stores/auth/app';
@@ -16,14 +51,15 @@ import { useProfileModalStore } from '@/stores/ui/profileModal';
 import { useAuthOptimized } from '@/hooks';
 import {
   useProfile,
-  useProfileStats,
+  useProviderStats,
   useUserBookings,
   useNotificationSettings
 } from '@/hooks/shared/useProfileData';
-import { cn } from '@/lib/utils';
+import { cn, formatCurrency } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { THEME } from '@/lib/core/theme';
+import { THEME } from '@/lib/theme';
+import { Icon } from '@/components/ui/icon';
 
 
 // Import modals
@@ -35,6 +71,7 @@ export default React.memo(function ProfileScreen() {
   // ✅ MIGRATED: Using optimized auth hook following copilot-rules.md
   const { user } = useAuthOptimized();
   const { colorScheme } = useColorScheme();
+  const colors = THEME[colorScheme];
   
   // Don't fetch data if user is not authenticated or logging out
   const shouldFetchData = user?.id && userRole === 'provider';
@@ -49,7 +86,7 @@ export default React.memo(function ProfileScreen() {
 
   // Data fetching hooks with user ID - only call when user is authenticated
   const { data: profileData, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useProfile(shouldFetchData ? user?.id : undefined);
-  const { data: statsData, isLoading: statsLoading } = useProfileStats(shouldFetchData ? user?.id : undefined, userRole);
+  const { data: statsData, isLoading: statsLoading } = useProviderStats(shouldFetchData ? user?.id : undefined);
   const { data: bookingsData, isLoading: bookingsLoading } = useUserBookings(shouldFetchData ? user?.id : undefined);
   const { data: notificationSettings } = useNotificationSettings(shouldFetchData ? user?.id : undefined);
 
@@ -89,18 +126,14 @@ export default React.memo(function ProfileScreen() {
     // HIGH PRIORITY: Core business operations
     {
       id: 'calendar',
-      icon: 'calendar-outline' as keyof typeof Ionicons.glyphMap,
-      iconBg: 'bg-blue-500/10',
-      iconColor: 'text-blue-600',
+      icon: Calendar,
       title: 'Calendar & Bookings',
       subtitle: 'Manage your schedule and appointments',
       onPress: () => router.push('/provider/calendar'),
     },
     {
       id: 'services',
-      icon: 'construct-outline' as keyof typeof Ionicons.glyphMap,
-      iconBg: 'bg-purple-500/10',
-      iconColor: 'text-purple-600',
+      icon: Settings,
       title: 'Services & Pricing',
       subtitle: 'Update your service offerings and rates',
       onPress: () => router.push('/provider/profile/services'),
@@ -108,9 +141,7 @@ export default React.memo(function ProfileScreen() {
     // CRITICAL: Revenue generation
     {
       id: 'payments',
-      icon: 'card-outline' as keyof typeof Ionicons.glyphMap,
-      iconBg: 'bg-green-500/10',
-      iconColor: 'text-green-600',
+      icon: CreditCard,
       title: 'Payment Integration',
       subtitle: 'Connect Stripe for secure payments',
       onPress: () => router.push('/provider/profile/payments'),
@@ -118,9 +149,7 @@ export default React.memo(function ProfileScreen() {
     // MEDIUM PRIORITY: Performance monitoring
     {
       id: 'analytics',
-      icon: 'bar-chart-outline' as keyof typeof Ionicons.glyphMap,
-      iconBg: 'bg-orange-500/10',
-      iconColor: 'text-orange-600',
+      icon: BarChart3,
       title: 'Business Analytics',
       subtitle: 'Track performance and earnings',
       onPress: () => router.push('/provider/profile/analytics'),
@@ -128,9 +157,7 @@ export default React.memo(function ProfileScreen() {
     // LOW PRIORITY: Premium features
     {
       id: 'subscriptions',
-      icon: 'diamond-outline' as keyof typeof Ionicons.glyphMap,
-      iconBg: 'bg-yellow-500/10',
-      iconColor: 'text-yellow-600',
+      icon: Diamond,
       title: 'Premium Subscription',
       subtitle: 'Unlock advanced business features',
       onPress: () => router.push('/provider/profile/subscriptions'),
@@ -141,9 +168,7 @@ export default React.memo(function ProfileScreen() {
     // HIGH PRIORITY: Reputation management
     {
       id: 'reviews',
-      icon: 'star-outline' as keyof typeof Ionicons.glyphMap,
-      iconBg: 'bg-yellow-500/10',
-      iconColor: 'text-yellow-600',
+      icon: Star,
       title: 'Reviews & Ratings',
       subtitle: statsData?.avg_rating ? `${statsData.avg_rating.toFixed(1)}★ average rating` : 'No reviews yet',
       badge: '2 new',
@@ -151,18 +176,14 @@ export default React.memo(function ProfileScreen() {
     },
     // {
     //   id: 'messages',
-    //   icon: 'chatbubbles-outline' as keyof typeof Ionicons.glyphMap,
-    //   iconBg: 'bg-blue-500/10',
-    //   iconColor: 'text-blue-600',
+    //   icon: MessageCircle,
     //   title: 'Client Messages',
     //   subtitle: 'Communicate with your clients',
     //   onPress: () => {},
     // },
     // {
     //   id: 'marketing',
-    //   icon: 'megaphone-outline' as keyof typeof Ionicons.glyphMap,
-    //   iconBg: 'bg-purple-500/10',
-    //   iconColor: 'text-purple-600',
+    //   icon: Megaphone,
     //   title: 'Marketing Tools',
     //   subtitle: 'Promote and grow your business',
     //   onPress: () => {},
@@ -173,9 +194,7 @@ export default React.memo(function ProfileScreen() {
     // HIGH PRIORITY: Business identity
     {
       id: 'profile',
-      icon: 'person-outline' as keyof typeof Ionicons.glyphMap,
-      iconBg: 'bg-indigo-500/10',
-      iconColor: 'text-indigo-600',
+      icon: User,
       title: 'Business Profile',
       subtitle: 'Update your business information',
       onPress: () => router.push('/provider/profile/personal-info'),
@@ -183,9 +202,7 @@ export default React.memo(function ProfileScreen() {
     // HIGH PRIORITY: Availability settings
     {
       id: 'hours',
-      icon: 'time-outline' as keyof typeof Ionicons.glyphMap,
-      iconBg: 'bg-cyan-500/10',
-      iconColor: 'text-cyan-600',
+      icon: Clock,
       title: 'Business Hours',
       subtitle: 'Set your availability schedule',
       onPress: () => router.push('/provider/calendar'),
@@ -195,9 +212,7 @@ export default React.memo(function ProfileScreen() {
   // Define menu item type
   type MenuItem = {
     id: string;
-    icon: keyof typeof Ionicons.glyphMap;
-    iconBg: string;
-    iconColor: string;
+    icon: LucideIcon;
     title: string;
     subtitle: string;
     badge?: string;
@@ -206,30 +221,28 @@ export default React.memo(function ProfileScreen() {
 
   // Memoized MenuItem component for performance
   const MenuItemComponent = React.memo(({ item }: { item: MenuItem }) => (
-    <TouchableOpacity 
-      className="bg-card rounded-2xl p-5 border border-border shadow-sm active:scale-[0.98] transition-transform"
+    <TouchableOpacity
+      className="bg-card rounded-xl p-4 border border-border active:scale-[0.98] transition-transform"
       onPress={item.onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${item.title}: ${item.subtitle}`}
     >
       <View className="flex-row items-center">
-        <View className={cn("w-12 h-12 rounded-2xl items-center justify-center mr-4", item.iconBg)}>
-          <Ionicons 
-            name={item.icon} 
-            size={24} 
-            className={cn("text-2xl", item.iconColor)} 
-          />
+        <View className="w-12 h-12 bg-accent rounded-xl items-center justify-center mr-4">
+          <Icon as={item.icon} size={24} className="text-foreground" />
         </View>
         <View className="flex-1">
-          <View className="flex-row items-center">
-            <Text className="font-bold text-foreground text-base">{item.title}</Text>
+          <View className="flex-row items-center justify-between">
+            <Text className="font-semibold text-foreground text-base">{item.title}</Text>
             {item.badge && (
-              <View className="ml-2 bg-primary/10 px-2 py-0.5 rounded-full">
-                <Text className="text-primary text-xs font-medium">{item.badge}</Text>
-              </View>
+              <Badge variant="secondary" className="ml-2">
+                <Text className="text-xs font-medium">{item.badge}</Text>
+              </Badge>
             )}
           </View>
-          <Text className="text-muted-foreground text-sm mt-0.5">{item.subtitle}</Text>
+          <Text className="text-muted-foreground text-sm mt-1">{item.subtitle}</Text>
         </View>
-        <Ionicons name="chevron-forward" size={20} className="text-muted-foreground" />
+        <Icon as={ChevronRight} size={20} className="text-muted-foreground" />
       </View>
     </TouchableOpacity>
   ));
@@ -319,146 +332,126 @@ export default React.memo(function ProfileScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      <ScrollView 
+      <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
       >
-        {/* Header Section with Linear Gradient */}
-        <LinearGradient
-          colors={[THEME[colorScheme].gradientStart, THEME[colorScheme].gradientEnd]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{ paddingHorizontal: 24, paddingTop: 20, paddingBottom: 24 }}
-        >
+        {/* Header Section - Clean Design */}
+        <View className="bg-card border-b border-border px-6 pt-6 pb-8">
           <View className="items-center">
             {/* Profile Picture */}
             <View className="mb-4">
-              <Avatar className="w-24 h-24 border-4 border-white shadow-lg" alt="Provider avatar">
+              <Avatar className="w-20 h-20 border-2 border-border" alt="Provider avatar">
                 {profileData?.avatar_url ? (
                   <AvatarImage source={{ uri: profileData.avatar_url }} />
                 ) : null}
-                <AvatarFallback className="bg-white/20 backdrop-blur-sm">
+                <AvatarFallback className="bg-muted">
                   {(profileData?.first_name?.[0] || profileData?.email?.[0]) ? (
-                    <Text className="text-3xl text-white font-bold">
+                    <Text className="text-2xl text-muted-foreground font-bold">
                       {profileData?.first_name?.[0]?.toUpperCase() || 
                        profileData?.email?.[0]?.toUpperCase()}
                     </Text>
                   ) : (
-                    <Ionicons name="person" size={32} className="text-white" />
+                    <Icon as={User} size={32} className="text-muted-foreground" />
                   )}
                 </AvatarFallback>
               </Avatar>
             </View>
-            
+
             {/* Provider Info */}
-            <Text className="text-xl font-bold text-white mb-1 text-center">
+            <Text className="text-xl font-bold text-foreground mb-2 text-center">
               {getDisplayName()}
             </Text>
-            <Text className="text-white/90 mb-3 text-sm text-center px-4">
+            <Text className="text-muted-foreground mb-4 text-center px-4">
               {profileData?.bio || 'Professional Service Provider'}
             </Text>
-            
+
             {/* Business Badge */}
-            <View className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full border border-white/30">
-              <Text className="text-white font-semibold text-sm">
-                {userRole === 'provider' ? '⭐ Service Provider' : '🏢 Business Account'}
+            <View className="bg-primary/10 px-4 py-2 rounded-full border border-primary/20">
+              <Text className="text-primary font-semibold text-sm">
+                ⭐ Service Provider
               </Text>
             </View>
-            
+
             {/* Verification Status */}
             {profileData?.verification_status === 'approved' && (
-              <View className="mt-2 bg-green-500/20 backdrop-blur-sm px-3 py-1 rounded-full border border-green-400/30">
-                <Text className="text-green-100 font-medium text-xs">
+              <View className="mt-3 bg-success/10 px-3 py-1 rounded-full border border-success/20">
+                <Text className="text-success font-medium text-xs">
                   ✓ Verified Provider
                 </Text>
               </View>
             )}
             {profileData?.verification_status === 'pending' && (
-              <View className="mt-2 bg-yellow-500/20 backdrop-blur-sm px-3 py-1 rounded-full border border-yellow-400/30">
-                <Text className="text-yellow-100 font-medium text-xs">
+              <View className="mt-3 bg-warning/10 px-3 py-1 rounded-full border border-warning/20">
+                <Text className="text-warning font-medium text-xs">
                   ⏳ Verification Pending
                 </Text>
               </View>
             )}
           </View>
-        </LinearGradient>
+        </View>
 
-        {/* Business Stats Cards */}
-        <View className="px-6 pt-4 mb-8">
+        {/* 🚀 MODERN: Achievements & Badges Section */}
+        <View className="px-3 mb-8">
+          <Text className="text-lg font-bold text-foreground mb-4">Achievements</Text>
           <View className="flex-row gap-3">
-            {/* Completed Jobs */}
-            <View className="flex-1 bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-4 border border-green-200/50">
-              <View className="items-center">
-                <View className="w-8 h-8 bg-green-500/10 rounded-full items-center justify-center mb-2">
-                  <Ionicons name="checkmark-circle" size={18} className="text-green-600" />
-                </View>
-                <Text className="text-2xl font-bold text-green-700 mb-1">
-                  {statsLoading ? '...' : statsData?.completed_bookings ? statsData.completed_bookings.toLocaleString() : '0'}
-                </Text>
-                <Text className="text-green-600 text-xs font-medium text-center">Completed</Text>
-                <Text className="text-green-600/70 text-xs text-center">Jobs</Text>
-              </View>
+            <View className="flex-1">
+              <Card className="bg-card border-border h-24">
+                <CardContent className="p-4 items-center justify-center h-full">
+                  <View className="w-10 h-10 bg-primary/10 rounded-xl items-center justify-center mb-2">
+                    <Icon as={Star} size={20} className="text-primary" />
+                  </View>
+                  <Text className="text-xs font-bold text-foreground mb-0.5 text-center">
+                    Top Rated
+                  </Text>
+                  <Text className="text-xs text-muted-foreground text-center">
+                    {statsLoading ? '-' : (statsData?.avg_rating || 0).toFixed(1)} ★
+                  </Text>
+                </CardContent>
+              </Card>
             </View>
 
-            {/* Rating */}
-            <View className="flex-1 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-2xl p-4 border border-yellow-200/50">
-              <View className="items-center">
-                <View className="w-8 h-8 bg-yellow-500/10 rounded-full items-center justify-center mb-2">
-                  <Ionicons name="star" size={18} className="text-yellow-600" />
-                </View>
-                <Text className="text-2xl font-bold text-yellow-700 mb-1">
-                  {statsLoading ? '...' : statsData?.avg_rating ? statsData.avg_rating.toFixed(1) : '0.0'}
-                </Text>
-                <Text className="text-yellow-600 text-xs font-medium text-center">Average</Text>
-                <Text className="text-yellow-600/70 text-xs text-center">Rating</Text>
-              </View>
+            <View className="flex-1">
+              <Card className="bg-card border-border h-24">
+                <CardContent className="p-4 items-center justify-center h-full">
+                  <View className="w-10 h-10 bg-success/10 rounded-xl items-center justify-center mb-2">
+                    <Icon as={CheckCircle} size={20} className="text-success" />
+                  </View>
+                  <Text className="text-xs font-bold text-foreground mb-0.5 text-center">
+                    Reliable
+                  </Text>
+                  <Text className="text-xs text-muted-foreground text-center">
+                    {statsLoading ? '-' : (statsData?.completed_bookings || 0)} Jobs
+                  </Text>
+                </CardContent>
+              </Card>
             </View>
 
-            {/* Total Earnings */}
-            <View className="flex-1 bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-4 border border-blue-200/50">
-              <View className="items-center">
-                <View className="w-8 h-8 bg-blue-500/10 rounded-full items-center justify-center mb-2">
-                  <Ionicons name="wallet" size={18} className="text-blue-600" />
-                </View>
-                <Text className="text-2xl font-bold text-blue-700 mb-1">
-                  {statsLoading ? '...' : statsData?.total_spent ? `£${statsData.total_spent.toFixed(0)}` : '£0'}
-                </Text>
-                <Text className="text-blue-600 text-xs font-medium text-center">Total</Text>
-                <Text className="text-blue-600/70 text-xs text-center">Earned</Text>
-              </View>
+            <View className="flex-1">
+              <Card className="bg-card border-border h-24">
+                <CardContent className="p-4 items-center justify-center h-full">
+                  <View className="w-10 h-10 bg-warning/10 rounded-xl items-center justify-center mb-2">
+                    <Icon as={TrendingUp} size={20} className="text-warning" />
+                  </View>
+                  <Text className="text-xs font-bold text-foreground mb-0.5 text-center">
+                    Earnings
+                  </Text>
+                  <Text className="text-xs text-muted-foreground text-center">
+                    {statsLoading ? '-' : statsData?.this_month_earnings ? formatCurrency(statsData.this_month_earnings) : formatCurrency(0)}
+                  </Text>
+                </CardContent>
+              </Card>
             </View>
-          </View>
-
-          {/* Quick Actions Row */}
-          <View className="flex-row gap-3 mt-4">
-            <TouchableOpacity 
-              className="flex-1 bg-primary/5 rounded-xl p-3 border border-primary/20"
-              onPress={() => {}}
-            >
-              <View className="flex-row items-center justify-center">
-                <Ionicons name="trending-up" size={16} className="text-primary mr-2" />
-                <Text className="text-primary font-semibold text-sm">View Earnings</Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              className="flex-1 bg-secondary/5 rounded-xl p-3 border border-secondary/20"
-              onPress={() => router.push('/provider/calendar')}
-            >
-              <View className="flex-row items-center justify-center">
-                <Ionicons name="calendar" size={16} className="text-secondary mr-2" />
-                <Text className="text-secondary font-semibold text-sm">My Schedule</Text>
-              </View>
-            </TouchableOpacity>
           </View>
         </View>
 
         {/* Menu Sections - ORDERED BY BUSINESS PRIORITY */}
-        <View className="px-6 gap-8">
+        <View className="px-6 gap-6">
           {/* SECTION 1: HIGH PRIORITY - Account Configuration */}
           <View>
-            <View className="flex-row items-center mb-5">
-              <View className="w-1 h-6 bg-orange-500 rounded-full mr-3" />
-              <Text className="text-xl font-bold text-foreground">Account Settings</Text>
+            <View className="flex-row items-center mb-4">
+              <View className="w-1 h-6 bg-primary rounded-full mr-3" />
+              <Text className="text-lg font-bold text-foreground">Account Settings</Text>
             </View>
             <View className="gap-3">
               {accountSettingsMenu.map((item) => (
@@ -469,9 +462,9 @@ export default React.memo(function ProfileScreen() {
 
           {/* SECTION 2: HIGH PRIORITY - Core Business Operations */}
           <View>
-            <View className="flex-row items-center mb-5">
-              <View className="w-1 h-6 bg-primary rounded-full mr-3" />
-              <Text className="text-xl font-bold text-foreground">Business Management</Text>
+            <View className="flex-row items-center mb-4">
+              <View className="w-1 h-6 bg-secondary rounded-full mr-3" />
+              <Text className="text-lg font-bold text-foreground">Business Management</Text>
             </View>
             <View className="gap-3">
               {businessManagementMenu.map((item) => (
@@ -482,9 +475,9 @@ export default React.memo(function ProfileScreen() {
 
           {/* SECTION 3: MEDIUM PRIORITY - Client Relations */}
           <View>
-            <View className="flex-row items-center mb-5">
-              <View className="w-1 h-6 bg-secondary rounded-full mr-3" />
-              <Text className="text-xl font-bold text-foreground">Customer Relations</Text>
+            <View className="flex-row items-center mb-4">
+              <View className="w-1 h-6 bg-info rounded-full mr-3" />
+              <Text className="text-lg font-bold text-foreground">Customer Relations</Text>
             </View>
             <View className="gap-3">
               {customerRelationsMenu.map((item) => (
@@ -493,10 +486,8 @@ export default React.memo(function ProfileScreen() {
             </View>
           </View>
 
-          {/* Support & Resources Section - REMOVED: Empty section */}
-
           {/* App Version & Footer */}
-          <View className="items-center py-6">
+          <View className="items-center py-4">
             <Text className="text-muted-foreground text-sm mb-2">ZOVA Business - Version 1.0.0</Text>
             <Text className="text-muted-foreground text-xs text-center">
               Professional tools for service providers
@@ -505,16 +496,7 @@ export default React.memo(function ProfileScreen() {
 
           {/* Logout Button */}
           <View className="mb-8">
-            <LinearGradient
-              colors={[THEME[colorScheme].destructiveGradientStart, THEME[colorScheme].destructiveGradientEnd]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={{ borderRadius: 12, padding: 1 }}
-            >
-              <TouchableOpacity className="bg-card rounded-xl p-4 border border-border">
-                <LogoutButton />
-              </TouchableOpacity>
-            </LinearGradient>
+            <LogoutButton variant="modern" fullWidth />
           </View>
         </View>
 
@@ -530,9 +512,6 @@ export default React.memo(function ProfileScreen() {
         {/* Bottom spacing for tab bar */}
         <View className={cn("h-6", Platform.OS === 'ios' && "h-24")} />
       </ScrollView>
-
-
-
 
     </SafeAreaView>
   );

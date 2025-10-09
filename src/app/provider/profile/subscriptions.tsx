@@ -19,17 +19,20 @@ import {
 import { Star, Calendar, CreditCard, Plus, TrendingUp } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useColorScheme } from '@/lib/core/useColorScheme';
+import { THEME } from '@/lib/theme';
+import { formatCurrency } from '@/lib/utils';
 
 export default function ProviderSubscriptionsScreen() {
   const { data: allSubscriptions, isLoading } = useUserSubscriptions();
   const { data: providerSubscription } = useActiveSubscription('provider_premium');
   const { isDarkColorScheme } = useColorScheme();
+  const colors = THEME[isDarkColorScheme ? 'dark' : 'light'];
   
   // Check if provider has active premium subscription - multiple checks for reliability
   const activeProviderSub = allSubscriptions?.find(
     sub => sub.type === 'provider_premium' && 
-           ['active', 'trialing'].includes(sub.status) && 
-           !sub.cancel_at_period_end
+           ['active', 'trialing'].includes(sub.status)
+           // Note: Don't check cancel_at_period_end - users have access until period ends
   );
   
   const hasProviderPremium = !!providerSubscription || !!activeProviderSub || hasActiveSubscription(allSubscriptions, 'provider_premium');
@@ -80,7 +83,7 @@ export default function ProviderSubscriptionsScreen() {
                 <CardContent className="p-4">
                   <View className="flex-row items-center gap-3 mb-3">
                     <View className="p-2 rounded-full bg-primary/10">
-                      <TrendingUp size={20} color={isDarkColorScheme ? '#10b981' : '#059669'} />
+                      <TrendingUp size={20} color={colors.success} />
                     </View>
                     <Text className="text-base font-medium text-foreground">Business Growth</Text>
                   </View>
@@ -103,7 +106,7 @@ export default function ProviderSubscriptionsScreen() {
                 <CardContent className="p-4">
                   <View className="flex-row items-center gap-3 mb-3">
                     <View className="p-2 rounded-full bg-primary/10">
-                      <Star size={20} color={isDarkColorScheme ? '#10b981' : '#059669'} />
+                      <Star size={20} color={colors.success} />
                     </View>
                     <Text className="text-base font-medium text-foreground">Enhanced Features</Text>
                   </View>
@@ -150,6 +153,7 @@ function ProviderSubscriptionCard({ subscription }: { subscription: UserSubscrip
   const cancelMutation = useCancelSubscription();
   const reactivateMutation = useReactivateSubscription();
   const { isDarkColorScheme } = useColorScheme();
+  const colors = THEME[isDarkColorScheme ? 'dark' : 'light'];
   
   const handleCancel = async () => {
     try {
@@ -186,7 +190,7 @@ function ProviderSubscriptionCard({ subscription }: { subscription: UserSubscrip
       <CardHeader>
         <View className="flex-row items-center gap-3">
           <View className="p-2 rounded-full bg-primary/10">
-            <Star size={20} color={isDarkColorScheme ? '#10b981' : '#059669'} />
+            <Star size={20} color={colors.success} />
           </View>
           <View className="flex-1">
             <CardTitle className="text-base">{priceInfo.displayName}</CardTitle>
@@ -211,14 +215,14 @@ function ProviderSubscriptionCard({ subscription }: { subscription: UserSubscrip
         {/* Pricing */}
         <View className="flex-row items-baseline gap-1">
           <Text className="text-xl font-bold text-foreground">
-            £{(priceInfo.amount / 100).toFixed(2)}
+            {formatCurrency(priceInfo.amount / 100)}
           </Text>
           <Text className="text-xs text-muted-foreground">per month</Text>
         </View>
 
         {/* Billing Period */}
         <View className="flex-row items-center gap-2 p-2 bg-muted/50 rounded">
-          <Calendar size={14} color={isDarkColorScheme ? '#9ca3af' : '#6b7280'} />
+          <Calendar size={14} color={colors.mutedForeground} />
           <View className="flex-1">
             <Text className="text-xs text-muted-foreground">Next billing</Text>
             <Text className="text-sm text-foreground">
@@ -259,7 +263,7 @@ function ProviderSubscriptionCard({ subscription }: { subscription: UserSubscrip
             variant="ghost"
             onPress={() => router.push('/provider/profile')}
           >
-            <CreditCard size={16} color={isDarkColorScheme ? '#9ca3af' : '#6b7280'} />
+            <CreditCard size={16} color={colors.mutedForeground} />
           </Button>
         </View>
       </CardContent>
@@ -270,6 +274,7 @@ function ProviderSubscriptionCard({ subscription }: { subscription: UserSubscrip
 function ProviderAvailablePlanCard() {
   const priceInfo = useSubscriptionPrice('PROVIDER_PREMIUM');
   const { isDarkColorScheme } = useColorScheme();
+  const colors = THEME[isDarkColorScheme ? 'dark' : 'light'];
   
   const handleSubscribe = () => {
     // Navigate to checkout screen with subscription type
@@ -284,7 +289,7 @@ function ProviderAvailablePlanCard() {
       <CardHeader>
         <View className="flex-row items-center gap-3">
           <View className="p-2 rounded-full bg-muted">
-            <Star size={20} color={isDarkColorScheme ? '#9ca3af' : '#6b7280'} />
+            <Star size={20} color={colors.mutedForeground} />
           </View>
           <View className="flex-1">
             <CardTitle className="text-base text-muted-foreground">
@@ -300,13 +305,13 @@ function ProviderAvailablePlanCard() {
       <CardContent className="pt-0 gap-3">
         <View className="flex-row items-baseline gap-1">
           <Text className="text-xl font-bold text-foreground">
-            £{(priceInfo.amount / 100).toFixed(2)}
+            {formatCurrency(priceInfo.amount / 100)}
           </Text>
           <Text className="text-xs text-muted-foreground">per month</Text>
         </View>
 
         <Button onPress={handleSubscribe} className="w-full">
-          <Plus size={16} color="#ffffff" className="mr-2" />
+          <Plus size={16} color={colors.primaryForeground} className="mr-2" />
           <Text className="text-primary-foreground font-medium">Upgrade to Premium</Text>
         </Button>
       </CardContent>
@@ -318,13 +323,14 @@ function HistorySubscriptionCard({ subscription }: { subscription: UserSubscript
   const priceInfo = useSubscriptionPrice('PROVIDER_PREMIUM');
   const isActive = ['active', 'trialing'].includes(subscription.status);
   const { isDarkColorScheme } = useColorScheme();
+  const colors = THEME[isDarkColorScheme ? 'dark' : 'light'];
 
   return (
     <Card className="opacity-75">
       <CardContent className="p-3">
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center gap-2">
-            <Star size={16} color={isDarkColorScheme ? '#9ca3af' : '#6b7280'} />
+            <Star size={16} color={colors.mutedForeground} />
             <View>
               <Text className="text-sm font-medium text-foreground">
                 {priceInfo.displayName}

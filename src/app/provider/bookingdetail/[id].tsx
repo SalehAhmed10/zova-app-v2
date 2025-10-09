@@ -11,11 +11,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useProviderBookingDetail } from '@/hooks/provider';
 import { useUpdateBookingStatus, useCompleteService } from '@/hooks/shared/useBookings';
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { cn } from '@/lib/utils';
+import { THEME } from '@/lib/theme';
+import { cn, formatCurrency } from '@/lib/utils';
 
 export default function ProviderBookingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { isDarkColorScheme } = useColorScheme();
+  const { isDarkColorScheme, colorScheme } = useColorScheme();
+  const colors = THEME[colorScheme];
   
   const {
     data: booking,
@@ -187,10 +189,7 @@ export default function ProviderBookingDetailScreen() {
     }
   };
 
-  const formatCurrency = (amount: number | string) => {
-    const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-    return `£${numAmount.toFixed(2)}`;
-  };
+
 
   const formatDateTime = (date: string, time: string) => {
     const bookingDate = new Date(`${date}T${time}`);
@@ -344,7 +343,7 @@ export default function ProviderBookingDetailScreen() {
               onPress={() => router.back()}
               className="w-8 h-8 p-0"
             >
-              <Ionicons name="chevron-back" size={24} color="#8B5CF6" />
+              <Ionicons name="chevron-back" size={24} color={colors.primary} />
             </Button>
             <Text className="text-xl font-bold text-foreground">
               Booking Details
@@ -355,7 +354,7 @@ export default function ProviderBookingDetailScreen() {
         
         <View className="flex-1 items-center justify-center px-6">
           <View className="w-20 h-20 rounded-full bg-muted items-center justify-center mb-4">
-            <Ionicons name="alert-circle-outline" size={40} color="#8B5CF6" />
+            <Ionicons name="alert-circle-outline" size={40} color={colors.primary} />
           </View>
           <Text className="text-xl font-bold text-foreground mb-2">
             Booking Not Found
@@ -381,7 +380,7 @@ export default function ProviderBookingDetailScreen() {
             onPress={() => router.back()}
             className="w-8 h-8 p-0"
           >
-            <Ionicons name="chevron-back" size={24} color="#8B5CF6" />
+            <Ionicons name="chevron-back" size={24} color={colors.primary} />
           </Button>
           <Text className="text-xl font-bold text-foreground">
             Booking Details
@@ -422,7 +421,7 @@ export default function ProviderBookingDetailScreen() {
             <CardContent className="p-4 pt-0">
               <View className="flex-row items-center mb-4">
                 <View className="w-12 h-12 rounded-full bg-primary/10 items-center justify-center mr-4">
-                  <Ionicons name="person" size={24} color="#8B5CF6" />
+                  <Ionicons name="person" size={24} color={colors.primary} />
                 </View>
                 <View className="flex-1">
                   <Text className="text-lg font-semibold text-foreground">
@@ -442,7 +441,7 @@ export default function ProviderBookingDetailScreen() {
                     className="flex-1"
                     onPress={handleCallCustomer}
                   >
-                    <Ionicons name="call" size={16} color="#8B5CF6" />
+                    <Ionicons name="call" size={16} color={colors.primary} />
                     <Text className="text-foreground ml-2">Call</Text>
                   </Button>
                 )}
@@ -453,7 +452,7 @@ export default function ProviderBookingDetailScreen() {
                     className="flex-1"
                     onPress={handleEmailCustomer}
                   >
-                    <Ionicons name="mail" size={16} color="#8B5CF6" />
+                    <Ionicons name="mail" size={16} color={colors.primary} />
                     <Text className="text-foreground ml-2">Email</Text>
                   </Button>
                 )}
@@ -467,9 +466,9 @@ export default function ProviderBookingDetailScreen() {
               <Text className="text-lg font-semibold text-foreground">Booking Details</Text>
             </CardHeader>
             <CardContent className="p-4 pt-0">
-              <View className="space-y-4">
+              <View className="gap-4">
                 <View className="flex-row items-center">
-                  <Ionicons name="calendar-outline" size={20} color="#8B5CF6" />
+                  <Ionicons name="calendar-outline" size={20} color={colors.primary} />
                   <View className="ml-3 flex-1">
                     <Text className="text-sm text-muted-foreground">Date</Text>
                     <Text className="text-base font-semibold text-foreground">{dateStr}</Text>
@@ -477,7 +476,7 @@ export default function ProviderBookingDetailScreen() {
                 </View>
 
                 <View className="flex-row items-center">
-                  <Ionicons name="time-outline" size={20} color="#8B5CF6" />
+                  <Ionicons name="time-outline" size={20} color={colors.primary} />
                   <View className="ml-3 flex-1">
                     <Text className="text-sm text-muted-foreground">Time</Text>
                     <Text className="text-base font-semibold text-foreground">
@@ -489,7 +488,7 @@ export default function ProviderBookingDetailScreen() {
 
                 {booking.durationMinutes && (
                   <View className="flex-row items-center">
-                    <Ionicons name="hourglass-outline" size={20} color="#8B5CF6" />
+                    <Ionicons name="hourglass-outline" size={20} color={colors.primary} />
                     <View className="ml-3 flex-1">
                       <Text className="text-sm text-muted-foreground">Duration</Text>
                       <Text className="text-base font-semibold text-foreground">
@@ -501,7 +500,7 @@ export default function ProviderBookingDetailScreen() {
 
                 {booking.serviceAddress && (
                   <View className="flex-row items-start">
-                    <Ionicons name="location-outline" size={20} color="#8B5CF6" />
+                    <Ionicons name="location-outline" size={20} color={colors.primary} />
                     <View className="ml-3 flex-1">
                       <Text className="text-sm text-muted-foreground">Location</Text>
                       <Text className="text-base font-semibold text-foreground">
@@ -548,7 +547,7 @@ export default function ProviderBookingDetailScreen() {
               <Text className="text-lg font-semibold text-foreground">Pricing</Text>
             </CardHeader>
             <CardContent className="p-4 pt-0">
-              <View className="space-y-3">
+              <View className="gap-3">
                 <View className="flex-row justify-between items-center">
                   <Text className="text-base text-foreground">Service Fee</Text>
                   <Text className="text-base font-semibold text-foreground">

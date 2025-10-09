@@ -3,18 +3,36 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, ScrollView, Platform, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import type { LucideIcon } from 'lucide-react-native';
+import {
+  User,
+  Crown,
+  Calendar,
+  Heart,
+  Star,
+  AlertTriangle,
+  MessageCircle,
+  Search,
+  Bell,
+  HelpCircle,
+  Phone,
+  Trophy,
+  DollarSign,
+  CheckCircle,
+  ChevronRight,
+  LogOut
+} from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { LogoutButton } from '@/components/ui/logout-button';
 import { useAppStore } from '@/stores/auth/app';
 import { useProfileModalStore } from '@/stores/ui/profileModal';
 import { useAuthOptimized } from '@/hooks';
-import { supabase } from '@/lib/core/supabase';
 import {
   useProfile,
   useProfileStats,
@@ -22,14 +40,11 @@ import {
   useNotificationSettings
 } from '@/hooks/shared/useProfileData';
 import { useUserFavorites } from '@/hooks/customer';
-
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Icon } from '@/components/ui/icon';
-import { Calendar, CheckCircle, Heart, Search, AlertTriangle, ClipboardList, Trophy, Star, DollarSign, HelpCircle, Phone } from 'lucide-react-native';
-import { cn } from '@/lib/utils';
-import { THEME } from '@/lib/core/theme';
+import { cn, formatCurrency } from '@/lib/utils';
+import { THEME } from '@/lib/theme';
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const CustomerProfile = React.memo(function CustomerProfile() {
   const { userRole } = useAppStore();
@@ -91,134 +106,84 @@ const CustomerProfile = React.memo(function CustomerProfile() {
     return profileData?.email?.split('@')[0] || 'User';
   };
 
-  // Helper function for icon background colors using theme colors
-  const getIconBgColor = (color: string) => {
-    const colorMap: Record<string, string> = {
-      green: THEME[colorScheme].success,
-      yellow: THEME[colorScheme].warning,
-      blue: THEME[colorScheme].info,
-      purple: THEME[colorScheme].purple,
-      orange: THEME[colorScheme].orange,
-      red: THEME[colorScheme].destructive,
-    };
-    return colorMap[color] || THEME[colorScheme].muted;
-  };
-
   // 🚀 MODERN: Memoized menu data with meaningful customer options
   const menuData = useMemo(() => [
     {
       id: 'personal-info',
       title: 'Personal Information',
       subtitle: 'Manage your profile details',
-      icon: '👤',
-      iconBg: getIconBgColor('blue'),
+      icon: User,
       onPress: () => router.push('/customer/profile/personal-info'),
     },
     {
       id: 'subscriptions',
       title: 'Subscriptions',
       subtitle: 'Manage SOS and premium plans',
-      icon: '⚡',
-      iconBg: getIconBgColor('purple'),
+      icon: Crown,
       onPress: () => router.push('/customer/subscriptions'),
     },
     {
       id: 'booking-history',
       title: 'Booking History',
       subtitle: 'View past and upcoming bookings',
-      icon: '📅',
-      iconBg: getIconBgColor('green'),
+      icon: Calendar,
       onPress: () => router.push('/customer/profile/booking-history'),
     },
     {
       id: 'favorites',
       title: 'Favorites',
       subtitle: 'Your saved providers and services',
-      icon: '❤️',
-      iconBg: getIconBgColor('red'),
+      icon: Heart,
       onPress: () => router.push('/customer/profile/favorites'),
     },
     {
       id: 'reviews',
       title: 'My Reviews',
       subtitle: 'View and manage your reviews',
-      icon: '⭐',
-      iconBg: getIconBgColor('yellow'),
+      icon: Star,
       onPress: () => router.push('/customer/profile/reviews'),
     },
     {
       id: 'sos-booking',
       title: 'SOS Emergency Booking',
       subtitle: 'Quick access to emergency services',
-      icon: '🚨',
-      iconBg: getIconBgColor('red'),
+      icon: AlertTriangle,
       onPress: () => router.push('/customer/sos-booking'),
     },
     {
       id: 'messages',
       title: 'Messages',
       subtitle: 'Chat with service providers',
-      icon: '💬',
-      iconBg: getIconBgColor('blue'),
+      icon: MessageCircle,
       onPress: () => router.push('/customer/messages'),
     },
     {
       id: 'search',
       title: 'Search Services',
       subtitle: 'Find providers and services',
-      icon: '🔍',
-      iconBg: getIconBgColor('orange'),
+      icon: Search,
       onPress: () => router.push('/customer/search'),
     },
     {
       id: 'notifications',
       title: 'Notification Settings',
       subtitle: 'Customize your alerts',
-      icon: '🔔',
-      iconBg: getIconBgColor('yellow'),
+      icon: Bell,
       onPress: () => router.push('/customer/profile/notifications'),
     },
-    {
-      id: 'logout',
-      title: 'Logout',
-      subtitle: 'Sign out of your account',
-      icon: '🚪',
-      iconBg: getIconBgColor('red'),
-      onPress: () => { }, // Will be handled by LogoutButton component
-      isLogout: true, // Special flag for logout button
-    },
-  ], [colorScheme]);
+  ], []);
 
   // Define menu item type
   type MenuItemType = {
     id: string;
     title: string;
     subtitle: string;
-    icon: string;
-    iconBg: string;
+    icon: LucideIcon;
     onPress: () => void;
-    isLogout?: boolean;
   };
 
   // 🚀 MODERN: Memoized MenuItem component (like provider profile)
   const MenuItem = React.memo(({ item }: { item: MenuItemType }) => {
-    if (item.isLogout) {
-      return (
-        <View className="mb-3">
-          <LogoutButton
-            variant="modern"
-            className="bg-red-500/10 dark:bg-red-500/20 border-red-200 dark:border-red-700"
-            showIcon={true}
-            fullWidth={true}
-          >
-            <Text className="text-red-600 dark:text-red-400 font-semibold text-base">
-              Sign Out
-            </Text>
-          </LogoutButton>
-        </View>
-      );
-    }
-
     return (
       <TouchableOpacity
         onPress={item.onPress}
@@ -228,11 +193,8 @@ const CustomerProfile = React.memo(function CustomerProfile() {
         <Card className="bg-card border-border">
           <CardContent className="p-4">
             <View className="flex-row items-center">
-              <View
-                className="w-12 h-12 rounded-xl items-center justify-center mr-4"
-                style={{ backgroundColor: item.iconBg }}
-              >
-                <Text className="text-lg">{item.icon}</Text>
+              <View className="w-12 h-12 bg-accent rounded-xl items-center justify-center mr-4">
+                <Icon as={item.icon} size={20} className="text-foreground" />
               </View>
               <View className="flex-1">
                 <Text className="text-foreground font-medium text-base">
@@ -244,7 +206,7 @@ const CustomerProfile = React.memo(function CustomerProfile() {
                   </Text>
                 )}
               </View>
-              <Text className="text-muted-foreground text-lg">›</Text>
+              <Icon as={ChevronRight} size={20} className="text-muted-foreground" />
             </View>
           </CardContent>
         </Card>
@@ -324,171 +286,128 @@ const CustomerProfile = React.memo(function CustomerProfile() {
           />
         }
       >
-        {/* Header Section with Modern Design */}
-        <LinearGradient
-          colors={[THEME[colorScheme].gradientStart, THEME[colorScheme].gradientEnd]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 32 }}
-        >
+        {/* Header Section - Clean Design */}
+        <View className="bg-card border-b border-border px-6 pt-6 pb-8">
           <View className="items-center">
-            {/* Profile Picture with Edit Button */}
-            <View className="mb-6 relative">
-              <Avatar className="w-32 h-32 border-4 border-white/30 shadow-2xl" alt="User avatar">
+            {/* Profile Picture */}
+            <View className="mb-4">
+              <Avatar className="w-20 h-20 border-2 border-border" alt="Customer avatar">
                 {profileData?.avatar_url ? (
                   <AvatarImage source={{ uri: profileData.avatar_url }} />
                 ) : null}
-                <AvatarFallback className="bg-white/20">
-                  <Text className="text-4xl text-white font-bold">
-                    {profileData?.first_name?.[0]?.toUpperCase() ||
-                      profileData?.email?.[0]?.toUpperCase() || '👤'}
-                  </Text>
+                <AvatarFallback className="bg-muted">
+                  {(profileData?.first_name?.[0] || profileData?.email?.[0]) ? (
+                    <Text className="text-2xl text-muted-foreground font-bold">
+                      {profileData?.first_name?.[0]?.toUpperCase() ||
+                       profileData?.email?.[0]?.toUpperCase()}
+                    </Text>
+                  ) : (
+                    <Icon as={User} size={32} className="text-muted-foreground" />
+                  )}
                 </AvatarFallback>
               </Avatar>
-              {/* Edit Avatar Button */}
-              <TouchableOpacity
-                onPress={() => router.push('/customer/profile/personal-info')}
-                className="absolute -bottom-2 -right-2 w-10 h-10 bg-primary rounded-full items-center justify-center border-2 border-white"
-              >
-                <Text className="text-white text-lg">✏️</Text>
-              </TouchableOpacity>
             </View>
 
-            {/* User Info */}
-            <Text className="text-2xl font-bold text-white mb-1">
+            {/* Customer Info */}
+            <Text className="text-xl font-bold text-foreground mb-2 text-center">
               {getDisplayName()}
             </Text>
-            <Text className="text-white/80 mb-3 text-center">
+            <Text className="text-muted-foreground mb-4 text-center px-4">
               {profileData?.bio || 'Welcome to ZOVA'}
             </Text>
 
+            {/* Customer Badge */}
+            <View className="bg-primary/10 px-4 py-2 rounded-full border border-primary/20">
+              <Text className="text-primary font-semibold text-sm">
+                ⭐ ZOVA Customer
+              </Text>
+            </View>
+
             {/* Rating & Member Since */}
-            <View className="flex-row gap-4">
-              <View className="flex-row items-center bg-white/20 px-3 py-2 rounded-full">
-                <Text className="text-white font-bold text-sm mr-1">
-                  {statsLoading ? '-' : (statsData?.avg_rating || 4.9).toFixed(1)}
-                </Text>
-                <Text className="text-white/80 text-sm">⭐</Text>
-              </View>
-              <View className="flex-row items-center bg-white/20 px-3 py-2 rounded-full">
-                <Text className="text-white/80 text-sm mr-1">Since</Text>
-                <Text className="text-white font-bold text-sm">
-                  {profileData?.created_at ? new Date(profileData.created_at).getFullYear() : '2024'}
+            <View className="flex-row gap-2 mt-3">
+              <View className="bg-warning/10 px-3 py-1 rounded-full border border-warning/20">
+                <Text className="text-warning font-medium text-xs">
+                  ⭐ {statsLoading ? '-' : (statsData?.avg_rating || 4.9).toFixed(1)} Rating
                 </Text>
               </View>
-            </View>
-          </View>
-        </LinearGradient>
-
-        {/* Quick Stats Cards - Box Grid Design */}
-        <View className="px-2 -mt-4 mb-8">
-          <View className="flex-row gap-3">
-            {/* Total Bookings Card */}
-            <View className="flex-1">
-              <Card className="bg-card border-border shadow-lg">
-                <CardContent className="p-3 items-center justify-center">
-                  <View className="w-8 h-8 bg-primary/10 rounded-lg items-center justify-center mb-1.5">
-                    <Icon as={Calendar} size={16} className="text-primary" />
-                  </View>
-                  <Text className="text-lg font-bold text-foreground mb-0.5 text-center">
-                    {statsLoading ? '-' : (statsData?.total_bookings || 24)}
-                  </Text>
-                  <Text className="text-xs text-muted-foreground text-center">
-                    Total
-                  </Text>
-                </CardContent>
-              </Card>
-            </View>
-
-            {/* Completed Bookings Card */}
-            <View className="flex-1">
-              <Card className="bg-card border-border shadow-lg">
-                <CardContent className="p-3 items-center justify-center">
-                  <View className="w-8 h-8 bg-green-500/10 rounded-lg items-center justify-center mb-1.5">
-                    <Icon as={CheckCircle} size={16} className="text-green-500" />
-                  </View>
-                  <Text className="text-lg font-bold text-foreground mb-0.5 text-center">
-                    {statsLoading ? '-' : (statsData?.completed_bookings || 21)}
-                  </Text>
-                  <Text className="text-xs text-muted-foreground text-center">
-                    Completed
-                  </Text>
-                </CardContent>
-              </Card>
-            </View>
-
-            {/* Favorites Card */}
-            <View className="flex-1">
-              <Card className="bg-card border-border shadow-lg">
-                <CardContent className="p-3 items-center justify-center">
-                  <View className="w-8 h-8 bg-pink-500/10 rounded-lg items-center justify-center mb-1.5">
-                    <Icon as={Heart} size={16} className="text-pink-500" />
-                  </View>
-                  <Text className="text-lg font-bold text-foreground mb-0.5 text-center">
-                    {(favoritesData?.providers?.length || 0) + (favoritesData?.services?.length || 0)}
-                  </Text>
-                  <Text className="text-xs text-muted-foreground text-center">
-                    Favorites
-                  </Text>
-                </CardContent>
-              </Card>
+              <View className="bg-info/10 px-3 py-1 rounded-full border border-info/20">
+                <Text className="text-info font-medium text-xs">
+                  Since {profileData?.created_at ? new Date(profileData.created_at).getFullYear() : '2024'}
+                </Text>
+              </View>
             </View>
           </View>
         </View>
 
-        {/* 🚀 MODERN: Quick Actions Section */}
-        <View className="px-2 mb-8">
-          <Text className="text-lg font-bold text-foreground mb-4">Quick Actions</Text>
+        {/* Customer Stats Cards */}
+        <View className="px-6 pt-6 mb-8">
           <View className="flex-row gap-3">
+            {/* Total Bookings */}
+            <View className="flex-1 bg-card rounded-xl p-4 border border-border">
+              <View className="items-center">
+                <View className="w-10 h-10 bg-info/10 rounded-full items-center justify-center mb-3">
+                  <Icon as={Calendar} size={20} className="text-info" />
+                </View>
+                <Text className="text-xl font-bold text-foreground mb-1">
+                  {statsLoading ? '...' : (statsData?.total_bookings || 0).toLocaleString()}
+                </Text>
+                <Text className="text-muted-foreground text-xs font-medium text-center">Total</Text>
+                <Text className="text-muted-foreground/70 text-xs text-center">Bookings</Text>
+              </View>
+            </View>
+
+            {/* Completed Bookings */}
+            <View className="flex-1 bg-card rounded-xl p-4 border border-border">
+              <View className="items-center">
+                <View className="w-10 h-10 bg-success/10 rounded-full items-center justify-center mb-3">
+                  <Icon as={CheckCircle} size={20} className="text-success" />
+                </View>
+                <Text className="text-xl font-bold text-foreground mb-1">
+                  {statsLoading ? '...' : (statsData?.completed_bookings || 0).toLocaleString()}
+                </Text>
+                <Text className="text-muted-foreground text-xs font-medium text-center">Completed</Text>
+                <Text className="text-muted-foreground/70 text-xs text-center">Bookings</Text>
+              </View>
+            </View>
+
+            {/* Favorites */}
+            <View className="flex-1 bg-card rounded-xl p-4 border border-border">
+              <View className="items-center">
+                <View className="w-10 h-10 bg-warning/10 rounded-full items-center justify-center mb-3">
+                  <Icon as={Heart} size={20} className="text-warning" />
+                </View>
+                <Text className="text-xl font-bold text-foreground mb-1">
+                  {(favoritesData?.providers?.length || 0) + (favoritesData?.services?.length || 0)}
+                </Text>
+                <Text className="text-muted-foreground text-xs font-medium text-center">Favorite</Text>
+                <Text className="text-muted-foreground/70 text-xs text-center">Providers</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Quick Actions Row */}
+          <View className="flex-row gap-3 mt-4">
             <TouchableOpacity
+              className="flex-1 bg-primary/5 rounded-xl p-3 border border-primary/20 active:scale-[0.98] transition-transform"
               onPress={() => router.push('/customer/search')}
-              className="flex-1 active:opacity-80"
-              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Find services"
             >
-              <Card className="bg-card border-border shadow-lg h-24">
-                <CardContent className="p-4 items-center justify-center h-full">
-                  <View className="w-10 h-10 bg-primary/10 rounded-xl items-center justify-center mb-2">
-                    <Icon as={Search} size={20} className="text-primary" />
-                  </View>
-                  <Text className="text-xs font-bold text-foreground mb-0.5 text-center">
-                    Find Services
-                  </Text>
-                </CardContent>
-              </Card>
+              <View className="flex-row items-center justify-center">
+                <Icon as={Search} size={16} className="text-primary mr-2" />
+                <Text className="text-primary font-semibold text-sm">Find Services</Text>
+              </View>
             </TouchableOpacity>
-
             <TouchableOpacity
+              className="flex-1 bg-destructive/5 rounded-xl p-3 border border-destructive/20 active:scale-[0.98] transition-transform"
               onPress={() => router.push('/customer/sos-booking')}
-              className="flex-1 active:opacity-80"
-              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="SOS emergency booking"
             >
-              <Card className="bg-card border-border shadow-lg h-24">
-                <CardContent className="p-4 items-center justify-center h-full">
-                  <View className="w-10 h-10 bg-destructive/10 rounded-xl items-center justify-center mb-2">
-                    <Icon as={AlertTriangle} size={20} className="text-destructive" />
-                  </View>
-                  <Text className="text-xs font-bold text-foreground  text-center">
-                    SOS Emergency
-                  </Text>
-                </CardContent>
-              </Card>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => router.push('/customer/bookings')}
-              className="flex-1 active:opacity-80"
-              activeOpacity={0.8}
-            >
-              <Card className="bg-card border-border shadow-lg h-24">
-                <CardContent className="p-4 items-center justify-center h-full">
-                  <View className="w-10 h-10 bg-secondary/50 rounded-xl items-center justify-center mb-2">
-                    <Icon as={ClipboardList} size={20} className="text-secondary-foreground" />
-                  </View>
-                  <Text className="text-xs font-bold text-foreground text-center">
-                    My Bookings
-                  </Text>
-                </CardContent>
-              </Card>
+              <View className="flex-row items-center justify-center">
+                <Icon as={AlertTriangle} size={16} className="text-destructive mr-2" />
+                <Text className="text-destructive font-semibold text-sm">SOS Emergency</Text>
+              </View>
             </TouchableOpacity>
           </View>
         </View>
@@ -498,10 +417,10 @@ const CustomerProfile = React.memo(function CustomerProfile() {
           <Text className="text-lg font-bold text-foreground mb-4">Achievements</Text>
           <View className="flex-row gap-3">
             <View className="flex-1">
-              <Card className="bg-card border-border shadow-lg h-24">
+              <Card className="bg-card border-border  h-24">
                 <CardContent className="p-4 items-center justify-center h-full">
-                  <View className="w-10 h-10 bg-yellow-500/10 rounded-xl items-center justify-center mb-2">
-                    <Icon as={Trophy} size={20} className="text-yellow-500" />
+                  <View className="w-10 h-10 bg-primary/10 rounded-xl items-center justify-center mb-2">
+                    <Icon as={Trophy} size={20} className="text-primary" />
                   </View>
                   <Text className="text-xs font-bold text-foreground mb-0.5 text-center">
                     First Booking
@@ -514,10 +433,10 @@ const CustomerProfile = React.memo(function CustomerProfile() {
             </View>
 
             <View className="flex-1">
-              <Card className="bg-card border-border shadow-lg h-24">
+              <Card className="bg-card border-border  h-24">
                 <CardContent className="p-4 items-center justify-center h-full">
-                  <View className="w-10 h-10 bg-blue-500/10 rounded-xl items-center justify-center mb-2">
-                    <Icon as={Star} size={20} className="text-blue-500" />
+                  <View className="w-10 h-10 bg-primary/10 rounded-xl items-center justify-center mb-2">
+                    <Icon as={Star} size={20} className="text-primary" />
                   </View>
                   <Text className="text-xs font-bold text-foreground mb-0.5 text-center">
                     {statsLoading ? '-' : (statsData?.avg_rating || 0).toFixed(1)}
@@ -530,10 +449,10 @@ const CustomerProfile = React.memo(function CustomerProfile() {
             </View>
 
             <View className="flex-1">
-              <Card className="bg-card border-border shadow-lg h-24">
+              <Card className="bg-card border-border  h-24">
                 <CardContent className="p-4 items-center justify-center h-full">
-                  <View className="w-10 h-10 bg-green-500/10 rounded-xl items-center justify-center mb-2">
-                    <Icon as={DollarSign} size={20} className="text-green-500" />
+                  <View className="w-10 h-10 bg-primary/10 rounded-xl items-center justify-center mb-2">
+                    <Icon as={DollarSign} size={20} className="text-primary" />
                   </View>
                   <Text className="text-xs font-bold text-foreground mb-0.5 text-center">
                     ${statsLoading ? '-' : (statsData?.total_spent || 0)}
@@ -546,53 +465,68 @@ const CustomerProfile = React.memo(function CustomerProfile() {
             </View>
           </View>
         </View>
-        <View className="px-6">
-          <Text className="text-lg font-bold text-foreground mb-4">Menu</Text>
+        {/* Menu Sections - ORDERED BY PRIORITY */}
+        <View className="px-6 gap-6">
+          {/* SECTION 1: HIGH PRIORITY - Account & Profile */}
           <View>
-            {menuData.map((item) => (
-              <MenuItem key={item.id} item={item} />
-            ))}
+            <View className="flex-row items-center mb-4">
+              <View className="w-1 h-6 bg-primary rounded-full mr-3" />
+              <Text className="text-lg font-bold text-foreground">Account & Profile</Text>
+            </View>
+            <View className="gap-3">
+              {[menuData[0], menuData[1]].map((item) => (
+                <MenuItem key={item.id} item={item} />
+              ))}
+            </View>
           </View>
 
-          {/* Support Section */}
-          <View className="mt-6 pt-4 border-t border-border">
-            <Text className="text-base font-semibold text-foreground mb-3">Support & Help</Text>
-            {[
-              {
-                id: 'help-center',
-                title: 'Help Center',
-                subtitle: 'FAQs and guides',
-                icon: '❓',
-                iconBg: getIconBgColor('blue'),
-                onPress: () => {
-                  // TODO: Implement help center route
-                  console.log('Help center pressed');
-                },
-              },
-              {
-                id: 'contact-support',
-                title: 'Contact Support',
-                subtitle: 'Get help from our team',
-                icon: '📞',
-                iconBg: getIconBgColor('green'),
-                onPress: () => {
-                  // TODO: Implement contact support
-                  console.log('Contact support pressed');
-                },
-              },
-            ].map((item) => (
-              <MenuItem key={item.id} item={item} />
-            ))}
+          {/* SECTION 2: HIGH PRIORITY - Services & Bookings */}
+          <View>
+            <View className="flex-row items-center mb-4">
+              <View className="w-1 h-6 bg-secondary rounded-full mr-3" />
+              <Text className="text-lg font-bold text-foreground">Services & Bookings</Text>
+            </View>
+            <View className="gap-3">
+              {[menuData[2], menuData[3], menuData[4]].map((item) => (
+                <MenuItem key={item.id} item={item} />
+              ))}
+            </View>
           </View>
 
-          {/* Theme Toggle */}
-          <View className="mt-4">
-            <Card className="bg-card border-border">
-              <CardContent className="p-4">
-                <ThemeToggle />
-              </CardContent>
-            </Card>
+          {/* SECTION 3: MEDIUM PRIORITY - Emergency & Communication */}
+          <View>
+            <View className="flex-row items-center mb-4">
+              <View className="w-1 h-6 bg-info rounded-full mr-3" />
+              <Text className="text-lg font-bold text-foreground">Emergency & Communication</Text>
+            </View>
+            <View className="gap-3">
+              {[menuData[5], menuData[6], menuData[7], menuData[8]].map((item) => (
+                <MenuItem key={item.id} item={item} />
+              ))}
+            </View>
           </View>
+
+          {/* App Version & Footer */}
+          <View className="items-center py-4">
+            <Text className="text-muted-foreground text-sm mb-2">ZOVA - Version 1.0.0</Text>
+            <Text className="text-muted-foreground text-xs text-center">
+              Connecting you with trusted service providers
+            </Text>
+          </View>
+
+          {/* Logout Button */}
+          <View className="mb-8">
+            <LogoutButton variant="modern" fullWidth />
+          </View>
+        </View>
+
+        {/* Theme Toggle */}
+        <View className="px-6 mt-4 mb-6">
+          <Card className="bg-card border-border">
+            <CardContent className="p-4">
+              <ThemeToggle />
+            </CardContent>
+          </Card>
         </View>
 
         {/* Bottom spacing for tab bar */}

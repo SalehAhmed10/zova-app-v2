@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, TouchableOpacity, ScrollView } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
@@ -41,7 +41,8 @@ export function Calendar({ selectedDate, onDateSelect, onClose, disabledDates = 
   };
 
   const formatDate = (year: number, month: number, day: number) => {
-    return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return dateString;
   };
 
   const isToday = (day: number) => {
@@ -68,7 +69,8 @@ export function Calendar({ selectedDate, onDateSelect, onClose, disabledDates = 
 
   const isDisabled = (day: number) => {
     const dateString = formatDate(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-    return disabledDates.includes(dateString);
+    const disabled = disabledDates.includes(dateString);
+    return disabled;
   };
 
   const handlePrevMonth = () => {
@@ -80,7 +82,13 @@ export function Calendar({ selectedDate, onDateSelect, onClose, disabledDates = 
   };
 
   const handleDatePress = (day: number) => {
-    if (isPast(day) || isDisabled(day)) return;
+    const isPastDate = isPast(day);
+    const isDisabledDate = isDisabled(day);
+    
+    if (isPastDate || isDisabledDate) {
+      return;
+    }
+    
     const dateString = formatDate(currentMonth.getFullYear(), currentMonth.getMonth(), day);
     onDateSelect(dateString);
     onClose();
@@ -182,17 +190,29 @@ export function Calendar({ selectedDate, onDateSelect, onClose, disabledDates = 
                 const date = new Date();
                 date.setDate(date.getDate() + option.days);
                 const dateString = formatDate(date.getFullYear(), date.getMonth(), date.getDate());
+                const isDateDisabled = disabledDates.includes(dateString) || isPast(date.getDate());
 
                 return (
                   <TouchableOpacity
                     key={option.label}
                     onPress={() => {
-                      onDateSelect(dateString);
-                      onClose();
+                      if (!isDateDisabled) {
+                        onDateSelect(dateString);
+                        onClose();
+                      }
                     }}
-                    className="bg-card border border-border rounded-lg px-3 py-2"
+                    disabled={isDateDisabled}
+                    className={`px-3 py-2 rounded-lg ${
+                      isDateDisabled
+                        ? 'bg-muted/50 opacity-50'
+                        : 'bg-card border border-border'
+                    }`}
                   >
-                    <Text className="text-sm text-foreground">{option.label}</Text>
+                    <Text className={`text-sm ${
+                      isDateDisabled ? 'text-muted-foreground' : 'text-foreground'
+                    }`}>
+                      {option.label}
+                    </Text>
                   </TouchableOpacity>
                 );
               })}

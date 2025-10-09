@@ -14,7 +14,7 @@ import { useSearchResults, useServiceCategories } from '@/hooks/customer/useSear
 import { useSearchStore, useSearchHydration } from '@/stores/customer/search-store';
 import SearchFiltersSheet from '@/components/customer/SearchFiltersSheet';
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { THEME } from '@/lib/core/theme';
+import { THEME } from '@/lib/theme';
 import { useRouter } from 'expo-router';
 import { useAuthPure } from '@/hooks/shared/useAuthPure';
 import { useIsFavorited, useToggleFavorite } from '@/hooks/customer/useFavorites';
@@ -80,7 +80,7 @@ export default function SearchScreen() {
         className="mb-2"
         onPress={() => router.push(`/customer/service/${item.id}`)}
       >
-        <Card className="shadow-sm border-border/50 bg-card">
+        <Card className=" border-border/50 bg-card">
           <CardContent className="p-3">
             <View className="flex-row items-start gap-2.5">
               {/* Service Avatar/Icon */}
@@ -111,7 +111,7 @@ export default function SearchScreen() {
                       <Ionicons 
                         name={isFavorited ? "heart" : "heart-outline"} 
                         size={16} 
-                        color={isFavorited ? "#ef4444" : (isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground)} 
+                        className={isFavorited ? "text-destructive" : "text-muted-foreground"}
                       />
                     </TouchableOpacity>
                     <Text className="text-base font-bold text-primary">
@@ -126,9 +126,9 @@ export default function SearchScreen() {
                 {/* Rating & Duration */}
                 <View className="flex-row items-center gap-2 mb-1.5">
                   {item.rating > 0 ? (
-                    <View className="flex-row items-center gap-0.5 bg-amber-50 dark:bg-amber-950/20 px-1 py-0.5 rounded-full border border-amber-200 dark:border-amber-800/30">
-                      <Ionicons name="star" size={10} color="#F59E0B" />
-                      <Text className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                    <View className="flex-row items-center gap-0.5 bg-warning/10 px-1 py-0.5 rounded-full border border-warning/20">
+                      <Ionicons name="star" size={10} className="text-warning" />
+                      <Text className="text-xs font-medium text-warning">
                         {item.rating.toFixed(1)}
                       </Text>
                     </View>
@@ -207,7 +207,7 @@ export default function SearchScreen() {
 
     return (
       <TouchableOpacity activeOpacity={0.7} className="mb-2" onPress={() => router.push(`/customer/provider/${item.id}`)}>
-        <Card className="shadow-sm border-border/50 bg-card">
+        <Card className=" border-border/50 bg-card">
           <CardContent className="p-3">
             <View className="flex-row items-start gap-2.5">
               {/* Provider Avatar */}
@@ -250,13 +250,13 @@ export default function SearchScreen() {
                       <Ionicons 
                         name={isFavorited ? "heart" : "heart-outline"} 
                         size={16} 
-                        color={isFavorited ? "#ef4444" : (isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground)} 
+                        className={isFavorited ? "text-destructive" : "text-muted-foreground"}
                       />
                     </TouchableOpacity>
                     {item.avg_rating ? (
-                      <View className="flex-row items-center gap-0.5 bg-amber-50 dark:bg-amber-950/20 px-1 py-0.5 rounded-full mb-0.5 border border-amber-200 dark:border-amber-800/30">
-                        <Ionicons name="star" size={10} color="#F59E0B" />
-                        <Text className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                      <View className="flex-row items-center gap-0.5 bg-warning/10 px-1 py-0.5 rounded-full mb-0.5 border border-warning/20">
+                        <Ionicons name="star" size={10} className="text-warning" />
+                        <Text className="text-xs font-medium text-warning">
                           {item.avg_rating.toFixed(1)}
                         </Text>
                       </View>
@@ -328,7 +328,7 @@ export default function SearchScreen() {
   const renderProviderItem = ({ item }: { item: any }) => <ProviderItem item={item} />;
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       <View className="flex-1">
         {/* Header */}
         <View className="px-4 py-4 border-b border-border/50 bg-card/50">
@@ -345,7 +345,7 @@ export default function SearchScreen() {
               placeholder="Search services or providers..."
               value={searchQuery}
               onChangeText={handleSearchChange}
-              className="pl-11 h-10 text-base border-border/50 bg-background shadow-sm"
+              className="pl-11 h-10 text-base border-border/50 bg-background "
               autoCapitalize="none"
               autoCorrect={false}
             />
@@ -420,7 +420,7 @@ export default function SearchScreen() {
           {isLoading ? (
             <ScrollView className="flex-1 px-4 py-3">
               {[...Array(4)].map((_, index) => (
-                <Card key={index} className="mb-2 shadow-sm border-border/50">
+                <Card key={index} className="mb-2  border-border/50">
                   <CardContent className="p-3">
                     <View className="flex-row items-start gap-2.5">
                       <Skeleton className="w-10 h-10 rounded-md" />

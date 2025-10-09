@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { THEME } from '@/lib/core/theme';
+import { THEME } from '@/lib/theme';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +27,7 @@ interface StripeAccountStatus {
 
 export default function PaymentsScreen() {
   const { colorScheme, isDarkColorScheme } = useColorScheme();
+  const colors = THEME[colorScheme];
   const queryClient = useQueryClient();
 
   // ✅ PURE ZUSTAND: Payment state management (replaces useState)
@@ -166,7 +167,7 @@ export default function PaymentsScreen() {
     }
 
     if (accountStatus.accountSetupComplete) {
-      return <Badge variant="default" className="bg-green-500"><Text>Active</Text></Badge>;
+      return <Badge variant="default" style={{ backgroundColor: colors.success }}><Text>Active</Text></Badge>;
     }
 
     return <Badge variant="secondary"><Text>Setup Required</Text></Badge>;
@@ -188,14 +189,21 @@ export default function PaymentsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
-      <View className="flex-row items-center justify-between p-4 border-b border-border">
-        <Pressable onPress={() => router.back()} className="p-2">
-          <Ionicons name="arrow-back" size={24} color={THEME[colorScheme].foreground} />
-        </Pressable>
-        <Text variant="h4" className="text-foreground font-bold">
-          Payment Integration
-        </Text>
-        <View className="w-10" />
+      <View className="px-4 py-4 border-b border-border">
+        <View className="flex-row items-center justify-between">
+          <Button
+            variant="ghost"
+            size="sm"
+            onPress={() => router.back()}
+            className="w-8 h-8 p-0"
+          >
+            <Ionicons name="chevron-back" size={24} color={colors.primary} />
+          </Button>
+          <Text className="text-xl font-bold text-foreground">
+            Payment Integration
+          </Text>
+          <View className="w-8" />
+        </View>
       </View>
 
       <ScrollView
@@ -204,7 +212,7 @@ export default function PaymentsScreen() {
           <RefreshControl
             refreshing={checkingStatus}
             onRefresh={handleRefresh}
-            tintColor={THEME[colorScheme].primary}
+            tintColor={colors.primary}
           />
         }
         showsVerticalScrollIndicator={false}
@@ -228,7 +236,7 @@ export default function PaymentsScreen() {
             <Animated.View entering={FadeIn}>
               <Card className="mb-4">
                 <CardHeader>
-                  <CardTitle className="text-orange-600 dark:text-orange-400">
+                  <CardTitle style={{ color: colors.warning }}>
                     Setup Required
                   </CardTitle>
                   <Text variant="small" className="text-muted-foreground">
@@ -335,9 +343,10 @@ export default function PaymentsScreen() {
                         variant="outline"
                         onPress={handleDeleteAccount}
                         disabled={deleteAccountMutation.isPending}
-                        className="h-10 border-red-200 dark:border-red-800"
+                        className="h-10"
+                        style={{ borderColor: colors.destructive + '40' }}
                       >
-                        <Text className="text-red-600 dark:text-red-400 font-medium">
+                        <Text className="font-medium" style={{ color: colors.destructive }}>
                           {deleteAccountMutation.isPending ? 'Disconnecting...' : 'Disconnect Account'}
                         </Text>
                       </Button>
@@ -361,7 +370,7 @@ export default function PaymentsScreen() {
                 <View className="gap-2">
                   {accountStatus.requirements.currently_due?.map((req: string, index: number) => (
                     <View key={index} className="flex-row items-center">
-                      <Ionicons name="warning" size={16} color={THEME[colorScheme].warning} />
+                      <Ionicons name="warning" size={16} color={colors.warning} />
                       <Text variant="small" className="text-muted-foreground ml-2">
                         {req.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                       </Text>
@@ -369,7 +378,7 @@ export default function PaymentsScreen() {
                   ))}
                   {accountStatus.requirements.eventually_due?.map((req: string, index: number) => (
                     <View key={index} className="flex-row items-center">
-                      <Ionicons name="time" size={16} color={THEME[colorScheme].mutedForeground} />
+                      <Ionicons name="time" size={16} color={colors.mutedForeground} />
                       <Text variant="small" className="text-muted-foreground ml-2">
                         {req.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                       </Text>
@@ -384,7 +393,7 @@ export default function PaymentsScreen() {
           <Card className="bg-muted/30">
             <CardContent className="p-4">
               <View className="flex-row items-start">
-                <Ionicons name="information-circle" size={20} color={THEME[colorScheme].mutedForeground} />
+                <Ionicons name="information-circle" size={20} color={colors.mutedForeground} />
                 <View className="flex-1 ml-3">
                   <Text variant="small" className="text-muted-foreground leading-relaxed">
                     <Text className="font-medium">Secure Payments:</Text>

@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { FlashList } from '@shopify/flash-list';
+import { Ionicons } from '@expo/vector-icons';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { BottomSheetModal, BottomSheetModalProvider, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { cn } from '@/lib/utils';
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { THEME } from '@/lib/core/theme';
+import { THEME } from '@/lib/theme';
 import { useCalendarStore } from '@/stores/ui/calendar';
 import {
   useCalendarData,
@@ -23,18 +24,7 @@ import {
 import { useAuthPure } from '@/hooks/shared/useAuthPure';
 import { Skeleton } from '@/components/ui/skeleton';
 
-// Icons (using text symbols for now, can be replaced with proper icons)
-const CalendarIcon = '📅';
-const ClockIcon = '🕐';
-const CheckCircleIcon = '✅';
-const XCircleIcon = '❌';
-const ChevronLeftIcon = '‹';
-const ChevronRightIcon = '›';
-const SettingsIcon = '⚙️';
-const TodayIcon = '📍';
-const BookingIcon = '📋';
-const AvailableIcon = '✅';
-const BusyIcon = '🔄';
+// Icons - Using proper Ionicons for better consistency and contrast
 
 // Calendar view types
 type CalendarView = 'day' | 'week';
@@ -98,12 +88,14 @@ const DayView = ({
   timeSlots,
   bookings,
   selectedDate,
-  onOpenSettings
+  onOpenSettings,
+  colors
 }: {
   timeSlots: { time: string; displayTime: string; }[];
   bookings: Booking[];
   selectedDate: Date;
   onOpenSettings: () => void;
+  colors: any;
 }) => {
   const todayString = selectedDate.toISOString().split('T')[0];
 
@@ -114,7 +106,7 @@ const DayView = ({
 
     return (
       <Card key={slot.time} className={cn(
-        "mb-3 border-l-4 shadow-sm",
+        "mb-3 border-l-4 ",
         booking ? "border-l-primary bg-primary/5" : "border-l-muted bg-card"
       )}>
         <CardContent className="p-4">
@@ -145,10 +137,9 @@ const DayView = ({
               </View>
             ) : (
               <View className="flex-1 ml-4 items-end">
-                <View className="bg-primary/10 px-3 py-1 rounded-full">
-                  <Text className="text-xs text-primary font-medium">
-                    {AvailableIcon} Available
-                  </Text>
+                <View className="bg-primary/10 px-3 py-1 rounded-full flex-row items-center">
+                  <Ionicons name="checkmark-circle" size={12} color={colors.primary} />
+                  <Text className="text-xs text-primary font-medium ml-1">Available</Text>
                 </View>
               </View>
             )}
@@ -163,8 +154,8 @@ const DayView = ({
       {timeSlots.length === 0 ? (
         <Card className="border-2 border-dashed border-muted/50 bg-gradient-to-br from-primary/5 to-secondary/5 mx-4">
           <CardContent className="p-8 items-center">
-            <View className="w-20 h-20 rounded-full bg-primary/10 items-center justify-center mb-6 shadow-lg">
-              <Text className="text-4xl">{ClockIcon}</Text>
+            <View className="w-20 h-20 rounded-full bg-primary/10 items-center justify-center mb-6 ">
+              <Ionicons name="time-outline" size={32} color={colors.primary} />
             </View>
             <Text className="text-center font-bold text-foreground text-xl mb-3">
               Set Your Working Hours
@@ -174,19 +165,22 @@ const DayView = ({
             </Text>
             <TouchableOpacity
               onPress={onOpenSettings}
-              className="bg-primary px-8 py-4 rounded-xl shadow-lg active:bg-primary/90"
+              className="bg-primary px-8 py-4 rounded-xl  active:bg-primary/90"
               accessibilityLabel="Set working hours"
               accessibilityRole="button"
             >
-              <Text className="text-primary-foreground font-semibold text-base">{SettingsIcon} Configure Hours</Text>
+              <View className="flex-row items-center">
+                <Ionicons name="settings-outline" size={18} color={colors.primaryForeground} />
+                <Text className="text-primary-foreground font-semibold text-base ml-2">Configure Hours</Text>
+              </View>
             </TouchableOpacity>
           </CardContent>
         </Card>
       ) : (
         <Card className="border-2 border-dashed border-muted bg-gradient-to-br from-primary/5 to-accent/5 mx-4">
           <CardContent className="p-8 items-center">
-            <View className="w-20 h-20 rounded-full bg-primary/10 items-center justify-center mb-6 shadow-lg">
-              <Text className="text-4xl text-primary">{CheckCircleIcon}</Text>
+            <View className="w-20 h-20 rounded-full bg-primary/10 items-center justify-center mb-6 ">
+              <Ionicons name="checkmark-circle-outline" size={40} color={colors.primary} />
             </View>
             <Text className="text-center font-bold text-foreground text-xl mb-3">
               All Slots Available!
@@ -221,11 +215,13 @@ const DayView = ({
 const WeekView = ({
   selectedDate,
   bookings,
-  weeklySchedule
+  weeklySchedule,
+  colors
 }: {
   selectedDate: Date;
   bookings: Booking[];
   weeklySchedule: WeeklySchedule | undefined;
+  colors: any;
 }) => {
   const getWeekDays = (date: Date) => {
     const week = [];
@@ -265,7 +261,7 @@ const WeekView = ({
 
     return (
       <Card key={item.index} className={cn(
-        "mb-3 shadow-sm",
+        "mb-3 ",
         isToday && "border-primary/50 bg-primary/5",
         isPastDay && "opacity-60"
       )}>
@@ -281,7 +277,10 @@ const WeekView = ({
                 </Text>
                 {isToday && (
                   <Badge variant="default" className="px-2 py-0.5">
-                    <Text className="text-xs">{TodayIcon} Today</Text>
+                    <View className="flex-row items-center">
+                      <Ionicons name="today-outline" size={12} color={colors.primaryForeground} />
+                      <Text className="text-xs ml-1">Today</Text>
+                    </View>
                   </Badge>
                 )}
               </View>
@@ -299,10 +298,9 @@ const WeekView = ({
                       {dayBookings.length} booking{dayBookings.length !== 1 ? 's' : ''}
                     </Text>
                     {!isPastDay && dayBookings.length === 0 && (
-                      <View className="bg-primary/10 px-2 py-1 rounded-full">
-                        <Text className="text-xs text-primary font-medium">
-                          {AvailableIcon} Available
-                        </Text>
+                      <View className="bg-primary/10 px-2 py-1 rounded-full flex-row items-center">
+                        <Ionicons name="checkmark-circle-outline" size={12} color={colors.primary} />
+                        <Text className="text-xs text-primary font-medium ml-1">Available</Text>
                       </View>
                     )}
                   </View>
@@ -369,6 +367,7 @@ function isValidWeeklySchedule(schedule: any): schedule is WeeklySchedule {
 
 export default function ProviderCalendar() {
   const { colorScheme } = useColorScheme();
+  const colors = THEME[colorScheme];
   const { user } = useAuthPure();
 
   // Bottom sheet ref
@@ -492,7 +491,7 @@ export default function ProviderCalendar() {
 
   return (
     <BottomSheetModalProvider>
-      <SafeAreaView className="flex-1 bg-background">
+      <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       {/* Enhanced Header */}
       <LinearGradient
         colors={[THEME[colorScheme].gradientStart, THEME[colorScheme].gradientEnd]}
@@ -501,44 +500,49 @@ export default function ProviderCalendar() {
         style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 }}
       >
         <View className="flex-row items-center justify-between mb-4">
-          <TouchableOpacity
+          <Button
+            variant="ghost"
+            size="sm"
             onPress={() => router.back()}
-            className="w-10 h-10 rounded-full bg-white/20 items-center justify-center active:bg-white/30"
+            className="w-8 h-8 p-0"
             accessibilityLabel="Go back"
             accessibilityRole="button"
           >
-            <Text className="text-white text-lg font-bold">←</Text>
-          </TouchableOpacity>
+            <Ionicons name="chevron-back" size={24} color={colors.primaryForeground} />
+          </Button>
 
           <View className="flex-1 mx-4">
-            <Text className="text-white text-xl font-bold text-center">
-              {CalendarIcon} My Schedule
-            </Text>
-            <Text className="text-white/80 text-sm text-center mt-1">
+            <View className="flex-row items-center justify-center mb-1">
+              <Ionicons name="calendar" size={20} color={colors.primaryForeground} />
+              <Text className="text-primary-foreground text-xl font-bold ml-2">
+                My Schedule
+              </Text>
+            </View>
+            <Text className="text-primary-foreground/80 text-sm text-center">
               Manage your availability
             </Text>
           </View>
 
           <TouchableOpacity
             onPress={() => bottomSheetModalRef.current?.present()}
-            className="w-10 h-10 rounded-full bg-white/20 items-center justify-center active:bg-white/30"
+            className="w-10 h-10 rounded-full bg-primary-foreground/20 items-center justify-center active:bg-primary-foreground/30"
             accessibilityLabel="Manage working hours"
             accessibilityRole="button"
           >
-            <Text className="text-white text-lg">{SettingsIcon}</Text>
+            <Ionicons name="settings" size={20} color={colors.primaryForeground} />
           </TouchableOpacity>
         </View>
 
         {/* Enhanced Date Navigation */}
-        <View className="bg-white/15 backdrop-blur-sm rounded-xl p-4 mb-4 border border-white/20">
+        <View className="bg-primary-foreground/15 backdrop-blur-sm rounded-xl p-4 mb-4 border border-primary-foreground/20">
           <View className="flex-row items-center justify-between">
             <TouchableOpacity
               onPress={goToPreviousDay}
-              className="w-10 h-10 rounded-full bg-white/20 items-center justify-center active:bg-white/30"
+              className="w-10 h-10 rounded-full bg-primary-foreground/20 items-center justify-center active:bg-primary-foreground/30"
               accessibilityLabel="Previous day"
               accessibilityRole="button"
             >
-              <Text className="text-white text-xl font-bold">{ChevronLeftIcon}</Text>
+              <Ionicons name="chevron-back" size={20} color={colors.primaryForeground} />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -549,24 +553,27 @@ export default function ProviderCalendar() {
             >
               <Text className={cn(
                 "text-center font-bold text-lg",
-                isTodaySelected ? "text-accent-foreground" : "text-white"
+                isTodaySelected ? "text-accent-foreground" : "text-primary-foreground"
               )}>
                 {dateInfo.dayName}, {dateInfo.monthName} {dateInfo.date}
               </Text>
               {isTodaySelected && (
                 <View className="mt-1 px-3 py-1 bg-accent/20 rounded-full self-center border border-accent/30">
-                  <Text className="text-xs text-accent-foreground font-semibold">{TodayIcon} Today</Text>
+                  <View className="flex-row items-center">
+                    <Ionicons name="today" size={12} color={colors.accentForeground} />
+                    <Text className="text-xs text-accent-foreground font-semibold ml-1">Today</Text>
+                  </View>
                 </View>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={goToNextDay}
-              className="w-10 h-10 rounded-full bg-white/20 items-center justify-center active:bg-white/30"
+              className="w-10 h-10 rounded-full bg-primary-foreground/20 items-center justify-center active:bg-primary-foreground/30"
               accessibilityLabel="Next day"
               accessibilityRole="button"
             >
-              <Text className="text-white text-xl font-bold">{ChevronRightIcon}</Text>
+              <Ionicons name="chevron-forward" size={20} color={colors.primaryForeground} />
             </TouchableOpacity>
           </View>
         </View>
@@ -576,11 +583,11 @@ export default function ProviderCalendar() {
           value={currentView}
           onValueChange={(value) => setCurrentView(value as CalendarView)}
         >
-          <TabsList className="bg-white/20 h-11 backdrop-blur-sm border border-white/20">
-            <TabsTrigger value="day" className="flex-1 data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg">
+          <TabsList className="bg-primary-foreground/20 h-11 backdrop-blur-sm border border-primary-foreground/20">
+            <TabsTrigger value="day" className="flex-1 data-[state=active]:bg-background data-[state=active]:text-primary rounded-lg">
               <Text className="text-sm font-semibold">📅 Day</Text>
             </TabsTrigger>
-            <TabsTrigger value="week" className="flex-1 data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg">
+            <TabsTrigger value="week" className="flex-1 data-[state=active]:bg-background data-[state=active]:text-primary rounded-lg">
               <Text className="text-sm font-semibold">📊 Week</Text>
             </TabsTrigger>
           </TabsList>
@@ -589,7 +596,7 @@ export default function ProviderCalendar() {
 
       {/* Enhanced Stats Overview */}
       <View className="px-6 -mt-3">
-        <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
+        <Card className="border-0  bg-card/80 backdrop-blur-sm">
           <CardContent className="px-6 py-2">
             <View className="flex-row justify-between items-center">
               <View className="items-center flex-1">
@@ -642,7 +649,7 @@ export default function ProviderCalendar() {
           </Card>
 
           {/* Calendar Content Skeleton */}
-          <View className="space-y-3">
+          <View className="gap-3">
             {/* Header */}
             <View className="px-4">
               <Skeleton className="w-32 h-6 mb-4" />
@@ -695,7 +702,7 @@ export default function ProviderCalendar() {
           )}
 
           {currentView === 'day' && (() => {
-            const dayViewData = DayView({ timeSlots, bookings, selectedDate, onOpenSettings: () => bottomSheetModalRef.current?.present() });
+            const dayViewData = DayView({ timeSlots, bookings, selectedDate, onOpenSettings: () => bottomSheetModalRef.current?.present(), colors });
             return (
               <FlashList
                 data={dayViewData.data}
@@ -709,7 +716,7 @@ export default function ProviderCalendar() {
           })()}
 
           {currentView === 'week' && (() => {
-            const weekViewData = WeekView({ selectedDate, bookings, weeklySchedule });
+            const weekViewData = WeekView({ selectedDate, bookings, weeklySchedule, colors });
             return (
               <FlashList
                 data={weekViewData.data}
@@ -722,9 +729,6 @@ export default function ProviderCalendar() {
           })()}
         </>
       )}
-
-      {/* Bottom spacing */}
-      <View className={cn("h-6", Platform.OS === 'ios' && "h-24")} />
 
       {/* Enhanced Weekly Schedule Bottom Sheet */}
       <BottomSheetModal
@@ -739,8 +743,8 @@ export default function ProviderCalendar() {
           {/* Header */}
           <View className="flex-row items-center justify-between py-4 border-b border-border">
             <View className="flex-row items-center">
-              <Text className="text-lg mr-2">{SettingsIcon}</Text>
-              <Text className="text-xl font-bold text-foreground">Working Hours</Text>
+              <Ionicons name="settings" size={20} color={colors.primary} />
+              <Text className="text-xl font-bold text-foreground ml-2">Working Hours</Text>
             </View>
             <TouchableOpacity
               onPress={() => bottomSheetModalRef.current?.dismiss()}
@@ -748,7 +752,7 @@ export default function ProviderCalendar() {
               accessibilityLabel="Close"
               accessibilityRole="button"
             >
-              <Text className="text-muted-foreground font-bold">×</Text>
+              <Ionicons name="close" size={16} color={colors.mutedForeground} />
             </TouchableOpacity>
           </View>
 
@@ -854,7 +858,10 @@ export default function ProviderCalendar() {
               accessibilityLabel="Save hours"
               accessibilityRole="button"
             >
-              <Text className="font-medium text-primary-foreground">{CheckCircleIcon} Save Hours</Text>
+              <View className="flex-row items-center">
+                <Ionicons name="checkmark-circle" size={16} color={colors.primaryForeground} />
+                <Text className="font-medium text-primary-foreground ml-2">Save Hours</Text>
+              </View>
             </TouchableOpacity>
           </View>
         </BottomSheetScrollView>

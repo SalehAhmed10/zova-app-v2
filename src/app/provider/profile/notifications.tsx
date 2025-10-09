@@ -15,11 +15,12 @@ import {
 import type { NotificationSettings } from '@/hooks/shared/useProfileData';
 import { cn } from '@/lib/utils';
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { THEME } from '@/lib/core/theme';
+import { THEME } from '@/lib/theme';
 
 export default function NotificationsScreen() {
   const { user } = useAuthOptimized();
   const { colorScheme } = useColorScheme();
+  const colors = THEME[colorScheme];
 
   // Data fetching hooks
   const { data: settings, isLoading } = useNotificationSettings(user?.id);
@@ -103,14 +104,21 @@ export default function NotificationsScreen() {
   if (isLoading) {
     return (
       <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-        <View className="flex-row items-center justify-between p-4 border-b border-border">
-          <Pressable onPress={() => router.back()} className="p-2">
-            <Ionicons name="arrow-back" size={24} color={THEME[colorScheme].foreground} />
-          </Pressable>
-          <Text variant="h4" className="text-foreground font-bold">
-            Notifications
-          </Text>
-          <View className="w-10" />
+        <View className="px-4 py-4 border-b border-border">
+          <View className="flex-row items-center justify-between">
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => router.back()}
+              className="w-8 h-8 p-0"
+            >
+              <Ionicons name="chevron-back" size={24} color={colors.primary} />
+            </Button>
+            <Text className="text-xl font-bold text-foreground">
+              Notifications
+            </Text>
+            <View className="w-8" />
+          </View>
         </View>
         <View className="flex-1 items-center justify-center">
           <Text className="text-muted-foreground">Loading...</Text>
@@ -121,14 +129,21 @@ export default function NotificationsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
-      <View className="flex-row items-center justify-between p-4 border-b border-border">
-        <Pressable onPress={() => router.back()} className="p-2">
-          <Ionicons name="arrow-back" size={24} color={THEME[colorScheme].foreground} />
-        </Pressable>
-        <Text variant="h4" className="text-foreground font-bold">
-          Notifications
-        </Text>
-        <View className="w-10" />
+      <View className="px-4 py-4 border-b border-border">
+        <View className="flex-row items-center justify-between">
+          <Button
+            variant="ghost"
+            size="sm"
+            onPress={() => router.back()}
+            className="w-8 h-8 p-0"
+          >
+            <Ionicons name="chevron-back" size={24} color={colors.primary} />
+          </Button>
+          <Text className="text-xl font-bold text-foreground">
+            Notifications
+          </Text>
+          <View className="w-8" />
+        </View>
       </View>
 
       <ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false}>

@@ -3,7 +3,7 @@ import { View, ScrollView, TouchableOpacity, FlatList, RefreshControl } from 're
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { THEME } from '@/lib/core/theme';
+import { THEME } from '@/lib/theme';
 import { Text } from '@/components/ui/text';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -40,17 +40,17 @@ const formatCurrency = (amount: string) => {
 const getStatusColor = (status: string) => {
   switch (status) {
     case 'completed':
-      return 'bg-green-100 dark:bg-green-900/30 border-green-200 dark:border-green-800';
+      return 'bg-success/10 border-success/20';
     case 'confirmed':
-      return 'bg-blue-100 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800';
+      return 'bg-info/10 border-info/20';
     case 'in_progress':
-      return 'bg-yellow-100 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-800';
+      return 'bg-warning/10 border-warning/20';
     case 'pending':
-      return 'bg-orange-100 dark:bg-orange-900/30 border-orange-200 dark:border-orange-800';
+      return 'bg-orange/10 border-orange/20';
     case 'cancelled':
-      return 'bg-red-100 dark:bg-red-900/30 border-red-200 dark:border-red-800';
+      return 'bg-destructive/10 border-destructive/20';
     default:
-      return 'bg-gray-100 dark:bg-gray-900/30 border-gray-200 dark:border-gray-800';
+      return 'bg-muted/50 border-border';
   }
 };
 
@@ -65,7 +65,7 @@ const BookingCard = ({ booking }: { booking: BookingData }) => {
 
   return (
     <Animated.View entering={FadeIn.duration(300)}>
-      <Card className="mb-3 shadow-sm border-border/50 bg-card">
+      <Card className="mb-3  border-border/50 bg-card">
         <CardContent className="p-4">
           {/* Header with Service and Status */}
           <View className="flex-row justify-between items-start mb-3">
@@ -74,7 +74,7 @@ const BookingCard = ({ booking }: { booking: BookingData }) => {
                 {booking.service_title}
               </Text>
               <View className="flex-row items-center gap-1">
-                <Ionicons name="person-outline" size={12} color={isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground} />
+                <Ionicons name="person-outline" size={12} className="text-muted-foreground" />
                 <Text className="text-sm text-muted-foreground" numberOfLines={1}>
                   {providerName}
                 </Text>
@@ -90,13 +90,13 @@ const BookingCard = ({ booking }: { booking: BookingData }) => {
           {/* Date and Time */}
           <View className="flex-row items-center gap-3 mb-3">
             <View className="flex-row items-center gap-1">
-              <Ionicons name="calendar-outline" size={14} color={isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground} />
+              <Ionicons name="calendar-outline" size={14} className="text-muted-foreground" />
               <Text className="text-sm text-muted-foreground">
                 {formatDate(booking.booking_date)}
               </Text>
             </View>
             <View className="flex-row items-center gap-1">
-              <Ionicons name="time-outline" size={14} color={isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground} />
+              <Ionicons name="time-outline" size={14} className="text-muted-foreground" />
               <Text className="text-sm text-muted-foreground">
                 {formatTime(booking.start_time)}
               </Text>
@@ -106,7 +106,7 @@ const BookingCard = ({ booking }: { booking: BookingData }) => {
           {/* Price */}
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center gap-1">
-              <Ionicons name="cash-outline" size={14} color={isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground} />
+              <Ionicons name="cash-outline" size={14} className="text-muted-foreground" />
               <Text className="text-sm font-semibold text-foreground">
                 {formatCurrency(booking.total_amount)}
               </Text>

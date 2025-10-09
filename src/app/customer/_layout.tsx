@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { useAppStore } from '@/stores/auth/app';
-import { THEME } from '@/lib/core/theme';
+import { THEME } from '@/lib/theme';
 import { Redirect } from 'expo-router';
 import { useNavigationDecision } from '@/hooks/shared/useNavigationDecision';
 

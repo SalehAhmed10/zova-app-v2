@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Ionicons } from '@expo/vector-icons';
 import { useStripe } from '@stripe/stripe-react-native';
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { THEME } from '@/lib/core/theme';
+import { THEME } from '@/lib/theme';
 import { supabase } from '@/lib/core/supabase';
 
 import { useCreateBooking } from '@/hooks/shared';
@@ -41,7 +41,7 @@ export default function PaymentScreen() {
   console.log('[Payment] Booking details from params:', bookingDetails);
 
   const depositAmount = bookingDetails.servicePrice * 0.2; // 20% deposit
-  const platformFee = bookingDetails.servicePrice * 0.1; // 10% platform fee (as per requirements)
+  const platformFee = bookingDetails.servicePrice * 0.10; // 10% platform fee (as per requirements)
   const totalCustomerPays = bookingDetails.servicePrice + platformFee;
 
   // Create booking mutation
@@ -292,10 +292,16 @@ export default function PaymentScreen() {
                   <Text className="font-bold text-primary">Deposit Due Today (20%)</Text>
                   <Text className="font-bold text-primary">£{depositAmount.toFixed(2)}</Text>
                 </View>
+                <Text className="text-xs text-muted-foreground mt-1 mb-2">
+                  This amount will appear on your bank statement immediately
+                </Text>
                 <View className="flex-row justify-between mt-1">
                   <Text className="text-sm text-muted-foreground">Remaining on service day</Text>
                   <Text className="text-sm text-muted-foreground">£{(totalCustomerPays - depositAmount).toFixed(2)}</Text>
                 </View>
+                <Text className="text-xs text-muted-foreground mt-1">
+                  Temporarily held on card, charged when service completes
+                </Text>
               </View>
             </View>
           </CardContent>
@@ -309,9 +315,9 @@ export default function PaymentScreen() {
               <Text className="font-medium text-foreground ml-2">Payment Details</Text>
             </View>
             <Text className="text-sm text-muted-foreground">
-              • Authorizing full amount (£{totalCustomerPays.toFixed(2)}) to secure your booking{'\n'}
-              • Only charging deposit (£{depositAmount.toFixed(2)}) today{'\n'}
-              • Remaining balance (£{(totalCustomerPays - depositAmount).toFixed(2)}) charged automatically when service is completed{'\n'}
+              • Full amount (£{totalCustomerPays.toFixed(2)}) temporarily held on your card to guarantee payment{'\n'}
+              • Only £{depositAmount.toFixed(2)} charged immediately - this appears on your statement today{'\n'}
+              • Remaining £{(totalCustomerPays - depositAmount).toFixed(2)} held until service completion{'\n'}
               • Provider receives full service price (£{bookingDetails.servicePrice.toFixed(2)}){'\n'}
               • Platform fee (£{platformFee.toFixed(2)}) supports secure payments & customer service
             </Text>
@@ -321,11 +327,11 @@ export default function PaymentScreen() {
         {/* Security Notice */}
         <Card className="mx-4 mt-4">
           <CardContent className="flex-row items-center">
-            <Ionicons name="shield-checkmark" size={24} color="#22c55e" />
+            <Ionicons name="shield-checkmark" size={24} className="text-success" />
             <View className="ml-3 flex-1">
               <Text className="font-medium text-foreground">Protected Payment</Text>
               <Text className="text-sm text-muted-foreground">
-                Payment secured by Stripe. Full amount authorized but only deposit charged today.
+                Your card will show a temporary hold for the full amount, but only the deposit is actually charged today.
               </Text>
             </View>
           </CardContent>

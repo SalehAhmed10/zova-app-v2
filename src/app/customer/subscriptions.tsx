@@ -48,12 +48,7 @@ export default function CustomerSubscriptionsScreen() {
     }
   }, [subscriptionsError, activeSubscriptionError, allSubscriptions, customerSubscription]);
   
-  // Theme-aware colors
-  const iconColor = isDarkColorScheme ? '#ffffff' : '#000000';
-  const mutedColor = isDarkColorScheme ? '#9ca3af' : '#6b7280';
-  const primaryColor = isDarkColorScheme ? '#3b82f6' : '#2563eb';
-  const successColor = '#10b981';
-  const warningColor = '#f59e0b';
+  // Using theme classes instead of hardcoded colors
 
   if (isLoading) {
     return (
@@ -91,7 +86,7 @@ export default function CustomerSubscriptionsScreen() {
           {/* Hero Header */}
           <View className="items-center text-center gap-2 pt-4">
             <View className="p-4 rounded-full bg-primary">
-              <Shield size={32} color="#ffffff" />
+              <Shield size={32} className="text-primary-foreground" />
             </View>  
             <Text className="text-2xl font-bold text-foreground">SOS Emergency Access</Text>
             <Text className="text-sm text-muted-foreground text-center max-w-sm">
@@ -103,7 +98,7 @@ export default function CustomerSubscriptionsScreen() {
           {hasCustomerSOS ? (
             <View className="gap-4">
               <View className="flex-row items-center gap-2">
-                <CheckCircle size={16} className="text-green-500" />
+                <CheckCircle size={16} className="text-success" />
                 <Text className="text-lg font-semibold text-foreground">Your Plan</Text>
               </View>
               {customerSubscription && <CustomerSubscriptionCard subscription={customerSubscription} />}
@@ -111,7 +106,7 @@ export default function CustomerSubscriptionsScreen() {
           ) : incompleteSubscription ? (
             <View className="gap-4">
               <View className="flex-row items-center gap-2">
-                <Clock size={16} className="text-amber-500" />
+                <Clock size={16} className="text-warning" />
                 <Text className="text-lg font-semibold text-foreground">Payment Required</Text>
               </View>
               <IncompleteSubscriptionCard subscription={incompleteSubscription} />
@@ -187,8 +182,7 @@ function CustomerSubscriptionCard({ subscription }: { subscription: UserSubscrip
   const reactivateMutation = useReactivateSubscription();
   const { isDarkColorScheme } = useColorScheme();
   
-  // Theme-aware colors
-  const mutedColor = isDarkColorScheme ? '#9ca3af' : '#6b7280';
+  // Using theme classes instead of hardcoded colors
   
   const handleCancel = async () => {
     if (!subscription?.stripe_subscription_id) {
@@ -242,12 +236,12 @@ function CustomerSubscriptionCard({ subscription }: { subscription: UserSubscrip
   const period = getSubscriptionPeriod(subscription);
 
   return (
-    <Card className={`relative overflow-hidden ${isActive ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20' : 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20'}`}>
+    <Card className={`relative overflow-hidden ${isActive ? 'border-success/20 bg-success/10' : 'border-warning/20 bg-warning/10'}`}>
       {/* Status Badge */}
       <View className="absolute top-3 right-3">
-        <Badge variant={isActive ? 'default' : 'secondary'} className={isActive ? 'bg-green-500' : 'bg-amber-500'}>
+        <Badge variant={isActive ? 'default' : 'secondary'} className={isActive ? 'bg-success' : 'bg-warning'}>
           <View className="flex-row items-center gap-1">
-            {isActive ? <CheckCircle size={10} color="#ffffff" /> : <Clock size={10} color="#ffffff" />}
+            {isActive ? <CheckCircle size={10} className="text-primary-foreground" /> : <Clock size={10} className="text-primary-foreground" />}
             <Text className="text-xs font-medium text-primary-foreground">
               {isActive ? 'Active' : 'Ending Soon'}
             </Text>
@@ -258,7 +252,7 @@ function CustomerSubscriptionCard({ subscription }: { subscription: UserSubscrip
       <CardHeader className="pb-3">
         <View className="flex-row items-center gap-3">
           <View className="p-3 rounded-full bg-primary">
-            <Shield size={20} color="#ffffff" />
+            <Shield size={20} className="text-primary-foreground" />
           </View>
           <View className="flex-1 pr-20">
             <CardTitle className="text-lg">{priceInfo.displayName}</CardTitle>
@@ -315,7 +309,7 @@ function CustomerSubscriptionCard({ subscription }: { subscription: UserSubscrip
             <Button 
               onPress={handleReactivate}
               disabled={reactivateMutation.isPending}
-              className="flex-1 bg-green-500 hover:bg-green-600"
+              className="flex-1 bg-success hover:bg-success/90"
             >
               <View className="flex-row items-center gap-2">
                 {reactivateMutation.isPending && <View className="w-3 h-3 rounded-full border border-primary-foreground border-t-transparent animate-spin" />}
@@ -345,7 +339,7 @@ function CustomerSubscriptionCard({ subscription }: { subscription: UserSubscrip
             onPress={() => router.push('/customer/profile')}
             className="px-3"
           >
-            <CreditCard size={16} color={mutedColor} />
+            <CreditCard size={16} className="text-muted-foreground" />
           </Button>
         </View>
       </CardContent>
@@ -357,8 +351,7 @@ function CustomerAvailablePlanCard() {
   const priceInfo = useSubscriptionPrice('CUSTOMER_SOS');
   const { isDarkColorScheme } = useColorScheme();
   
-  // Theme-aware colors
-  const mutedColor = isDarkColorScheme ? '#9ca3af' : '#6b7280';
+  // Using theme classes instead of hardcoded colors
   
   const handleSubscribe = () => {
     // Navigate to checkout screen with subscription type
@@ -373,7 +366,7 @@ function CustomerAvailablePlanCard() {
       <CardHeader className="pb-4">
         <View className="flex-row items-center gap-3">
           <View className="p-3 rounded-full bg-muted border-2 border-dashed border-muted-foreground/30">
-            <Shield size={20} color={mutedColor} />
+            <Shield size={20} className="text-muted-foreground" />
           </View>
           <View className="flex-1">
             <CardTitle className="text-lg text-foreground">
@@ -401,7 +394,7 @@ function CustomerAvailablePlanCard() {
             </View>
             <View className="items-center">
               <View className="w-12 h-12 rounded-full border-2 border-dashed border-muted-foreground/30 items-center justify-center">
-                <Zap size={20} color={mutedColor} />
+                <Zap size={20} className="text-muted-foreground" />
               </View>
             </View>
           </View>
@@ -422,7 +415,7 @@ function CustomerAvailablePlanCard() {
         {/* Subscribe Button */}
         <Button onPress={handleSubscribe} className="w-full h-12 bg-primary hover:bg-primary/90">
           <View className="flex-row items-center gap-2">
-            <Zap size={16} color="#ffffff" />
+            <Zap size={16} className="text-primary-foreground" />
             <Text className="text-primary-foreground font-semibold">Unlock SOS Access</Text>
           </View>
         </Button>
@@ -441,15 +434,14 @@ function HistorySubscriptionCard({ subscription }: { subscription: UserSubscript
   const { isDarkColorScheme } = useColorScheme();
   const isActive = ['active', 'trialing'].includes(subscription.status);
   
-  // Theme-aware colors
-  const mutedColor = isDarkColorScheme ? '#9ca3af' : '#6b7280';
+  // Using theme classes instead of hardcoded colors
 
   return (
     <Card className="opacity-75">
       <CardContent className="p-3">
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center gap-2">
-            <Shield size={16} color={mutedColor} />
+            <Shield size={16} className="text-muted-foreground" />
             <View>
               <Text className="text-sm font-medium text-foreground">
                 {priceInfo.displayName}
@@ -536,10 +528,10 @@ function IncompleteSubscriptionCard({ subscription }: { subscription: UserSubscr
         </View>
 
         {/* Action Button */}
-        <Button onPress={handleCompletePayment} className="w-full h-12 bg-amber-500 hover:bg-amber-600">
+        <Button onPress={handleCompletePayment} className="w-full h-12 bg-warning hover:bg-warning/90">
           <View className="flex-row items-center gap-2">
-            <CreditCard size={16} color="#ffffff" />
-            <Text className="text-white font-semibold">Complete Payment</Text>
+            <CreditCard size={16} className="text-primary-foreground" />
+            <Text className="text-primary-foreground font-semibold">Complete Payment</Text>
           </View>
         </Button>
 

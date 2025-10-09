@@ -116,7 +116,7 @@ const ActionButton: React.FC<{
         setPressed(false);
       }}
       disabled={disabled || loading}
-      className={`${getButtonStyles()} shadow-sm elevation-2`}
+      className={`${getButtonStyles()}  elevation-2`}
     >
       <View className="flex-row items-center justify-center gap-2">
         {icon && <Text className="text-lg">{icon}</Text>}

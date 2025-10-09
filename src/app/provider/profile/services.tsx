@@ -34,7 +34,7 @@ import {
 
 // ✅ Theme and utilities
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { THEME } from '@/lib/core/theme';
+import { THEME } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import { ChevronLeft } from 'lucide-react-native';
 
@@ -48,6 +48,7 @@ const ServiceCard = React.memo(({ service, onEdit, onToggle, onDelete, isDeletin
   isToggling: boolean;
 }) => {
   const { colorScheme } = useColorScheme();
+  const colors = THEME[colorScheme];
 
   return (
     <Animated.View entering={FadeIn.duration(300)}>
@@ -59,45 +60,48 @@ const ServiceCard = React.memo(({ service, onEdit, onToggle, onDelete, isDeletin
           <View className="flex-row justify-between items-start mb-3">
             <View className="flex-1">
               <Text className="text-lg font-bold text-foreground mb-1">
-                {service.title || 'Untitled Service'}
+                {String(service.title || 'Untitled Service')}
               </Text>
               <Text className="text-sm text-muted-foreground mb-2">
-                {service.description || 'No description provided'}
+                {String(service.description || 'No description provided')}
               </Text>
               <View className="flex-row items-center gap-2 mb-2">
                 <Badge variant={service.isActive ? "default" : "secondary"}>
                   <Text>{service.isActive ? 'Active' : 'Inactive'}</Text>
                 </Badge>
                 <Text className="text-sm text-muted-foreground">
-                  {service.category || 'Uncategorized'}
+                  {String(service.category || 'Uncategorized')}
                 </Text>
               </View>
             </View>
             <View className="flex-row gap-2">
               <TouchableOpacity
                 onPress={() => onEdit(service)}
-                className="w-8 h-8 items-center justify-center rounded-full bg-blue-500/10"
+                className="w-8 h-8 items-center justify-center rounded-full"
+                style={{ backgroundColor: colors.info + '1A' }}
                 disabled={isDeleting || isToggling}
               >
-                <Ionicons name="pencil" size={16} className="text-blue-600" />
+                <Ionicons name="pencil" size={16} color={colors.accent} />
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => onToggle(service)}
-                className="w-8 h-8 items-center justify-center rounded-full bg-green-500/10"
+                className="w-8 h-8 items-center justify-center rounded-full"
+                style={{ backgroundColor: colors.success + '1A' }}
                 disabled={isDeleting || isToggling}
               >
                 <Ionicons
                   name={service.isActive ? "eye-off" : "eye"}
                   size={16}
-                  className={service.isActive ? "text-orange-600" : "text-green-600"}
+                  color={service.isActive ? colors.warning : colors.success}
                 />
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => onDelete(service.id)}
-                className="w-8 h-8 items-center justify-center rounded-full bg-red-500/10"
+                className="w-8 h-8 items-center justify-center rounded-full"
+                style={{ backgroundColor: colors.destructive + '1A' }}
                 disabled={isDeleting || isToggling}
               >
-                <Ionicons name="trash" size={16} className="text-red-600" />
+                <Ionicons name="trash" size={16} color={colors.destructiveForeground} />
               </TouchableOpacity>
             </View>
           </View>
@@ -107,7 +111,7 @@ const ServiceCard = React.memo(({ service, onEdit, onToggle, onDelete, isDeletin
             <View className="flex-row justify-between items-center mb-2">
               <Text className="text-sm font-medium text-foreground">Base Price:</Text>
               <Text className="text-sm font-bold text-foreground">
-                £{service.price || '0.00'}
+                £{String(service.price || '0.00')}
               </Text>
             </View>
             {service.priceType === 'hourly' && (
@@ -119,7 +123,7 @@ const ServiceCard = React.memo(({ service, onEdit, onToggle, onDelete, isDeletin
             {service.houseCallExtraFee && (
               <View className="flex-row justify-between items-center mt-1">
                 <Text className="text-sm text-muted-foreground">House Call Fee:</Text>
-                <Text className="text-sm text-foreground">+£{service.houseCallExtraFee}</Text>
+                <Text className="text-sm text-foreground">+£{String(service.houseCallExtraFee)}</Text>
               </View>
             )}
           </View>
@@ -129,13 +133,13 @@ const ServiceCard = React.memo(({ service, onEdit, onToggle, onDelete, isDeletin
             {service.depositPercentage && (
               <View className="flex-row justify-between">
                 <Text className="text-sm text-muted-foreground">Deposit Required:</Text>
-                <Text className="text-sm text-foreground">{service.depositPercentage}%</Text>
+                <Text className="text-sm text-foreground">{String(service.depositPercentage)}%</Text>
               </View>
             )}
             {service.cancellationPolicy && (
               <View className="flex-row justify-between">
                 <Text className="text-sm text-muted-foreground">Cancellation:</Text>
-                <Text className="text-sm text-foreground">{service.cancellationPolicy}</Text>
+                <Text className="text-sm text-foreground">{String(service.cancellationPolicy)}</Text>
               </View>
             )}
           </View>
@@ -148,6 +152,7 @@ const ServiceCard = React.memo(({ service, onEdit, onToggle, onDelete, isDeletin
 export default function ServicesScreen() {
   const { user } = useAuthOptimized();
   const { colorScheme, isDarkColorScheme } = useColorScheme();
+  const colors = THEME[colorScheme];
   const insets = useSafeAreaInsets();
 
   // ✅ REACT QUERY: Server state management
@@ -157,19 +162,19 @@ export default function ServicesScreen() {
   const services = React.useMemo(() => {
     return rawServices?.map(service => ({
       id: service.id,
-      title: service.title,
-      description: service.description,
-      category: service.category_name,
-      subcategory: service.subcategory_name,
-      price: service.base_price,
-      duration: service.duration_minutes,
-      priceType: service.price_type,
-      isActive: service.is_active,
-      depositPercentage: service.deposit_percentage,
-      houseCallExtraFee: service.house_call_extra_fee,
-      cancellationPolicy: service.cancellation_policy,
-      houseCallAvailable: service.house_call_available,
-      allowsSosBooking: service.allows_sos_booking,
+      title: String(service.title || ''),
+      description: String(service.description || ''),
+      category: String(service.category_name || 'Uncategorized'),
+      subcategory: String(service.subcategory_name || ''),
+      price: service.base_price || 0,
+      duration: service.duration_minutes || 60,
+      priceType: String(service.price_type || 'fixed'),
+      isActive: Boolean(service.is_active),
+      depositPercentage: service.deposit_percentage || null,
+      houseCallExtraFee: service.house_call_extra_fee || null,
+      cancellationPolicy: String(service.cancellation_policy || ''),
+      houseCallAvailable: Boolean(service.house_call_available),
+      allowsSosBooking: Boolean(service.allows_sos_booking),
     })) || [];
   }, [rawServices]);
 
@@ -327,18 +332,21 @@ export default function ServicesScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
-        <View className="flex-row items-center">
+   
+      <View className="px-4 py-4 border-b border-border">
+        <View className="flex-row items-center justify-between">
           <Button
             variant="ghost"
             size="sm"
             onPress={() => router.push('/provider/profile')}
-            className="mr-2"
+            className="w-8 h-8 p-0"
           >
-            <ChevronLeft size={20} color={isDarkColorScheme ? THEME.dark.foreground : THEME.light.foreground} />
+            <Ionicons name="chevron-back" size={24} color={colors.primary} />
           </Button>
-          <Text variant="h3">Services & Pricing</Text>
+          <Text className="text-xl font-bold text-foreground">
+            Services & Pricing
+          </Text>
+          <View className="w-8" />
         </View>
       </View>
 
@@ -389,7 +397,9 @@ export default function ServicesScreen() {
                 </View>
               ) : (
                 <View className="items-center justify-center py-12">
-                  <Ionicons name="construct-outline" size={64} className="text-muted-foreground mb-4" />
+                  <View className="mb-4">
+                    <Ionicons name="construct-outline" size={64} color={colors.mutedForeground} />
+                  </View>
                   <Text className="text-xl font-bold text-foreground mb-2">No Services Yet</Text>
                   <Text className="text-muted-foreground text-center mb-6">
                     Create your first service to start accepting bookings

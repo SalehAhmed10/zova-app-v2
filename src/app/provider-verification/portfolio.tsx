@@ -472,7 +472,7 @@ export default function PortfolioUploadScreen() {
           <Text className="font-semibold text-green-900 dark:text-green-100 mb-2">
             📸 Portfolio Guidelines
           </Text>
-          <View className="space-y-1">
+          <View className="gap-1">
             <Text className="text-green-800 dark:text-green-200 text-sm">
               • Upload high-quality, well-lit images
             </Text>

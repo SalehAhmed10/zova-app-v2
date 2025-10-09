@@ -15,7 +15,7 @@ import {
 import type { NotificationSettings } from '@/hooks/shared/useProfileData';
 import { cn } from '@/lib/utils';
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { THEME } from '@/lib/core/theme';
+import { THEME } from '@/lib/theme';
 
 export default function CustomerNotificationsScreen() {
   const { user } = useAuthOptimized();

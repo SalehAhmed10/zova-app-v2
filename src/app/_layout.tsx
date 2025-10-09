@@ -29,6 +29,9 @@ LogBox.ignoreLogs([
   /value.*render/i,
   // Expo Image Picker deprecation
   /\[expo-image-picker\].*MediaTypeOptions.*deprecated/i,
+  // Expo Keep Awake errors (non-critical splash screen issue)
+  'Unable to activate keep awake',
+  /keep.*awake/i,
 ]);
 
 // Disable Reanimated strict mode globally
@@ -39,7 +42,8 @@ if (__DEV__) {
       if (args[0] && typeof args[0] === 'string' && 
           (args[0].includes('[Reanimated]') || 
            args[0].includes('Writing to `value`') || 
-           args[0].includes('Reading from `value`'))) {
+           args[0].includes('Reading from `value`') ||
+           args[0].includes('SafeAreaView has been deprecated'))) {
         return; // Suppress Reanimated warnings
       }
       originalWarn.apply(console, args);
@@ -65,7 +69,7 @@ LogBox.ignoreLogs([
   /shared value.*render/i,
 ]);
 
-import { NAV_THEME } from '@/lib/core/theme';
+import { NAV_THEME } from '@/lib/theme';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { PortalHost } from '@rn-primitives/portal';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

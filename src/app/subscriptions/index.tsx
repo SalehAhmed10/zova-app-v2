@@ -40,7 +40,7 @@ export default function SubscriptionsScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background">
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <View className="p-4 space-y-6">
+        <View className="p-4 gap-6">
           {/* Header */}
           <View>
             <Text className="text-2xl font-bold text-foreground">Subscriptions</Text>
@@ -51,7 +51,7 @@ export default function SubscriptionsScreen() {
 
           {/* Active Subscriptions */}
           {(customerSubscription || providerSubscription) && (
-            <View className="space-y-3">
+            <View className="gap-3">
               <Text className="text-lg font-semibold text-foreground">Active Subscriptions</Text>
               
               {customerSubscription && (
@@ -71,7 +71,7 @@ export default function SubscriptionsScreen() {
           )}
 
           {/* Available Plans */}
-          <View className="space-y-3">
+          <View className="gap-3">
             <Text className="text-lg font-semibold text-foreground">Available Plans</Text>
             
             {!hasCustomerSOS && (
@@ -85,7 +85,7 @@ export default function SubscriptionsScreen() {
 
           {/* Subscription History */}
           {allSubscriptions && allSubscriptions.length > 0 && (
-            <View className="space-y-3">
+            <View className="gap-3">
               <Text className="text-lg font-semibold text-foreground">Subscription History</Text>
               
               {allSubscriptions.map((subscription) => (
@@ -170,7 +170,7 @@ function SubscriptionCard({ subscription, type }: SubscriptionCardProps) {
         </View>
       </CardHeader>
 
-      <CardContent className="pt-0 space-y-3">
+      <CardContent className="pt-0 gap-3">
         {/* Pricing */}
         <View className="flex-row items-baseline gap-1">
           <Text className="text-xl font-bold text-foreground">
@@ -261,7 +261,7 @@ function AvailablePlanCard({ type }: { type: 'customer_sos' | 'provider_premium'
         </View>
       </CardHeader>
 
-      <CardContent className="pt-0 space-y-3">
+      <CardContent className="pt-0 gap-3">
         <View className="flex-row items-baseline gap-1">
           <Text className="text-xl font-bold text-foreground">
             £{(priceInfo.amount / 100).toFixed(2)}

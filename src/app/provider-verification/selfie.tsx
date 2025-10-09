@@ -453,7 +453,7 @@ export default function SelfieVerificationScreen() {
               </Button>
             )}
             {selfieData.selfieUrl && (
-              <View className="mt-4 items-center space-y-2">
+              <View className="mt-4 items-center gap-2">
                 <Text className="text-green-600 dark:text-green-400 text-sm font-medium">
                   ✓ Selfie uploaded successfully
                 </Text>
@@ -501,7 +501,7 @@ export default function SelfieVerificationScreen() {
           <Text className="font-semibold text-green-900 dark:text-green-100 mb-2">
             ✅ Selfie Guidelines
           </Text>
-          <View className="space-y-1">
+          <View className="gap-1">
             <Text className="text-green-800 dark:text-green-200 text-sm">
               • Look directly at the camera
             </Text>

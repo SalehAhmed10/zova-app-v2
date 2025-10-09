@@ -3,13 +3,14 @@ import { View, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { THEME } from '@/lib/core/theme';
+import { THEME } from '@/lib/theme';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useForm, Controller } from 'react-hook-form';
+import { Ionicons } from '@expo/vector-icons';
 import { useUpdateProfile } from '@/hooks';
 import { useProfile } from '@/hooks/shared/useProfileData';
 import { useAuthOptimized } from '@/hooks';
@@ -35,7 +36,8 @@ export default function PersonalInfoScreen() {
   const updateProfileMutation = useUpdateProfile();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const { isDarkColorScheme } = useColorScheme();
+  const { isDarkColorScheme, colorScheme } = useColorScheme();
+  const colors = THEME[colorScheme];
 
   const { control, handleSubmit, formState: { errors, isDirty }, reset } = useForm<BusinessInfoForm>({
     defaultValues: {
@@ -112,24 +114,25 @@ export default function PersonalInfoScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background">
       {/* Header */}
-      <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
-        <View className="flex-row items-center">
+      <View className="px-4 py-4 border-b border-border">
+        <View className="flex-row items-center justify-between">
           <Button
             variant="ghost"
             size="sm"
             onPress={() => router.push('/provider/profile')}
-            className="mr-2"
+            className="w-8 h-8 p-0"
           >
-            <ChevronLeft size={20} color={isDarkColorScheme ? THEME.dark.foreground : THEME.light.foreground} />
+            <Ionicons name="chevron-back" size={24} color={colors.primary} />
           </Button>
-          <Text variant="h3">Business Profile</Text>
-        </View>
-        {showSuccess && (
-          <View className="flex-row items-center">
-            <CheckCircle size={20} className="text-green-500 mr-1" />
-            <Text className="text-green-600 text-sm font-medium">Saved</Text>
+          <Text className="text-xl font-bold text-foreground">
+            Business Profile
+          </Text>
+          <View className="w-8 h-8 items-center justify-center">
+            {showSuccess && (
+              <CheckCircle size={20} color={colors.success} />
+            )}
           </View>
-        )}
+        </View>
       </View>
 
       <KeyboardAvoidingView

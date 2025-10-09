@@ -11,10 +11,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAuthOptimized, useProviderBookings } from '@/hooks';
 import { useUpdateBookingStatus } from '@/hooks/shared/useBookings';
 import { useColorScheme } from '@/lib/core/useColorScheme';
+import { THEME } from '@/lib/theme';
 import { usePendingBookings } from '@/hooks/provider';
 import { BookingRequestCard } from '@/components/provider';
 import { FlashList } from '@shopify/flash-list';
-import { cn } from '@/lib/utils';
+import { cn, formatCurrency } from '@/lib/utils';
 import { supabase } from '@/lib/core/supabase';
 
 
@@ -34,6 +35,7 @@ export default function ProviderBookingsScreen() {
   // ✅ MIGRATED: Using optimized auth hook following copilot-rules.md
   const { user } = useAuthOptimized();
   const { isDarkColorScheme } = useColorScheme();
+  const colors = THEME[isDarkColorScheme ? 'dark' : 'light'];
   const [activeTab, setActiveTab] = useState<'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'>('pending');
 
   // Get bookings for the next 30 days - memoized to prevent infinite re-rendering
@@ -189,9 +191,7 @@ export default function ProviderBookingsScreen() {
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return `£${amount.toFixed(2)}`;
-  };
+
 
   const formatDateTime = (date: string, time: string) => {
     const bookingDate = new Date(`${date}T${time}`);
@@ -231,7 +231,7 @@ export default function ProviderBookingsScreen() {
           <View className="flex-row justify-between items-start mb-3">
             <View className="flex-row items-center flex-1">
               <View className="w-10 h-10 rounded-full bg-primary/10 dark:bg-primary/20 items-center justify-center mr-3">
-                <Ionicons name="person" size={20} color={isDarkColorScheme ? '#8b5cf6' : '#7c3aed'} />
+                <Ionicons name="person" size={20} color={colors.primary} />
               </View>
               <View className="flex-1">
                 <Text className="font-semibold text-foreground text-base">
@@ -246,7 +246,7 @@ export default function ProviderBookingsScreen() {
               className={cn("ml-2", getStatusColor(booking.status))}
               variant="secondary"
             >
-              <Text className="text-white dark:text-white text-xs font-medium">
+              <Text className="text-primary-foreground text-xs font-medium">
                 {getStatusText(booking.status)}
               </Text>
             </Badge>
@@ -254,7 +254,7 @@ export default function ProviderBookingsScreen() {
 
           {/* Service Info */}
           <View className="flex-row items-center mb-3 bg-muted/50 dark:bg-muted/30 p-3 rounded-lg">
-            <Ionicons name="cut" size={18} color={isDarkColorScheme ? '#8b5cf6' : '#7c3aed'} />
+            <Ionicons name="cut" size={18} color={colors.primary} />
             <Text className="text-sm text-foreground font-medium ml-2 flex-1">
               {booking.serviceTitle}
             </Text>
@@ -263,13 +263,13 @@ export default function ProviderBookingsScreen() {
           {/* Date/Time and Price Row */}
           <View className="flex-row justify-between items-center mb-3">
             <View className="flex-row items-center flex-1">
-              <Ionicons name="calendar" size={16} color={isDarkColorScheme ? '#8b5cf6' : '#7c3aed'} />
+              <Ionicons name="calendar" size={16} color={colors.primary} />
               <Text className="text-sm text-foreground ml-2">
                 {formatDateTime(booking.date, booking.startTime)}
               </Text>
             </View>
             <View className="flex-row items-center">
-              <Ionicons name="cash" size={16} color="#10b981" />
+              <Ionicons name="cash" size={16} color={colors.success} />
               <Text className="text-lg font-bold text-primary ml-1">
                 {formatCurrency(booking.amount)}
               </Text>
@@ -281,7 +281,7 @@ export default function ProviderBookingsScreen() {
             <Text className="text-xs text-muted-foreground mr-1">
               Tap for details
             </Text>
-            <Ionicons name="chevron-forward" size={12} color={isDarkColorScheme ? '#8b5cf6' : '#7c3aed'} />
+            <Ionicons name="chevron-forward" size={12} color={colors.primary} />
           </View>
 
           {/* Quick Action Buttons - Only show for pending/confirmed/in_progress */}
@@ -398,7 +398,7 @@ export default function ProviderBookingsScreen() {
             onPress={() => router.back()}
             className="w-8 h-8 p-0"
           >
-            <Ionicons name="chevron-back" size={24} color={isDarkColorScheme ? '#8b5cf6' : '#7c3aed'} />
+            <Ionicons name="chevron-back" size={24} color={colors.primary} />
           </Button>
           <Text className="text-xl font-bold text-foreground">
             My Bookings
@@ -506,12 +506,12 @@ export default function ProviderBookingsScreen() {
                 return (
                   <View className="px-4 pt-2 pb-2">
                     <View className="flex-row items-center bg-destructive/10 p-3 rounded-lg">
-                      <Ionicons name="alert-circle" size={20} color="#ef4444" />
+                      <Ionicons name="alert-circle" size={20} color={colors.destructive} />
                       <Text className="ml-2 text-sm font-bold text-destructive flex-1">
                         ⏰ Urgent: Requires Response
                       </Text>
                       <View className="bg-destructive px-2.5 py-1 rounded-full">
-                        <Text className="text-xs font-bold text-white">
+                        <Text className="text-xs font-bold text-destructive-foreground">
                           {pendingBookingsWithDeadline.length}
                         </Text>
                       </View>
@@ -552,8 +552,8 @@ export default function ProviderBookingsScreen() {
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={onRefresh}
-                colors={[isDarkColorScheme ? '#8b5cf6' : '#7c3aed']}
-                tintColor={isDarkColorScheme ? '#8b5cf6' : '#7c3aed'}
+                colors={[colors.primary]}
+                tintColor={colors.primary}
               />
             }
             ListEmptyComponent={
@@ -568,7 +568,7 @@ export default function ProviderBookingsScreen() {
                       'close-circle-outline'
                     } 
                     size={40} 
-                    color={isDarkColorScheme ? '#8b5cf6' : '#7c3aed'}
+                    color={colors.primary}
                   />
                 </View>
                 <Text className="text-xl font-bold text-foreground mb-2">

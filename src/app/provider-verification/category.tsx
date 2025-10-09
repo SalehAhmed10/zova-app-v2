@@ -58,7 +58,7 @@ const CategoryItem = React.memo(({
   }, [item, onSelect]);
 
   return (
-    <View className={`p-5 rounded-2xl mb-3 shadow-sm bg-card border ${isSelected ? 'border-2 border-primary' : 'border-border'}`}>
+    <View className={`p-5 rounded-2xl mb-3  bg-card border ${isSelected ? 'border-2 border-primary' : 'border-border'}`}>
       <Pressable
         onPress={handlePress}
         style={{

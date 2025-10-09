@@ -10,24 +10,40 @@
     --card-foreground: 220.9091 39.2857% 10.9804%;
     --popover: 0 0% 100%;
     --popover-foreground: 220.9091 39.2857% 10.9804%;
-    --primary: 21.7450 65.6388% 55.4902%;
+    --primary: 353.02 73.5% 54.12%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 180 17.5879% 39.0196%;
+    --secondary: 210 40% 50%;
     --secondary-foreground: 0 0% 100%;
     --muted: 220.0000 14.2857% 95.8824%;
     --muted-foreground: 220 8.9362% 46.0784%;
-    --accent: 0 0% 93.3333%;
+    --accent: 270 30% 88%;
     --accent-foreground: 220.9091 39.2857% 10.9804%;
-    --destructive: 0 84.2365% 60.1961%;
-    --destructive-foreground: 0 0% 98.0392%;
+    --destructive: 15 85% 55%;
+    --destructive-foreground: 0 0% 100%;
     --border: 220 13.0435% 90.9804%;
     --input: 220 13.0435% 90.9804%;
-    --ring: 21.7450 65.6388% 55.4902%;
-    --chart-1: 180 17.3913% 45.0980%;
-    --chart-2: 22.2973 75.5102% 61.5686%;
-    --chart-3: 31.2000 92.5926% 78.8235%;
-    --chart-4: 0 0% 53.3333%;
-    --chart-5: 0 0% 60%;
+    --ring: 353.02 73.5% 54.12%;
+    
+    /* Chart Colors */
+    --chart-1: 353 73% 54%;
+    --chart-2: 210 40% 50%;
+    --chart-3: 142 76% 36%;
+    --chart-4: 38 92% 50%;
+    --chart-5: 260 60% 55%;
+    
+    /* Additional Theme Colors */
+    --success: 142 76% 36%;
+    --warning: 38 92% 50%;
+    --info: 260 60% 55%;
+    --purple: 262 83% 58%;
+    --orange: 25 95% 53%;
+    
+    /* Gradients */
+    --gradient-start: 352 72% 55%;
+    --gradient-end: 350 54% 57%;
+    --destructive-gradient-start: 0 84% 60%;
+    --destructive-gradient-end: 0 70% 50%;
+    
     --radius: 0.75rem;
   }
 
@@ -38,24 +54,40 @@
     --card-foreground: 0 0% 75.6863%;
     --popover: 270 5.5556% 7.0588%;
     --popover-foreground: 0 0% 75.6863%;
-    --primary: 22.2973 75.5102% 61.5686%;
+    --primary: 353.02 73.5% 54.12%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 180 17.3913% 45.0980%;
+    --secondary: 210 35% 55%;
     --secondary-foreground: 0 0% 98%;
     --muted: 0 0% 13.3333%;
     --muted-foreground: 0 0% 53.3333%;
-    --accent: 0 0% 20%;
+    --accent: 270 20% 25%;
     --accent-foreground: 0 0% 75.6863%;
-    --destructive: 180 17.3913% 45.0980%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 15 80% 60%;
+    --destructive-foreground: 0 0% 100%;
     --border: 0 0% 13.3333%;
     --input: 0 0% 13.3333%;
-    --ring: 22.2973 75.5102% 61.5686%;
-    --chart-1: 180 17.3913% 45.0980%;
-    --chart-2: 22.2973 75.5102% 61.5686%;
-    --chart-3: 31.2000 92.5926% 78.8235%;
-    --chart-4: 0 0% 53.3333%;
-    --chart-5: 0 0% 60%;
+    --ring: 353.02 73.5% 54.12%;
+    
+    /* Chart Colors */
+    --chart-1: 353 73% 54%;
+    --chart-2: 210 35% 55%;
+    --chart-3: 142 76% 36%;
+    --chart-4: 38 92% 50%;
+    --chart-5: 260 60% 55%;
+    
+    /* Additional Theme Colors */
+    --success: 142 76% 36%;
+    --warning: 38 92% 50%;
+    --info: 260 60% 55%;
+    --purple: 262 83% 58%;
+    --orange: 25 95% 53%;
+    
+    /* Gradients */
+    --gradient-start: 352 72% 60%;
+    --gradient-end: 350 54% 62%;
+    --destructive-gradient-start: 0 84% 60%;
+    --destructive-gradient-end: 0 70% 50%;
+    
     --radius: 0.75rem;
   }
 }

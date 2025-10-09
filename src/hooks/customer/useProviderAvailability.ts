@@ -68,7 +68,9 @@ export function useProviderSchedule(providerId: string) {
         return null;
       }
 
-      console.log('[useProviderSchedule] Schedule data:', data?.schedule);
+      console.log('[useProviderSchedule] Raw response:', data);
+      console.log('[useProviderSchedule] Schedule data received:', data?.schedule);
+      console.log('[useProviderSchedule] Schedule data keys:', data?.schedule ? Object.keys(data.schedule.schedule_data || {}) : 'no schedule_data');
       return data?.schedule || null;
     },
     enabled: !!providerId,

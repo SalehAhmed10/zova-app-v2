@@ -8,7 +8,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { THEME } from '@/lib/core/theme';
+import { THEME } from '@/lib/theme';
+import { useTrackView } from '@/hooks/shared/useTrackView';
 
 interface FavoriteService {
   id: string;
@@ -47,8 +48,15 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
 }) => {
   const router = useRouter();
   const { isDarkColorScheme } = useColorScheme();
+  const trackView = useTrackView();
 
   const handleCardPress = () => {
+    // Track service view
+    trackView.mutate({
+      type: 'service',
+      targetId: service.id,
+      providerId: service.provider?.id,
+    });
     router.push(`/customer/service/${service.id}`);
   };
 
@@ -79,7 +87,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
       onPress={handleCardPress}
       className="mb-4"
     >
-      <Card className="bg-card border border-border/50 shadow-sm overflow-hidden">
+      <Card className="bg-card border border-border/50  overflow-hidden">
         <CardContent className="p-4">
           {/* Service Title and Price */}
           <View className="mb-4">
@@ -120,7 +128,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
               {showFavoriteButton && (
                 <TouchableOpacity
                   onPress={handleToggleFavorite}
-                  className="absolute -top-1 -right-1 w-7 h-7 rounded-full bg-card border border-border items-center justify-center shadow-sm"
+                  className="absolute -top-1 -right-1 w-7 h-7 rounded-full bg-card border border-border items-center justify-center "
                   activeOpacity={0.8}
                 >
                   <Ionicons
@@ -159,12 +167,12 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
             className="mb-4"
             contentContainerStyle={{ gap: 8 }}
           >
-            <Badge className="bg-primary/10 text-primary border-primary/20 px-2 py-1 flex-shrink-0">
+            <Badge className="bg-primary/80 text-primary border-primary/30 px-2 py-1 flex-shrink-0">
               <Text className="text-xs font-medium" numberOfLines={1}>
                 {service.category_name}
               </Text>
             </Badge>
-            <Badge className="bg-secondary text-secondary-foreground border-secondary/50 px-2 py-1 flex-shrink-0">
+            <Badge className="bg-secondary/80 text-secondary-foreground border-secondary/50 px-2 py-1 flex-shrink-0">
               <Text className="text-xs font-medium" numberOfLines={1}>
                 {service.subcategory_name}
               </Text>

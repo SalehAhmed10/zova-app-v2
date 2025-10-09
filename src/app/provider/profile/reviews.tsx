@@ -13,6 +13,7 @@ import { useAuthOptimized } from '@/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/core/supabase';
 import { useColorScheme } from '@/lib/core/useColorScheme';
+import { THEME } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 interface Review {
@@ -35,6 +36,7 @@ interface Review {
 export default function ProviderReviewsScreen() {
   const { user } = useAuthOptimized();
   const { isDarkColorScheme } = useColorScheme();
+  const colors = THEME[isDarkColorScheme ? 'dark' : 'light'];
   const [refreshing, setRefreshing] = useState(false);
 
   // Fetch provider reviews with customer and booking details
@@ -121,7 +123,7 @@ export default function ProviderReviewsScreen() {
             key={star}
             name={star <= rating ? 'star' : 'star-outline'}
             size={16}
-            color={star <= rating ? '#fbbf24' : '#d1d5db'}
+            color={star <= rating ? colors.warning : colors.muted}
           />
         ))}
       </View>
@@ -161,14 +163,16 @@ export default function ProviderReviewsScreen() {
         {/* Header */}
         <View className="px-4 py-6">
           <View className="flex-row items-center justify-between mb-6">
-            <TouchableOpacity
+            <Button
+              variant="ghost"
+              size="sm"
               onPress={() => router.back()}
-              className="w-10 h-10 items-center justify-center rounded-full bg-secondary/10"
+              className="w-8 h-8 p-0"
             >
-              <Ionicons name="arrow-back" size={24} color={isDarkColorScheme ? '#fff' : '#000'} />
-            </TouchableOpacity>
+              <Ionicons name="chevron-back" size={24} color={colors.primary} />
+            </Button>
             <Text className="text-xl font-bold text-foreground">Customer Reviews</Text>
-            <View className="w-10" />
+            <View className="w-8" />
           </View>
 
           {/* Rating Overview */}

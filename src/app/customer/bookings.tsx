@@ -24,6 +24,7 @@ import { FlashList } from '@shopify/flash-list';
 
 // Color scheme hook
 import { useColorScheme } from '@/lib/core/useColorScheme';
+import { THEME } from '@/lib/theme';
 
 export default function BookingsScreen() {
   return <ProviderSelectionScreen />;
@@ -46,7 +47,10 @@ const ProviderSelectionScreen = () => {
 
   const { user } = useAuthOptimized();
   const { data: bookings, isLoading: bookingsLoading, refetch: refetchBookings } = useCustomerBookings(user?.id);
-  const { colorScheme } = useColorScheme();
+  const { colorScheme, isDarkColorScheme } = useColorScheme();
+  
+  // Theme-aware colors
+  const theme = isDarkColorScheme ? THEME.dark : THEME.light;
 
   // Pull to refresh state
   const [refreshing, setRefreshing] = useState(false);
@@ -127,7 +131,7 @@ const ProviderSelectionScreen = () => {
       onPress={() => router.push(`/customer/booking/${booking.id}` as any)}
       activeOpacity={0.7}
     >
-      <Card className="mb-4 shadow-sm mx-4">
+      <Card className="mb-4  mx-4">
         <CardContent className="p-4">
         <View className="flex-row justify-between items-start mb-2">
           <View className="flex-1 mr-2">
@@ -145,7 +149,7 @@ const ProviderSelectionScreen = () => {
               </Text>
             </View>
             {booking.sos_booking && (
-              <Text className="text-xs text-orange-600 font-medium">
+              <Text className="text-xs text-primary font-medium">
                 Emergency Booking • Fast Response
               </Text>
             )}
@@ -359,7 +363,7 @@ const ProviderSelectionScreen = () => {
                   <Ionicons 
                     name={tab.icon as any} 
                     size={16} 
-                    color={bookingStatusTab === tab.key ? 'white' : '#64748b'} 
+                    className={bookingStatusTab === tab.key ? 'text-primary-foreground' : 'text-muted-foreground'}
                   />
                 )}
                 <Text className={`font-medium ${bookingStatusTab === tab.key ? 'text-primary-foreground' : 'text-muted-foreground'}`}>
@@ -400,8 +404,8 @@ const ProviderSelectionScreen = () => {
                   <RefreshControl
                     refreshing={refreshing}
                     onRefresh={onRefresh}
-                    colors={['#8B5CF6']}
-                    tintColor="#8B5CF6"
+                    colors={['#E11D48']}
+                    tintColor="#E11D48"
                   />
                 }
               />
@@ -419,7 +423,7 @@ const ProviderSelectionScreen = () => {
           onChange={handleSheetChanges}
           backdropComponent={renderBackdrop}
           backgroundStyle={{ backgroundColor: colorScheme === 'dark' ? 'hsl(270 5.5556% 7.0588%)' : 'hsl(0 0% 100%)' }}
-          handleIndicatorStyle={{ backgroundColor: '#6B7280' }}
+          handleIndicatorStyle={{ backgroundColor: isDarkColorScheme ? '#6B7280' : '#9CA3AF' }}
         >
           <BottomSheetScrollView className="flex-1 px-4">
             <View className="py-6">

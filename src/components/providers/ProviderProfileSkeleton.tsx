@@ -38,7 +38,7 @@ export const ProviderProfileSkeleton = () => {
               </View>
 
               {/* Info Items Skeleton */}
-              <View className="w-full space-y-2 mb-6">
+              <View className="w-full gap-2 mb-6">
                 <Skeleton className="w-full h-4 rounded" />
                 <Skeleton className="w-3/4 h-4 rounded" />
                 <Skeleton className="w-2/3 h-4 rounded" />
@@ -47,7 +47,7 @@ export const ProviderProfileSkeleton = () => {
             </View>
 
             {/* Bio Skeleton */}
-            <View className="mb-6 space-y-2">
+            <View className="mb-6 gap-2">
               <Skeleton className="w-full h-4 rounded" />
               <Skeleton className="w-full h-4 rounded" />
               <Skeleton className="w-3/4 h-4 rounded" />
@@ -60,7 +60,7 @@ export const ProviderProfileSkeleton = () => {
             </View>
 
             {/* Additional Info Skeleton */}
-            <View className="mb-6 space-y-3">
+            <View className="mb-6 gap-3">
               <Skeleton className="w-20 h-4 rounded" />
               <View className="flex-row gap-2">
                 <Skeleton className="w-16 h-6 rounded-full" />
@@ -70,7 +70,7 @@ export const ProviderProfileSkeleton = () => {
             </View>
 
             {/* Contact Information Skeleton */}
-            <View className="border-t border-border pt-4 space-y-3">
+            <View className="border-t border-border pt-4 gap-3">
               <Skeleton className="w-32 h-4 rounded mb-3" />
               <Skeleton className="w-full h-4 rounded" />
               <Skeleton className="w-4/5 h-4 rounded" />
@@ -84,7 +84,7 @@ export const ProviderProfileSkeleton = () => {
       <View className="px-4 pb-6">
         <Skeleton className="w-32 h-6 rounded mb-4" />
         <Card className="bg-card border border-border/50">
-          <CardContent className="p-4 space-y-3">
+          <CardContent className="p-4 gap-3">
             {Array.from({ length: 7 }).map((_, index) => (
               <View key={index} className="flex-row justify-between items-center">
                 <Skeleton className="w-20 h-4 rounded" />
@@ -98,12 +98,12 @@ export const ProviderProfileSkeleton = () => {
       {/* Services Section Skeleton */}
       <View className="px-4 pb-6">
         <Skeleton className="w-40 h-6 rounded mb-4" />
-        <View className="space-y-4">
+        <View className="gap-4">
           {Array.from({ length: 2 }).map((_, index) => (
             <Card key={index} className="bg-card border border-border/50">
               <CardContent className="p-4">
                 <View className="flex-row justify-between items-start mb-3">
-                  <View className="flex-1 mr-4 space-y-2">
+                  <View className="flex-1 mr-4 gap-2">
                     <Skeleton className="w-3/4 h-5 rounded" />
                     <Skeleton className="w-full h-4 rounded" />
                     <Skeleton className="w-full h-4 rounded" />
@@ -112,7 +112,7 @@ export const ProviderProfileSkeleton = () => {
                       <Skeleton className="w-20 h-5 rounded" />
                     </View>
                   </View>
-                  <View className="items-end space-y-1">
+                  <View className="items-end gap-1">
                     <Skeleton className="w-16 h-5 rounded" />
                     <Skeleton className="w-12 h-4 rounded" />
                   </View>

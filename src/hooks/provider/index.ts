@@ -735,9 +735,12 @@ export const useNextUpcomingBooking = (providerId?: string) => {
       if (!providerId) throw new Error('Provider ID is required');
 
       const today = new Date().toISOString().split('T')[0];
-      const now = new Date().toTimeString().split(' ')[0]; // HH:MM:SS format
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+      const threeDaysAgoStr = threeDaysAgo.toISOString().split('T')[0];
 
-      const { data, error } = await supabase
+      // First try to get pending bookings (highest priority, including recent past)
+      let { data, error } = await supabase
         .from('bookings')
         .select(`
           id,
@@ -753,15 +756,47 @@ export const useNextUpcomingBooking = (providerId?: string) => {
           ),
           service:provider_services!service_id (
             title,
-            duration_hours
+            duration_minutes
           )
         `)
         .eq('provider_id', providerId)
-        .eq('status', 'confirmed')
-        .gte('booking_date', today)
+        .eq('status', 'pending')
+        .gte('booking_date', threeDaysAgoStr)
         .order('booking_date', { ascending: true })
         .order('start_time', { ascending: true })
         .limit(1);
+
+      // If no pending bookings, try confirmed bookings
+      if (!data || data.length === 0) {
+        const { data: confirmedData, error: confirmedError } = await supabase
+          .from('bookings')
+          .select(`
+            id,
+            booking_date,
+            start_time,
+            end_time,
+            status,
+            total_amount,
+            service_address,
+            customer:profiles!customer_id (
+              first_name,
+              last_name
+            ),
+            service:provider_services!service_id (
+              title,
+              duration_minutes
+            )
+          `)
+          .eq('provider_id', providerId)
+          .eq('status', 'confirmed')
+          .gte('booking_date', today)
+          .order('booking_date', { ascending: true })
+          .order('start_time', { ascending: true })
+          .limit(1);
+        
+        data = confirmedData;
+        error = confirmedError;
+      }
 
       if (error) throw error;
 
@@ -776,6 +811,7 @@ export const useNextUpcomingBooking = (providerId?: string) => {
         date: booking.booking_date,
         startTime: booking.start_time,
         endTime: booking.end_time,
+        status: booking.status,
         customerName: customer
           ? `${customer.first_name || 'Unknown'} ${customer.last_name || 'Customer'}`.trim()
           : 'Unknown Customer',
@@ -783,7 +819,7 @@ export const useNextUpcomingBooking = (providerId?: string) => {
           ? `${customer.first_name?.[0] || ''}${customer.last_name?.[0] || ''}`.toUpperCase()
           : 'UC',
         serviceTitle: service?.title || 'Service',
-        duration: service?.duration_hours ? `${service.duration_hours}hr` : '1.5hr',
+        duration: service?.duration_minutes ? `${Math.round(service.duration_minutes / 60)}hr` : '1.5hr',
         amount: parseFloat(booking.total_amount || '0'),
         address: booking.service_address || 'Address not provided',
       };

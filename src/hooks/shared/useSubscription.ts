@@ -205,8 +205,9 @@ export function hasActiveSubscription(
   return subscriptions.some(
     sub => 
       sub.type === type && 
-      ['active', 'trialing'].includes(sub.status) &&
-      !sub.cancel_at_period_end
+      ['active', 'trialing'].includes(sub.status)
+      // Note: We don't check cancel_at_period_end because users should have access
+      // until the subscription actually expires, even if set to cancel
   );
 }
 
@@ -252,5 +253,30 @@ export function getSubscriptionPeriod(subscription: UserSubscription) {
     end,
     daysRemaining: Math.ceil((end.getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
     isExpiringSoon: end.getTime() - Date.now() < 7 * 24 * 60 * 60 * 1000, // 7 days
+  };
+}
+
+// Convenient hooks for specific subscription types
+export function useCustomerSOSStatus() {
+  const { data: subscriptions = [], isLoading } = useUserSubscriptions();
+  const subscription = subscriptions.find(sub => sub.type === 'customer_sos' && ['active', 'trialing'].includes(sub.status));
+  
+  return {
+    hasSubscription: !!subscription,
+    subscription,
+    status: subscription?.status || 'none',
+    isLoading
+  };
+}
+
+export function useProviderPremiumStatus() {
+  const { data: subscriptions = [], isLoading } = useUserSubscriptions();
+  const subscription = subscriptions.find(sub => sub.type === 'provider_premium' && ['active', 'trialing'].includes(sub.status));
+  
+  return {
+    hasSubscription: !!subscription,
+    subscription,
+    status: subscription?.status || 'none',
+    isLoading
   };
 }

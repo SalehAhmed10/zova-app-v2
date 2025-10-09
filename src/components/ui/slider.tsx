@@ -3,7 +3,7 @@ import { View, TouchableOpacity } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { THEME } from '@/lib/core/theme';
+import { THEME } from '@/lib/theme';
 
 interface SliderProps {
   value: number[];
@@ -39,7 +39,7 @@ export function SliderComponent({
   const enabledColor = isDarkColorScheme ? THEME.dark.foreground : THEME.light.foreground;
 
   return (
-    <View className={`flex-row items-center space-x-4 ${className}`}>
+    <View className={`flex-row items-center gap-4 ${className}`}>
       <TouchableOpacity
         onPress={decreaseValue}
         className="w-10 h-10 bg-muted rounded-full items-center justify-center"

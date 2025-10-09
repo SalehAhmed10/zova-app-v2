@@ -41,7 +41,7 @@ import {
 
 // Hooks
 import { useAuthOptimized } from '@/hooks';
-import { useCustomerSOSStatus } from '@/hooks/shared/useSubscriptions';
+import { useCustomerSOSStatus } from '@/hooks/shared/useSubscription';
 import { useSOSProviders } from '@/hooks/customer/useSOSProviders';
 import { useCreateSOSBooking } from '@/hooks/customer/useCreateSOSBooking';
 import { useLocationPermission } from '@/hooks/shared/useLocation';
@@ -289,7 +289,7 @@ export default function SOSBookingScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         <View className="px-3 py-6 gap-6">
           {/* Emergency Header */}
@@ -328,7 +328,7 @@ export default function SOSBookingScreen() {
                 }
               </Text>
               {selectedCategory && (
-                <View className="mt-2 p-2 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
+                <View className="mt-2 p-2 bg-success/10 rounded-lg border border-success/20">
                   <Text className="text-green-700 dark:text-green-300 text-sm font-medium">
                     ✓ Service selected - Please describe your emergency below
                   </Text>
@@ -383,8 +383,8 @@ export default function SOSBookingScreen() {
                         >
                           <View className={`border-2 rounded-2xl p-4 ${
                             isSelected 
-                              ? 'border-destructive bg-destructive/10 shadow-lg' 
-                              : 'border-border bg-card shadow-sm'
+                              ? 'border-destructive bg-destructive/10 ' 
+                              : 'border-border bg-card '
                           }`}>
                             <View className="items-center gap-3">
                               <View className={`w-14 h-14 ${urgencyColor} rounded-2xl items-center justify-center`}>
@@ -476,7 +476,7 @@ export default function SOSBookingScreen() {
                   <Text className="text-foreground font-medium">Use Current Location</Text>
                 </Button>
                 {currentAddress && (
-                  <View className="bg-green-50 dark:bg-green-950/20 p-3 rounded-xl border border-green-200 dark:border-green-800">
+                  <View className="bg-success/10 p-3 rounded-xl border border-success/20">
                     <Text className="text-green-700 dark:text-green-300 text-sm font-medium">
                       ✓ Location confirmed - Searching for nearby providers
                     </Text>
@@ -494,7 +494,7 @@ export default function SOSBookingScreen() {
                   <Text className="text-lg font-semibold text-foreground mb-1">Available Now</Text>
                   <Text className="text-muted-foreground text-sm">Emergency providers in your area</Text>
                 </View>
-                <Badge className="bg-green-100 dark:bg-green-950/30 border-green-200 dark:border-green-800 px-3 py-2">
+                <Badge className="bg-success/10 border-success/20 px-3 py-2">
                   <Text className="text-green-700 dark:text-green-300 font-semibold">
                     {availableProviders?.length || 0} available
                   </Text>
@@ -504,7 +504,7 @@ export default function SOSBookingScreen() {
                 {providersLoading ? (
                   <View className="gap-4">
                     {[1, 2, 3].map(i => (
-                      <View key={i} className="border border-border bg-card rounded-2xl p-5 shadow-sm">
+                      <View key={i} className="border border-border bg-card rounded-2xl p-5 ">
                           {/* Header Skeleton */}
                           <View className="flex-row items-start gap-4 mb-4">
                             <Skeleton className="w-16 h-16 rounded-full shrink-0" />
@@ -553,7 +553,7 @@ export default function SOSBookingScreen() {
                 ) : availableProviders && availableProviders.length > 0 ? (
                   <View className="gap-4">
                     {availableProviders.map((provider) => (
-                      <View key={provider.id} className="border border-border bg-card rounded-2xl p-5 shadow-sm">
+                      <View key={provider.id} className="border border-border bg-card rounded-2xl p-5 ">
                           {/* Header Section */}
                           <View className="flex-row items-start gap-4 mb-4">
                             <View className="relative shrink-0">
@@ -566,7 +566,7 @@ export default function SOSBookingScreen() {
                                 </AvatarFallback>
                               </Avatar>
                               {provider.is_verified && (
-                                <View className="absolute -top-1 -right-1 w-6 h-6 bg-green-500 rounded-full items-center justify-center border-2 border-card">
+                                <View className="absolute -top-1 -right-1 w-6 h-6 bg-success rounded-full items-center justify-center border-2 border-card">
                                   <Text className="text-white text-xs font-bold">✓</Text>
                                 </View>
                               )}
@@ -639,7 +639,7 @@ export default function SOSBookingScreen() {
                           {/* Availability Status */}
                           <View className="flex-row items-center justify-between mb-4">
                             <View className="flex-row items-center gap-2">
-                              <View className="w-2 h-2 bg-green-500 rounded-full" />
+                              <View className="w-2 h-2 bg-success rounded-full" />
                               <Text className="text-xs font-medium text-green-600 dark:text-green-400">
                                 {provider.emergency_available ? 'Available Now' : 'Busy - Call for Emergency'}
                               </Text>

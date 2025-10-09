@@ -14,7 +14,7 @@ import { supabase } from '@/lib/core/supabase';
 import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';
 import { useLoadVerificationData } from '@/hooks/provider/useProviderVerificationQueries';
 import { useVerificationStatusPure } from '@/hooks/provider/useVerificationStatusPure';
-import { useAuthOptimized } from '@/hooks';
+import { useAuthPure as useAuthOptimized } from './useAuthPure';
 
 interface NavigationDecision {
   destination: string;

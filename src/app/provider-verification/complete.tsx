@@ -123,7 +123,7 @@ export default function VerificationCompleteScreen() {
               Application Submitted for Review
             </Text>
 
-            <View className="space-y-3">
+            <View className="gap-3">
               <View className="flex-row justify-between items-center">
                 <Text className="text-muted-foreground">Completion</Text>
                 <Text className="font-semibold text-foreground">{completionPercentage}%</Text>
@@ -137,7 +137,7 @@ export default function VerificationCompleteScreen() {
               </View>
             </View>
 
-            <View className="mt-4 space-y-2">
+            <View className="mt-4 gap-2">
               <View className="flex-row items-center">
                 <Text className="text-lg mr-2">{steps[1]?.isCompleted ? '✅' : '⏳'}</Text>
                 <Text className="text-sm text-muted-foreground">Identity verified</Text>
@@ -168,7 +168,7 @@ export default function VerificationCompleteScreen() {
             <Text className="font-semibold text-accent-foreground mb-3">
               🕐 What's Next?
             </Text>
-            <View className="space-y-2">
+            <View className="gap-2">
               <Text className="text-accent-foreground text-sm">
                 • Our team will review your application within 24-48 hours
               </Text>

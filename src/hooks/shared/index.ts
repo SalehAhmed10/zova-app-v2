@@ -58,3 +58,6 @@ export {
   type ProviderService,
   type TrustedProvider
 } from './useProfileData';
+
+// ✅ TRACKING: View tracking hooks
+export { useTrackView } from './useTrackView';

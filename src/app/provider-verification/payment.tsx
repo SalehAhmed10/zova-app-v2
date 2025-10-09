@@ -496,7 +496,7 @@ export default function PaymentSetupScreen() {
                 <Text className="text-orange-800 dark:text-orange-200 text-sm mb-3">
                   You have {incompleteSteps.length} incomplete step{incompleteSteps.length > 1 ? 's' : ''} that need to be completed before submitting verification:
                 </Text>
-                <View className="space-y-2">
+                <View className="gap-2">
                   {incompleteSteps.map((step) => (
                     <View key={step.step} className="flex-row items-center justify-between p-2 bg-white dark:bg-gray-800 rounded border border-orange-200 dark:border-orange-700">
                       <View className="flex-1">

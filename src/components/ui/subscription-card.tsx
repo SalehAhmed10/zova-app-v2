@@ -52,16 +52,6 @@ export function SubscriptionCard({ type, onSubscribe }: SubscriptionCardProps) {
 
   const Icon = type === 'customer_sos' ? Shield : Star;
   const isActive = subscription && ['active', 'trialing'].includes(subscription.status);
-  
-  if (isLoading) {
-    return (
-      <Card className="animate-pulse">
-        <CardContent className="p-6">
-          <View className="h-20 bg-muted rounded" />
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <Card className={`relative ${isActive ? 'border-primary' : 'border-border'}`}>
@@ -75,30 +65,54 @@ export function SubscriptionCard({ type, onSubscribe }: SubscriptionCardProps) {
       
       <CardHeader>
         <View className="flex-row items-center gap-3">
-          <View className="p-2 rounded-full bg-primary/10">
-            <Icon size={24} className="text-primary" />
-          </View>
-          <View className="flex-1">
-            <CardTitle className="text-lg">{priceInfo.displayName}</CardTitle>
-            <CardDescription className="text-sm text-muted-foreground">
-              {priceInfo.description}
-            </CardDescription>
-          </View>
+          {isLoading ? (
+            <>
+              <View className="w-10 h-10 bg-muted rounded-full animate-pulse" />
+              <View className="flex-1 gap-2">
+                <View className="h-5 bg-muted rounded w-3/4 animate-pulse" />
+                <View className="h-4 bg-muted rounded w-1/2 animate-pulse" />
+              </View>
+            </>
+          ) : (
+            <>
+              <View className="p-2 rounded-full bg-primary/10">
+                <Icon size={24} className="text-primary" />
+              </View>
+              <View className="flex-1">
+                <CardTitle className="text-lg">{priceInfo.displayName}</CardTitle>
+                <CardDescription className="text-sm text-muted-foreground">
+                  {priceInfo.description}
+                </CardDescription>
+              </View>
+            </>
+          )}
         </View>
       </CardHeader>
 
-      <CardContent className="pt-0 space-y-4">
+      <CardContent className="pt-0 gap-4">
         {/* Pricing */}
-        <View className="flex-row items-baseline gap-1">
-          <Text className="text-2xl font-bold text-foreground">
-            £{(priceInfo.amount / 100).toFixed(2)}
-          </Text>
-          <Text className="text-sm text-muted-foreground">per month</Text>
-        </View>
+        {isLoading ? (
+          <View className="gap-2">
+            <View className="h-8 bg-muted rounded w-24 animate-pulse" />
+            <View className="h-4 bg-muted rounded w-20 animate-pulse" />
+          </View>
+        ) : (
+          <View className="flex-row items-baseline gap-1">
+            <Text className="text-2xl font-bold text-foreground">
+              £{(priceInfo.amount / 100).toFixed(2)}
+            </Text>
+            <Text className="text-sm text-muted-foreground">per month</Text>
+          </View>
+        )}
 
         {/* Subscription Status */}
-        {subscription && (
-          <View className="space-y-2">
+        {isLoading ? (
+          <View className="gap-2">
+            <View className="h-4 bg-muted rounded w-32 animate-pulse" />
+            <View className="h-4 bg-muted rounded w-40 animate-pulse" />
+          </View>
+        ) : subscription && (
+          <View className="gap-2">
             <View className="flex-row items-center gap-2">
               <View className={`w-2 h-2 rounded-full ${
                 isActive ? 'bg-green-500' : 'bg-yellow-500'
@@ -119,26 +133,39 @@ export function SubscriptionCard({ type, onSubscribe }: SubscriptionCardProps) {
         )}
 
         {/* Features */}
-        <View className="space-y-2">
-          <Text className="text-sm font-medium text-foreground">Features:</Text>
-          <View className="space-y-1">
-            {getFeaturesList(type).map((feature, index) => (
-              <View key={index} className="flex-row items-center gap-2">
-                <View className="w-1 h-1 rounded-full bg-primary" />
-                <Text className="text-sm text-muted-foreground flex-1">{feature}</Text>
-              </View>
-            ))}
+        {isLoading ? (
+          <View className="gap-2">
+            <View className="h-4 bg-muted rounded w-20 animate-pulse" />
+            <View className="gap-1">
+              {[1, 2, 3].map((i) => (
+                <View key={i} className="h-4 bg-muted rounded animate-pulse" />
+              ))}
+            </View>
           </View>
-        </View>
+        ) : (
+          <View className="gap-2">
+            <Text className="text-sm font-medium text-foreground">Features:</Text>
+            <View className="gap-1">
+              {getFeaturesList(type).map((feature, index) => (
+                <View key={index} className="flex-row items-center gap-2">
+                  <View className="w-1 h-1 rounded-full bg-primary" />
+                  <Text className="text-sm text-muted-foreground flex-1">{feature}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* Action Buttons */}
-        <View className="pt-2 space-y-2">
-          {!subscription ? (
+        <View className="pt-2 gap-2">
+          {isLoading ? (
+            <View className="h-10 bg-muted rounded animate-pulse" />
+          ) : !subscription ? (
             <Button onPress={onSubscribe} className="w-full">
               <Text className="text-primary-foreground font-medium">Subscribe Now</Text>
             </Button>
           ) : (
-            <View className="space-y-2">
+            <View className="gap-2">
               {subscription.cancel_at_period_end ? (
                 <Button 
                   onPress={handleReactivate}
@@ -173,7 +200,7 @@ function SubscriptionPeriodInfo({ subscription }: { subscription: UserSubscripti
   const period = getSubscriptionPeriod(subscription);
   
   return (
-    <View className="p-3 bg-muted/50 rounded-lg space-y-1">
+    <View className="p-3 bg-muted/50 rounded-lg gap-1">
       <View className="flex-row items-center gap-2">
         <Calendar size={14} className="text-muted-foreground" />
         <Text className="text-xs font-medium text-muted-foreground">Billing Period</Text>

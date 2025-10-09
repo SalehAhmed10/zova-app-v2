@@ -85,13 +85,13 @@ export function LogoutButton({
 
   const modernButtonClass = cn(
     'flex-row items-center justify-center gap-3 px-4 py-3',
-    'bg-red-500/10 dark:bg-red-500/20',
-    'border border-red-200 dark:border-red-700',
+    'bg-destructive/10 dark:bg-destructive/20',
+    'border border-destructive/20 dark:border-destructive/30',
     'rounded-xl',
-    'active:scale-[0.98] active:bg-red-500/20 dark:active:bg-red-500/30',
+    'active:scale-[0.98] active:bg-destructive/20 dark:active:bg-destructive/30',
     'transition-all duration-200',
     Platform.select({
-      web: 'hover:bg-red-500/20 dark:hover:bg-red-500/30'
+      web: 'hover:bg-destructive/20 dark:hover:bg-destructive/30'
     }),
     fullWidth && 'w-full'
   );
@@ -106,20 +106,20 @@ export function LogoutButton({
             setShowDialog(true);
           }}
         >
-          {showIcon && <LogoutIcon className="text-red-600 dark:text-red-400" />}
+          {showIcon && <LogoutIcon className="text-destructive" />}
           {children || (
-            <Text className="text-red-600 dark:text-red-400 font-semibold text-base flex-1 text-center">
+            <Text className="text-destructive font-semibold text-base flex-1 text-center">
               Sign Out
             </Text>
           )}
         </Pressable>
 
         <AlertDialog open={showDialog} onOpenChange={setShowDialog}>
-          <AlertDialogContent className="bg-card border-border max-w-xs mx-8 rounded-2xl shadow-lg">
+          <AlertDialogContent className="bg-card border-border max-w-xs mx-8 rounded-2xl ">
             <AlertDialogHeader className="gap-3 px-2">
               <View className="items-center mb-2">
-                <View className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full items-center justify-center mb-3">
-                  <LogoutIcon className="text-red-500 text-xl" />
+                <View className="w-12 h-12 bg-destructive/10 dark:bg-destructive/20 rounded-full items-center justify-center mb-3">
+                  <LogoutIcon className="text-destructive text-xl" />
                 </View>
               </View>
               <AlertDialogTitle className="text-center text-lg font-bold">

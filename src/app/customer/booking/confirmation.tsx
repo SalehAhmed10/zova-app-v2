@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { THEME } from '@/lib/core/theme';
+import { THEME } from '@/lib/theme';
 
 export default function BookingConfirmationScreen() {
   const params = useLocalSearchParams();
@@ -25,11 +25,12 @@ export default function BookingConfirmationScreen() {
   };
 
   const handleViewBookings = () => {
-    router.replace('/customer/bookings');
+    // Navigate directly to the specific booking detail page
+    router.replace(`/customer/booking/${confirmationDetails.bookingId}`);
   };
 
   const handleBookAnother = () => {
-    router.replace('/customer');
+    router.replace('/customer/search');
   };
 
   return (
@@ -37,8 +38,8 @@ export default function BookingConfirmationScreen() {
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Success Header */}
         <View className="items-center py-8 px-4">
-          <View className="w-20 h-20 bg-green-100 dark:bg-green-900 rounded-full items-center justify-center mb-4">
-            <Ionicons name="checkmark" size={40} color="#22c55e" />
+          <View className="w-20 h-20 bg-success/10 rounded-full items-center justify-center mb-4">
+            <Ionicons name="checkmark" size={40} className="text-success" />
           </View>
           <Text className="text-2xl font-bold text-foreground text-center mb-2">
             Booking Confirmed!
@@ -150,7 +151,7 @@ export default function BookingConfirmationScreen() {
         {/* Action Buttons */}
         <View className="px-4 py-6 gap-3">
           <Button onPress={handleViewBookings} className="w-full" size="lg">
-            <Text className="text-primary-foreground font-bold">View My Bookings</Text>
+            <Text className="text-primary-foreground font-bold">View Booking Details</Text>
           </Button>
 
           <Button
