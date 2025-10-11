@@ -1,5 +1,5 @@
 // Shared hooks
-export { useAuthOptimized, useNavigationDecision, useProfileSync, useAppInitialization, useAuthNavigation } from './shared';
+export { useAuthOptimized, useProfileSync, useAppInitialization, useAuthNavigation } from './shared';
 
 // Search hooks (NEW - keyword-based full-text search)
 export { 

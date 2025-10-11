@@ -37,6 +37,35 @@ export function useAuthListener() {
               console.log('[AuthListener] Fetching profile for user:', session.user.id);
               const profile = await getUserProfile(session.user.id);
               if (profile) {
+                // ✅ DEFENSIVE CHECK: Verify role consistency for providers
+                // If profile says 'customer' but user has provider_onboarding_progress, fix it
+                if (profile.role === 'customer') {
+                  const { data: providerProgress } = await supabase
+                    .from('provider_onboarding_progress')
+                    .select('provider_id')
+                    .eq('provider_id', session.user.id)
+                    .maybeSingle();
+                  
+                  if (providerProgress) {
+                    console.warn('[AuthListener] 🔴 Role mismatch detected! User has provider_onboarding_progress but role=customer');
+                    console.log('[AuthListener] 🔧 Fixing role to provider in database...');
+                    
+                    // Fix the role in database
+                    const { error: updateError } = await supabase
+                      .from('profiles')
+                      .update({ role: 'provider' })
+                      .eq('id', session.user.id);
+                    
+                    if (!updateError) {
+                      console.log('[AuthListener] ✅ Role fixed to provider');
+                      setAuthenticated(true, 'provider');
+                      return; // Exit early with correct role
+                    } else {
+                      console.error('[AuthListener] ❌ Failed to fix role:', updateError);
+                    }
+                  }
+                }
+                
                 console.log('[AuthListener] Profile loaded, setting authenticated with role:', profile.role);
                 setAuthenticated(true, profile.role as 'customer' | 'provider');
               } else {

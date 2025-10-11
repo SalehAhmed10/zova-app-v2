@@ -3,9 +3,12 @@ import { View, Alert, Image, Platform } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import * as ImagePicker from 'expo-image-picker';
+import { Camera, Loader2, User, AlertCircle } from 'lucide-react-native';
+
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
+import { Icon } from '@/components/ui/icon';
 import { VerificationHeader } from '@/components/verification/VerificationHeader';
 import { supabase } from '@/lib/supabase';
 import { createStorageService } from '@/lib/storage/organized-storage';
@@ -435,10 +438,12 @@ export default function SelfieVerificationScreen() {
                   )}
                 </View>
               )}
-              {/* Loading indicator */}
+              {/* Loading indicator (small inline) */}
               {submitSelfieMutation.isPending && (
-                <View className="absolute inset-0 bg-black/50 rounded-full items-center justify-center">
-                  <Text className="text-white">Uploading...</Text>
+                <View className="absolute inset-0 bg-background/80 rounded-full items-center justify-center">
+                  <View className="w-10 h-10 bg-primary/10 rounded-full items-center justify-center">
+                    <Icon as={Loader2} size={20} className="text-primary animate-spin" />
+                  </View>
                 </View>
               )}
             </View>
@@ -523,14 +528,19 @@ export default function SelfieVerificationScreen() {
 
       {/* Security Note */}
       <Animated.View entering={SlideInDown.delay(800).springify()} className="mb-6">
-        <View className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-          <Text className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
-            🔒 Your Privacy Matters
-          </Text>
-          <Text className="text-blue-800 dark:text-blue-200 text-sm">
-            Your selfie is used only for identity verification and is stored securely. 
-            It will not be shared with customers or used for any other purposes.
-          </Text>
+        <View className="flex-row p-4 bg-primary/5 rounded-lg border border-primary/20">
+          <View className="mr-3 mt-0.5">
+            <Icon as={User} size={20} className="text-primary" />
+          </View>
+          <View className="flex-1">
+            <Text className="font-semibold text-foreground mb-2">
+              Your Privacy Matters
+            </Text>
+            <Text className="text-muted-foreground text-sm">
+              Your selfie is used only for identity verification and is stored securely. 
+              It will not be shared with customers or used for any other purposes.
+            </Text>
+          </View>
         </View>
       </Animated.View>
 
@@ -566,6 +576,29 @@ export default function SelfieVerificationScreen() {
         </Button>
       </Animated.View>
       </ScreenWrapper>
+
+      {/* Upload Loading Overlay */}
+      {submitSelfieMutation.isPending && (
+        <View className="absolute inset-0 bg-background/95 items-center justify-center z-50">
+          <View className="bg-card border border-border rounded-2xl p-8 items-center shadow-sm">
+            <View className="w-16 h-16 bg-primary/10 rounded-full items-center justify-center mb-4">
+              <Icon as={Loader2} size={32} className="text-primary animate-spin" />
+            </View>
+            <Text className="text-foreground font-semibold text-lg mb-2">
+              Processing Selfie...
+            </Text>
+            <Text className="text-muted-foreground text-center text-sm">
+              Please wait while we upload and verify your photo
+            </Text>
+            <View className="flex-row items-center mt-4 px-4 py-2 bg-primary/5 rounded-full">
+              <Icon as={Camera} size={16} className="text-primary mr-2" />
+              <Text className="text-primary text-sm font-medium">
+                Verifying identity
+              </Text>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 }

@@ -75,13 +75,6 @@ export const VERIFICATION_STEPS = {
     route: '/provider-verification/terms',
     required: true,
     description: 'Set booking terms and policies'
-  },
-  9: {
-    id: 9,
-    title: 'Payment Setup',
-    route: '/provider-verification/payment',
-    required: true,
-    description: 'Complete payment verification'
   }
 } as const;
 
@@ -149,7 +142,7 @@ export class VerificationFlowManager {
    */
   static getNextStep(currentStep: number): number | null {
     const nextStep = currentStep + 1;
-    return nextStep <= 9 ? nextStep : null;
+    return nextStep <= 8 ? nextStep : null; // Step 8 is now the final step
   }
 
   /**
@@ -241,22 +234,15 @@ export class VerificationFlowManager {
         };
 
       case 8: // Terms
-        const hasTerms = stepData?.termsAccepted === true;
+        const hasTerms = stepData?.termsAccepted;
         return {
           isComplete: !!hasTerms,
           hasRequiredData: !!hasTerms,
           missingFields: hasTerms ? [] : ['termsAccepted'],
           canProceed: !!hasTerms
         };
-
-      case 9: // Payment
-        const hasPayment = stepData?.stripeAccountId;
-        return {
-          isComplete: !!hasPayment,
-          hasRequiredData: !!hasPayment,
-          missingFields: hasPayment ? [] : ['stripeAccountId'],
-          canProceed: !!hasPayment
-        };
+      
+      // Step 9 (payment) removed - now handled in dashboard
 
       default:
         return {
@@ -276,8 +262,8 @@ export class VerificationFlowManager {
     // Temporarily disabled verbose logging to reduce console noise during form input
     // console.log('[VerificationFlowManager] Finding first incomplete step with data:', verificationData);
     
-    // Check each step sequentially using actual data validation
-    for (let stepId = 1; stepId <= 9; stepId++) {
+    // Check each step sequentially using actual data validation (steps 1-8 only)
+    for (let stepId = 1; stepId <= 8; stepId++) {
       let stepData: any = null;
       
       // Map step to data
@@ -306,9 +292,7 @@ export class VerificationFlowManager {
         case 8:
           stepData = verificationData.termsData;
           break;
-        case 9:
-          stepData = verificationData.paymentData;
-          break;
+        // Step 9 (payment) removed - now handled in dashboard
       }
       
       const validation = this.validateStepCompletion(stepId as VerificationStepId, stepData);
@@ -321,9 +305,8 @@ export class VerificationFlowManager {
       }
     }
     
-    // Temporarily disabled verbose logging to reduce console noise during form input
-    // console.log('[VerificationFlowManager] All steps complete, returning step 9');
-    return 9; // All steps complete
+    // All steps (1-8) complete - ready for submission
+    return 8; // Return final step
   }
 
   /**

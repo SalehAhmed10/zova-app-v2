@@ -144,3 +144,5 @@ app-example
 
 
 /.vscode
+/adb-screenshots
+/supabase/migrations

@@ -11,8 +11,10 @@ import { useAppStore } from '@/stores/auth/app';
 import { Redirect } from 'expo-router';
 import { Text } from '@/components/ui/text';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useNavigationDecision } from '@/hooks/shared/useNavigationDecision';
+import { useAuthNavigation } from '@/hooks/shared/useAuthNavigation';
 import { useEffect, useRef } from 'react';
+import { PaymentSetupBanner } from '@/components/provider/PaymentSetupBanner';
+import { VerificationStatusBanner } from '@/components/provider/VerificationStatusBanner';
 
 export default function ProviderLayout() {
   const { isDarkColorScheme } = useColorScheme();
@@ -20,7 +22,7 @@ export default function ProviderLayout() {
   const { user } = useAuthOptimized();
   const { isLoggingOut } = useAppStore();
   const isHydrated = useProfileHydration();
-  const navigationDecision = useNavigationDecision();
+  const { navigationDecision } = useAuthNavigation();
   const lastRedirectReason = useRef<string | null>(null);
 
   // ✅ React Query + Zustand pattern: Server state sync
@@ -29,12 +31,12 @@ export default function ProviderLayout() {
   // ✅ PREVENT RAPID REDIRECTS: If user was just approved and now status changed back,
   // the status monitor will handle it with user notification
   useEffect(() => {
-    if (navigationDecision.shouldRedirect &&
+    if (navigationDecision?.shouldNavigate &&
         navigationDecision.reason !== 'access-granted' &&
         lastRedirectReason.current === 'access-granted') {
       // Status changed from approved - could add notification here
     }
-    lastRedirectReason.current = navigationDecision.reason;
+    lastRedirectReason.current = navigationDecision?.reason || null;
   }, [navigationDecision]);
 
   // ✅ CRITICAL FIX: Don't render anything during logout to prevent flash
@@ -53,7 +55,7 @@ export default function ProviderLayout() {
   }
 
   // ✅ CRITICAL FIX: Show loading during verification checks to prevent flash
-  if (navigationDecision.reason === 'loading') {
+  if (navigationDecision?.reason === 'loading') {
     return (
       <View className="flex-1 bg-background items-center justify-center px-6">
         <View className="items-center">
@@ -69,19 +71,31 @@ export default function ProviderLayout() {
   }
 
   // ✅ PURE: Use centralized navigation decisions
-  if (navigationDecision.shouldRedirect) {
+  if (navigationDecision?.shouldNavigate) {
     // Show user-friendly message for status changes
     if (navigationDecision.reason.includes('provider-pending') ||
         navigationDecision.reason.includes('provider-in_review') ||
+        navigationDecision.reason.includes('provider-submitted') ||
         navigationDecision.reason === 'provider-rejected') {
       // Could add a toast notification here in the future
     }
 
-    return <Redirect href={navigationDecision.targetRoute as any} />;
+    return <Redirect href={navigationDecision.destination as any} />;
   }
 
   return (
-    <Tabs
+    <View className="flex-1 bg-background">
+      {/* ✅ PHASE 4: Verification Status Banner (informational, non-blocking) */}
+      {/* Shows when: verification_status = 'pending' OR 'in_review' */}
+      {/* Dismissible with 24-hour memory (respawns daily for updates) */}
+      <VerificationStatusBanner />
+      
+      {/* ✅ PHASE 5: Payment Setup Banner (30-40% conversion - passive reminder) */}
+      {/* Shows when: verification approved BUT payment NOT active */}
+      {/* Dismissible with 7-day memory, animated entrance */}
+      <PaymentSetupBanner />
+      
+      <Tabs
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: isDarkColorScheme ? THEME.dark.foreground : THEME.light.foreground,
@@ -203,5 +217,6 @@ export default function ProviderLayout() {
         }}
       />
       </Tabs>
+    </View>
   );
 }

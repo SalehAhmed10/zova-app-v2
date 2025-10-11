@@ -11,7 +11,7 @@ import { useProviderVerificationStore } from '@/stores/verification/provider-ver
 import { useAppStore } from '@/stores/auth/app';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVerificationNavigation } from '@/hooks/provider';
-import { PaymentEmailCampaignService } from '@/lib/payment/payment-email-campaigns';
+
 import { PaymentAnalyticsService } from '@/lib/payment/payment-analytics';
 
 import { supabase } from '@/lib/supabase';
@@ -25,9 +25,9 @@ export default function VerificationCompleteScreen() {
   // ✅ CENTRALIZED NAVIGATION: Replace manual routing
   const { navigateBack } = useVerificationNavigation();
   
-  // Make completion percentage reactive by calculating it from steps
+  // Make completion percentage reactive by calculating it from steps (now 8 steps total)
   const completedSteps = Object.values(steps).filter(step => step.isCompleted).length;
-  const completionPercentage = Math.round((completedSteps / 9) * 100);
+  const completionPercentage = Math.round((completedSteps / 8) * 100);
   const insets = useSafeAreaInsets();
 
   // ✅ REACT QUERY: Provider status update mutation
@@ -42,7 +42,7 @@ export default function VerificationCompleteScreen() {
       // Ensure all steps are marked as completed since verification is being submitted
       // This handles cases where steps might not have been completed due to navigation or bugs
       const { completeStep } = useProviderVerificationStore.getState();
-      for (let step = 1; step <= 9; step++) {
+      for (let step = 1; step <= 8; step++) { // Now only 8 steps (payment moved to dashboard)
         if (!isStepCompleted(step)) {
           console.log(`[Complete Screen] Completing step ${step} that was missed`);
           completeStep(step, { completedViaSubmission: true });
@@ -154,10 +154,7 @@ export default function VerificationCompleteScreen() {
                 <Text className="text-lg mr-2">{steps[8]?.isCompleted ? '✅' : '⏳'}</Text>
                 <Text className="text-sm text-muted-foreground">Terms accepted</Text>
               </View>
-              <View className="flex-row items-center">
-                <Text className="text-lg mr-2">{steps[9]?.isCompleted ? '✅' : '⏳'}</Text>
-                <Text className="text-sm text-muted-foreground">Payment setup completed</Text>
-              </View>
+              {/* Payment step moved to dashboard - no longer part of verification flow */}
             </View>
           </View>
         </Animated.View>
@@ -176,10 +173,7 @@ export default function VerificationCompleteScreen() {
                 • You'll receive an email notification once approved
               </Text>
               <Text className="text-accent-foreground text-sm">
-                • After approval, you'll gain access to your provider dashboard
-              </Text>
-              <Text className="text-accent-foreground text-sm">
-                • Your Stripe account is ready to receive payments once approved
+                • After approval, setup payments in your dashboard to start accepting bookings
               </Text>
             </View>
           </View>
@@ -203,21 +197,8 @@ export default function VerificationCompleteScreen() {
           </Button>
         </Animated.View>
 
-        <Animated.View entering={SlideInDown.delay(750).springify()} className="mb-2">
-          <Button
-            variant="outline"
-            size="lg"
-            onPress={() => router.push('/provider-verification/payment')}
-            className="w-full"
-          >
-            <Text className="font-medium">
-              Back to Payment Setup
-            </Text>
-          </Button>
-        </Animated.View>
-
         <Text className="text-xs text-muted-foreground text-center mb-2">
-          Your verification is being reviewed. You'll be notified once approved.
+          Your verification is being reviewed. Setup payments after approval.
         </Text>
       </View>
     </View>

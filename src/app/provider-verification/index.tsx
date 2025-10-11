@@ -5,9 +5,12 @@ import { useForm, Controller } from 'react-hook-form';
 import Animated, { FadeIn, SlideInDown, FadeInUp } from 'react-native-reanimated';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
+import { FileText, CheckCircle } from 'lucide-react-native';
+
 import { Text } from '@/components/ui/text';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
+import { Icon } from '@/components/ui/icon';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { VerificationHeader } from '@/components/verification/VerificationHeader';
 import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/verification/provider-verification';
@@ -849,15 +852,18 @@ export default function DocumentVerificationScreen() {
           ) : existingDocument ? (
             // Existing document view
             <View className="min-h-[400px]">
-              <View className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800 mb-4">
-                <View className="flex-row items-center mb-2">
-                  <Text className="text-green-600 dark:text-green-400 text-sm font-medium">
-                    ✓ Document Already Uploaded
+              <View className="flex-row p-4 bg-success/10 rounded-lg border border-success/20 mb-4">
+                <View className="mr-3 mt-0.5">
+                  <Icon as={CheckCircle} size={20} className="text-success" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-success font-semibold mb-1">
+                    Document Already Uploaded
+                  </Text>
+                  <Text className="text-success/90 text-sm">
+                    Your {existingDocument.document_type.replace('_', ' ').toUpperCase()} is {existingDocument.verification_status}
                   </Text>
                 </View>
-                <Text className="text-green-700 dark:text-green-300 text-sm">
-                  Your {existingDocument.document_type.replace('_', ' ').toUpperCase()} is {existingDocument.verification_status}
-                </Text>
               </View>
 
               <View className="w-full h-48 rounded-lg bg-muted mb-4 overflow-hidden border-2 border-border">

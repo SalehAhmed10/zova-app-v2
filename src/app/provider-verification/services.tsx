@@ -32,11 +32,13 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 
 // ✅ REACT QUERY + ZUSTAND HOOKS (replacing useState + useEffect)
+import { useQuery } from '@tanstack/react-query';
 import { useAuthOptimized } from '@/hooks';
 import { useServiceSubcategories, useSaveVerificationStep } from '@/hooks/provider/useProviderVerificationQueries';
 import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
 import { useCategorySearchStore } from '@/stores/ui';
 import { useVerificationNavigation } from '@/hooks/provider';
+import { supabase } from '@/lib/supabase';
 
 export default function ServiceSelectionScreen() {
   const { user } = useAuthOptimized();
@@ -55,6 +57,34 @@ export default function ServiceSelectionScreen() {
     isLoading: isLoadingSubcategories,
     error: subcategoriesError 
   } = useServiceSubcategories(categoryData.selectedCategoryId);
+
+  // ✅ REACT QUERY: Fetch existing selected services from database
+  const { data: existingSelectedServices } = useQuery({
+    queryKey: ['providerServices', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      
+      console.log('[Services] Fetching existing service selections from database...');
+      const { data, error } = await supabase
+        .from('provider_onboarding_progress')
+        .select('step_data')
+        .eq('provider_id', user.id)
+        .maybeSingle();
+      
+      if (error && error.code !== 'PGRST116') {
+        console.error('[Services] Error fetching progress:', error);
+        return [];
+      }
+      
+      const selectedServices = data?.step_data?.services?.selectedServices || 
+                              data?.step_data?.selectedServices || 
+                              [];
+      console.log('[Services] Existing services from database:', selectedServices);
+      return selectedServices as string[];
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
 
   const saveServicesMutation = useSaveVerificationStep();
 
@@ -75,15 +105,32 @@ export default function ServiceSelectionScreen() {
     setSearchQuery
   } = useCategorySearchStore();
 
-  // ✅ REACT QUERY: Validate selections when services load (avoiding useEffect antipatterns)
-  React.useEffect(() => {
+  // ✅ NO useEffect! Pure validation and sync using useMemo
+  const validatedServices = useMemo(() => {
+    // Priority: Database → Store → Empty
+    const existingServices = existingSelectedServices || servicesData.selectedServices || [];
+    
+    // Validate that selections are valid for current category
     if (subcategories.length > 0 && categoryData.selectedCategoryId) {
-      // Check if any selected services are still valid for the current category
-      const validSelections = servicesData.selectedServices.filter(selectedId =>
+      const validSelections = existingServices.filter(selectedId =>
         subcategories.some(service => service.id === selectedId)
       );
-
-      // If selections don't match available services, clear them
+      
+      // Sync database → store (pure side effect during render, NOT in useEffect!)
+      if (existingSelectedServices && existingSelectedServices.length > 0) {
+        const dbServicesStr = JSON.stringify(existingSelectedServices.sort());
+        const storeServicesStr = JSON.stringify(servicesData.selectedServices.sort());
+        
+        if (dbServicesStr !== storeServicesStr) {
+          console.log('[Services] Syncing from database to store:', existingSelectedServices);
+          updateServicesData({
+            selectedServices: existingSelectedServices,
+          });
+          return existingSelectedServices;
+        }
+      }
+      
+      // Clear invalid selections (pure side effect during render, NOT in useEffect!)
       if (validSelections.length !== servicesData.selectedServices.length) {
         if (__DEV__) {
           console.log('[Services] Clearing invalid selections:', servicesData.selectedServices.filter(id => !validSelections.includes(id)));
@@ -91,9 +138,14 @@ export default function ServiceSelectionScreen() {
         updateServicesData({
           selectedServices: validSelections,
         });
+        return validSelections;
       }
     }
-  }, [subcategories, categoryData.selectedCategoryId, servicesData.selectedServices, updateServicesData]);  const filteredServices = useMemo(() => {
+    
+    return existingServices;
+  }, [existingSelectedServices, servicesData.selectedServices, subcategories, categoryData.selectedCategoryId, updateServicesData]);
+
+  const filteredServices = useMemo(() => {
     if (!searchQuery.trim()) return subcategories;
     return subcategories.filter(service =>
       service.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

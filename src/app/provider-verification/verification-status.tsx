@@ -16,20 +16,36 @@
  * - React Query for server state management
  * - Real-time subscriptions managed in store
  * - Pure computed properties and selectors
+ * 
+ * DESIGN PRINCIPLES:
+ * - Uses theme colors exclusively (no hardcoded colors)
+ * - Lucide icons for consistency
+ * - Proper contrast and accessibility
+ * - No gradients or shadows (NativeWind compatibility)
+ * - Professional spacing and typography
  */
 
 import React from 'react';
 import { View, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { 
+  Clock, 
+  Eye, 
+  CheckCircle, 
+  XCircle, 
+  AlertCircle 
+} from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
+import { Icon } from '@/components/ui/icon';
 import { useColorScheme } from '@/lib/core/useColorScheme';
+import { cn } from '@/lib/utils';
 
 // ✅ REACT QUERY + ZUSTAND: Following copilot-rules.md
 import { useAuthOptimized } from '@/hooks';
@@ -47,55 +63,63 @@ import { useProviderVerificationStore } from '@/stores/verification/provider-ver
 
 type VerificationStatus = 'pending' | 'in_review' | 'approved' | 'rejected';
 
+interface TimelineItem {
+  iconType: 'clock' | 'eye' | 'check' | 'x-circle';
+  title: string;
+  description: string;
+  completed: boolean;
+}
+
 interface StatusConfig {
-  icon: string;
-  iconColor: string;
-  bgColor: string;
+  iconType: 'clock' | 'eye' | 'check-circle' | 'x-circle';
+  bgColorClass: string;
   title: string;
   subtitle: string;
   badgeText: string;
-  badgeBgColor: string;
-  badgeTextColor: string;
-  timeline: Array<{
-    icon: string;
-    iconColor: string;
-    title: string;
-    description: string;
-    completed: boolean;
-  }>;
+  badgeBgClass: string;
+  badgeTextClass: string;
+  timeline: TimelineItem[];
   nextSteps: string[];
   showContactSupport: boolean;
   showRetryButton: boolean;
 }
 
+// Helper to get Lucide icon component based on type
+const getIconComponent = (iconType: 'clock' | 'eye' | 'check' | 'check-circle' | 'x-circle') => {
+  switch (iconType) {
+    case 'clock': return Clock;
+    case 'eye': return Eye;
+    case 'check': return CheckCircle;
+    case 'check-circle': return CheckCircle;
+    case 'x-circle': return XCircle;
+    default: return Clock;
+  }
+};
+
 const statusConfigs: Record<VerificationStatus, StatusConfig> = {
   pending: {
-    icon: 'time',
-    iconColor: '#f59e0b',
-    bgColor: 'bg-orange-100 dark:bg-orange-900/20',
+    iconType: 'clock',
+    bgColorClass: 'bg-warning/10',
     title: 'Verification Pending',
     subtitle: 'Your verification application has been submitted and is currently under review by our team.',
     badgeText: 'Pending Admin Review',
-    badgeBgColor: 'bg-orange-100 dark:bg-orange-900/20',
-    badgeTextColor: 'text-orange-800 dark:text-orange-200',
+    badgeBgClass: 'bg-warning/10',
+    badgeTextClass: 'text-warning',
     timeline: [
       {
-        icon: 'checkmark',
-        iconColor: '#3b82f6',
+        iconType: 'check',
         title: 'Application Submitted',
         description: 'Your verification documents have been received',
         completed: true,
       },
       {
-        icon: 'eye',
-        iconColor: '#f59e0b',
+        iconType: 'eye',
         title: 'Under Review',
         description: 'Our team is reviewing your application',
         completed: false,
       },
       {
-        icon: 'checkmark-circle',
-        iconColor: '#10b981',
+        iconType: 'check',
         title: 'Verification Complete',
         description: 'You can start accepting bookings',
         completed: false,
@@ -110,32 +134,28 @@ const statusConfigs: Record<VerificationStatus, StatusConfig> = {
     showRetryButton: false,
   },
   in_review: {
-    icon: 'eye',
-    iconColor: '#3b82f6',
-    bgColor: 'bg-blue-100 dark:bg-blue-900/20',
+    iconType: 'eye',
+    bgColorClass: 'bg-primary/10',
     title: 'Under Review',
     subtitle: 'Our verification team is actively reviewing your application.',
     badgeText: 'In Review',
-    badgeBgColor: 'bg-blue-100 dark:bg-blue-900/20',
-    badgeTextColor: 'text-blue-800 dark:text-blue-200',
+    badgeBgClass: 'bg-primary/10',
+    badgeTextClass: 'text-primary',
     timeline: [
       {
-        icon: 'checkmark',
-        iconColor: '#10b981',
+        iconType: 'check',
         title: 'Application Submitted',
         description: 'Your verification documents have been received',
         completed: true,
       },
       {
-        icon: 'eye',
-        iconColor: '#3b82f6',
+        iconType: 'eye',
         title: 'Under Review',
         description: 'Our team is reviewing your application',
         completed: true,
       },
       {
-        icon: 'checkmark-circle',
-        iconColor: '#6b7280',
+        iconType: 'check',
         title: 'Verification Complete',
         description: 'You can start accepting bookings',
         completed: false,
@@ -150,32 +170,28 @@ const statusConfigs: Record<VerificationStatus, StatusConfig> = {
     showRetryButton: false,
   },
   approved: {
-    icon: 'checkmark-circle',
-    iconColor: '#10b981',
-    bgColor: 'bg-green-100 dark:bg-green-900/20',
+    iconType: 'check-circle',
+    bgColorClass: 'bg-success/10',
     title: 'Verification Approved',
     subtitle: 'Congratulations! Your verification has been approved. You can now start accepting bookings.',
     badgeText: 'Approved',
-    badgeBgColor: 'bg-green-100 dark:bg-green-900/20',
-    badgeTextColor: 'text-green-800 dark:text-green-200',
+    badgeBgClass: 'bg-success/10',
+    badgeTextClass: 'text-success',
     timeline: [
       {
-        icon: 'checkmark',
-        iconColor: '#10b981',
+        iconType: 'check',
         title: 'Application Submitted',
         description: 'Your verification documents have been received',
         completed: true,
       },
       {
-        icon: 'checkmark',
-        iconColor: '#10b981',
+        iconType: 'check',
         title: 'Review Complete',
         description: 'Your application has been reviewed and approved',
         completed: true,
       },
       {
-        icon: 'checkmark-circle',
-        iconColor: '#10b981',
+        iconType: 'check',
         title: 'Verification Complete',
         description: 'You can start accepting bookings',
         completed: true,
@@ -191,32 +207,28 @@ const statusConfigs: Record<VerificationStatus, StatusConfig> = {
     showRetryButton: false,
   },
   rejected: {
-    icon: 'close-circle',
-    iconColor: '#ef4444',
-    bgColor: 'bg-red-100 dark:bg-red-900/20',
+    iconType: 'x-circle',
+    bgColorClass: 'bg-destructive/10',
     title: 'Verification Not Approved',
     subtitle: 'Unfortunately, your verification application was not approved. Please review the feedback and submit a new application.',
     badgeText: 'Not Approved',
-    badgeBgColor: 'bg-red-100 dark:bg-red-900/20',
-    badgeTextColor: 'text-red-800 dark:text-red-200',
+    badgeBgClass: 'bg-destructive/10',
+    badgeTextClass: 'text-destructive',
     timeline: [
       {
-        icon: 'checkmark',
-        iconColor: '#10b981',
+        iconType: 'check',
         title: 'Application Submitted',
         description: 'Your verification documents have been received',
         completed: true,
       },
       {
-        icon: 'checkmark',
-        iconColor: '#10b981',
+        iconType: 'check',
         title: 'Review Complete',
         description: 'Your application has been reviewed',
         completed: true,
       },
       {
-        icon: 'close-circle',
-        iconColor: '#ef4444',
+        iconType: 'x-circle',
         title: 'Application Declined',
         description: 'Please review feedback and resubmit',
         completed: true,
@@ -296,7 +308,7 @@ export default function VerificationStatusScreen() {
       
       console.log('[RestartVerification] Database status updated to pending');
       
-      // Reset local verification store state
+     
       resetVerification();
       
       console.log('[RestartVerification] Local store reset completed');
@@ -350,11 +362,9 @@ export default function VerificationStatusScreen() {
       <SafeAreaView className="flex-1 bg-background">
         <ScreenWrapper>
           <View className="flex-1 justify-center items-center p-6">
-            <Ionicons 
-              name="alert-circle" 
-              size={48} 
-              color={isDarkColorScheme ? '#ef4444' : '#dc2626'} 
-            />
+            <View className="w-16 h-16 bg-destructive/10 rounded-full items-center justify-center mb-4">
+              <Icon as={AlertCircle} size={32} className="text-destructive" />
+            </View>
             <Text className="text-foreground text-lg font-semibold mt-4 mb-2">
               Unable to Load Status
             </Text>
@@ -372,7 +382,6 @@ export default function VerificationStatusScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-     
       <VerificationNavigationHandler
         shouldNavigateToProvider={shouldNavigateToProvider}
         shouldRedirectToAuth={shouldRedirectToAuth}
@@ -384,102 +393,159 @@ export default function VerificationStatusScreen() {
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={() => refetch()}
-            tintColor={isDarkColorScheme ? '#ffffff' : '#000000'}
           />
         }
+        showsVerticalScrollIndicator={false}
       >
-        {/* Status Badge */}
-        <View className="items-center mb-6 px-6 pt-4">
-          <View className={`rounded-full p-4 mb-4 ${config?.bgColor || 'bg-orange-100 dark:bg-orange-900/20'}`}>
-            <Ionicons 
-              name={(config?.icon as any) || 'time'} 
-              size={48} 
-              color={config?.iconColor || '#f59e0b'} 
-            />
+        {/* Hero Status Section */}
+        <View className="px-6 pt-8 pb-6">
+         
+          <View className="items-center mb-6">
+            <View className={cn(
+              "w-24 h-24 rounded-full items-center justify-center mb-4",
+              config?.bgColorClass || 'bg-warning/10'
+            )}>
+              <Icon 
+                as={getIconComponent(config.iconType)} 
+                size={48} 
+                className={
+                  config.iconType === 'clock' ? 'text-warning' :
+                  config.iconType === 'eye' ? 'text-primary' :
+                  config.iconType === 'check-circle' ? 'text-success' :
+                  'text-destructive'
+                }
+              />
+            </View>
+
+            {/* Status Badge */}
+            <Badge 
+              variant="outline" 
+              className={cn(
+                "px-4 py-1.5 rounded-full",
+                config?.badgeBgClass || 'bg-warning/10',
+                'border-0'
+              )}
+            >
+              <Text className={cn(
+                "font-semibold text-sm",
+                config?.badgeTextClass || 'text-warning'
+              )}>
+                {config?.badgeText || 'Loading...'}
+              </Text>
+            </Badge>
+
+            {/* Debug Info */}
+            {__DEV__ && lastUpdated && typeof lastUpdated === 'number' && lastUpdated > 0 && (
+              <Badge variant="outline" className="mt-3 bg-muted/50 border-0">
+                <Text className="text-muted-foreground text-xs">
+                  Last updated: <Text>{new Date(lastUpdated).toLocaleTimeString()}</Text>
+                </Text>
+              </Badge>
+            )}
+
+            {/* Live Indicator */}
+            {typeof isSubscribed === 'boolean' && isSubscribed && (
+              <View className="flex-row items-center mt-3 bg-success/10 px-3 py-1 rounded-full">
+                <View className="w-2 h-2 bg-success rounded-full mr-2" />
+                <Text className="text-success text-xs font-medium">Live Updates Active</Text>
+              </View>
+            )}
           </View>
-          <View className={`rounded-full px-4 py-2 mb-2 ${config?.badgeBgColor || 'bg-orange-100 dark:bg-orange-900/20'}`}>
-            <Text className={`font-semibold text-sm ${config?.badgeTextColor || 'text-orange-800 dark:text-orange-200'}`}>
-              {config?.badgeText || 'Loading...'}
+
+          {/* Title & Description */}
+          <View className="items-center mb-2">
+            <Text className="text-foreground text-2xl font-bold text-center mb-3">
+              {config?.title || 'Verification Status'}
+            </Text>
+            <Text className="text-muted-foreground text-center text-base leading-6 px-4">
+              {config?.subtitle || 'Your verification status is being loaded.'}
             </Text>
           </View>
-          {__DEV__ && lastUpdated && typeof lastUpdated === 'number' && lastUpdated > 0 && (
-            <View className="bg-muted rounded-full px-3 py-1 mt-2">
-              <Text className="text-muted-foreground text-xs">
-                Last updated: {new Date(lastUpdated).toLocaleTimeString()}
-              </Text>
-            </View>
-          )}
-          {typeof isSubscribed === 'boolean' && isSubscribed && (
-            <View className="bg-green-500/20 rounded-full px-3 py-1 mt-2">
-              <Text className="text-green-700 dark:text-green-300 text-xs">Live</Text>
-            </View>
-          )}
         </View>
 
-        <ScreenWrapper className="flex-1">
-         
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="text-foreground text-xl">
-                {config?.title || 'Verification Status'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Text className="text-muted-foreground leading-6 mb-4">
-                {config?.subtitle || 'Your verification status is being loaded.'}
-              </Text>
-              
-              {lastUpdated && typeof lastUpdated === 'number' && lastUpdated > 0 && (
-                <Text className="text-xs text-muted-foreground">
-                  Last updated: {new Date(lastUpdated).toLocaleString()}
-                </Text>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Session Recovery Banner - Shows if user has incomplete verification */}
+        <View className="px-6">
+          {/* Session Recovery Banner */}
           <SessionRecoveryBanner className="mb-6" />
 
-          {/* Timeline */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="text-foreground">Verification Progress</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {(config?.timeline || []).map((step, index) => (
-                <View key={index} className="flex-row items-start mb-4 last:mb-0">
-                  <View className="mr-4 mt-1">
-                    <Ionicons
-                      name={(step?.icon as any) || 'checkmark'}
-                      size={20}
-                      color={step?.iconColor || '#6b7280'}
-                    />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-foreground font-medium mb-1">
-                      {step?.title || 'Step'}
-                    </Text>
-                    <Text className="text-muted-foreground text-sm">
-                      {step?.description || 'Description'}
-                    </Text>
-                  </View>
+          {/* Timeline Card */}
+          <Card className="mb-6 overflow-hidden">
+            <CardHeader className="pb-4">
+              <View className="flex-row items-center">
+                <View className="w-10 h-10 bg-primary/10 rounded-full items-center justify-center mr-3">
+                  <Icon as={CheckCircle} size={20} className="text-primary" />
                 </View>
-              ))}
+                <CardTitle className="text-foreground text-lg flex-1">
+                  Verification Progress
+                </CardTitle>
+              </View>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {(config?.timeline || []).map((step, index) => {
+                const TimelineIconComponent = step?.iconType ? getIconComponent(step.iconType) : CheckCircle;
+                const isCompleted = step?.completed;
+                const isLast = index === (config?.timeline || []).length - 1;
+
+                return (
+                  <View key={`timeline-${index}`} className="flex-row items-start mb-6 last:mb-0">
+                    {/* Timeline Line & Icon */}
+                    <View className="items-center mr-4">
+                      <View className={cn(
+                        "w-10 h-10 rounded-full items-center justify-center",
+                        isCompleted ? 'bg-success/15' : 'bg-muted/50'
+                      )}>
+                        <Icon
+                          as={TimelineIconComponent}
+                          size={20}
+                          className={isCompleted ? 'text-success' : 'text-muted-foreground'}
+                        />
+                      </View>
+                      {!isLast && (
+                        <View className={cn(
+                          "w-0.5 h-8 mt-2",
+                          isCompleted ? 'bg-success/30' : 'bg-border'
+                        )} />
+                      )}
+                    </View>
+
+                    {/* Step Content */}
+                    <View className="flex-1 pt-1">
+                      <Text className={cn(
+                        "font-semibold mb-1 text-base",
+                        isCompleted ? 'text-foreground' : 'text-muted-foreground'
+                      )}>
+                        {step?.title || 'Step'}
+                      </Text>
+                      <Text className="text-muted-foreground text-sm leading-5">
+                        {step?.description || 'Description'}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
             </CardContent>
           </Card>
 
-          {/* Next Steps */}
+          {/* Next Steps Card */}
           <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="text-foreground">What's Next?</CardTitle>
+            <CardHeader className="pb-4">
+              <View className="flex-row items-center">
+                <View className="w-10 h-10 bg-primary/10 rounded-full items-center justify-center mr-3">
+                  <Icon as={Clock} size={20} className="text-primary" />
+                </View>
+                <CardTitle className="text-foreground text-lg flex-1">
+                  What's Next?
+                </CardTitle>
+              </View>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               {(config?.nextSteps || []).map((step, index) => (
-                <View key={index} className="flex-row items-start mb-3 last:mb-0">
-                  <Text className="text-primary font-bold mr-3 mt-1">
-                    {index + 1}.
-                  </Text>
-                  <Text className="text-muted-foreground flex-1 leading-5">
+                <View key={`next-step-${index}`} className="flex-row items-start mb-4 last:mb-0">
+                  <View className="w-6 h-6 bg-primary/10 rounded-full items-center justify-center mr-3 mt-0.5">
+                    <Text className="text-primary font-bold text-xs">
+                      {index + 1}
+                    </Text>
+                  </View>
+                  <Text className="text-muted-foreground flex-1 leading-6 text-base">
                     {typeof step === 'string' ? step : 'Step description'}
                   </Text>
                 </View>
@@ -488,66 +554,86 @@ export default function VerificationStatusScreen() {
           </Card>
 
           {/* Action Buttons */}
-          <View className="gap-4 mb-8">
+          <View className="gap-3 pb-8">
+            {/* Primary Actions */}
+            {currentStatus === 'approved' && (
+              <Button
+                onPress={() => router.replace('/provider')}
+                className="w-full h-14 rounded-xl"
+                size="lg"
+              >
+                <View className="flex-row items-center">
+                  <Icon as={CheckCircle} size={20} className="text-primary-foreground mr-2" />
+                  <Text className="text-primary-foreground font-semibold text-base">
+                    Go to Dashboard
+                  </Text>
+                </View>
+              </Button>
+            )}
+
             {typeof config?.showRetryButton === 'boolean' && config?.showRetryButton && (
               <Button
                 onPress={() => restartVerificationMutation.mutate()}
                 disabled={restartVerificationMutation.isPending}
-                className="w-full"
+                className="w-full h-14 rounded-xl"
+                size="lg"
               >
-                <Text className="text-primary-foreground font-semibold">
-                  {restartVerificationMutation.isPending ? 'Starting Over...' : 'Submit New Application'}
-                </Text>
+                <View className="flex-row items-center">
+                  {restartVerificationMutation.isPending ? (
+                    <Icon as={Clock} size={20} className="text-primary-foreground mr-2 animate-spin" />
+                  ) : (
+                    <Icon as={XCircle} size={20} className="text-primary-foreground mr-2" />
+                  )}
+                  <Text className="text-primary-foreground font-semibold text-base">
+                    {restartVerificationMutation.isPending ? 'Starting Over...' : 'Submit New Application'}
+                  </Text>
+                </View>
               </Button>
             )}
 
-            {currentStatus === 'approved' && (
-              <Button
-                onPress={() => router.replace('/provider')}
-                className="w-full"
-              >
-                <Text className="text-primary-foreground font-semibold">
-                  Go to Dashboard
-                </Text>
-              </Button>
-            )}
-
+            {/* Secondary Actions */}
             {typeof config?.showContactSupport === 'boolean' && config?.showContactSupport && (
               <Button
                 variant="outline"
                 onPress={() => {
-                
                   console.log('Contact support tapped');
                 }}
-                className="w-full"
+                className="w-full h-14 rounded-xl border-border"
               >
-                <Text className="text-foreground">Contact Support</Text>
+                <View className="flex-row items-center">
+                  <Icon as={AlertCircle} size={20} className="text-foreground mr-2" />
+                  <Text className="text-foreground font-medium text-base">
+                    Contact Support
+                  </Text>
+                </View>
               </Button>
             )}
 
-            {/* Development Refresh Button */}
+            {/* Dev Tools */}
             {__DEV__ && (
               <Button
                 variant="outline"
                 onPress={() => refetch()}
                 disabled={isRefreshing}
-                className="w-full border-dashed"
+                className="w-full h-12 rounded-xl border-dashed border-muted-foreground/30"
               >
-                <Text className="text-muted-foreground">
+                <Text className="text-muted-foreground text-sm">
                   {isRefreshing ? 'Refreshing...' : '🔄 Refresh Status (Dev)'}
                 </Text>
               </Button>
             )}
 
-            {/* Logout Button */}
-            <LogoutButton
-              variant="outline"
-              className="w-full mt-4"
-            >
-              <Text className="text-foreground">Logout</Text>
-            </LogoutButton>
+            {/* Logout */}
+            <View className="mt-2">
+              <LogoutButton
+                variant="outline"
+                className="w-full h-12 rounded-xl"
+              >
+                <Text className="text-muted-foreground font-medium">Sign Out</Text>
+              </LogoutButton>
+            </View>
           </View>
-        </ScreenWrapper>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

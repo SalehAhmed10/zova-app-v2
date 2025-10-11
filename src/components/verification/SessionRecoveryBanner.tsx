@@ -98,7 +98,7 @@ export const SessionRecoveryBanner: React.FC<SessionRecoveryBannerProps> = ({
       <CardContent className="p-4">
         <View className="flex-row items-start gap-3">
           <View className="w-8 h-8 bg-primary/10 rounded-full items-center justify-center mt-0.5">
-            <Text className="text-primary font-bold text-sm">⏯️</Text>
+            <Text className="text-primary font-bold text-base">⏯</Text>
           </View>
 
           <View className="flex-1">
@@ -107,7 +107,7 @@ export const SessionRecoveryBanner: React.FC<SessionRecoveryBannerProps> = ({
             </Text>
 
             <Text className="text-muted-foreground text-sm mb-3">
-              You have incomplete verification progress. Continue where you left off at step {lastStepCompleted} of 9.
+              You have incomplete verification progress. Continue where you left off at step <Text className="text-muted-foreground text-sm">{lastStepCompleted}</Text> of 9.
             </Text>
 
             <View className="flex-row gap-2">

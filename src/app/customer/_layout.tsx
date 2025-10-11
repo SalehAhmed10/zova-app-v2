@@ -6,13 +6,13 @@ import { useColorScheme } from '@/lib/core/useColorScheme';
 import { useAppStore } from '@/stores/auth/app';
 import { THEME } from '@/lib/theme';
 import { Redirect } from 'expo-router';
-import { useNavigationDecision } from '@/hooks/shared/useNavigationDecision';
+import { useAuthNavigation } from '@/hooks/shared/useAuthNavigation';
 
 export default function CustomerLayout() {
   const { isDarkColorScheme } = useColorScheme();
   const insets = useSafeAreaInsets();
   const { isLoggingOut } = useAppStore();
-  const navigationDecision = useNavigationDecision();
+  const { navigationDecision } = useAuthNavigation();
 
   console.log('[Customer Layout] Navigation decision:', navigationDecision);
 
@@ -23,9 +23,9 @@ export default function CustomerLayout() {
   }
 
   // ✅ PURE: Use centralized navigation decisions
-  if (navigationDecision.shouldRedirect) {
-    console.log(`[Customer Layout] Redirecting to ${navigationDecision.targetRoute} - ${navigationDecision.reason}`);
-    return <Redirect href={navigationDecision.targetRoute as any} />;
+  if (navigationDecision?.shouldNavigate) {
+    console.log(`[Customer Layout] Redirecting to ${navigationDecision.destination} - ${navigationDecision.reason}`);
+    return <Redirect href={navigationDecision.destination as any} />;
   }
 
   console.log('[Customer Layout] Access granted for customer');

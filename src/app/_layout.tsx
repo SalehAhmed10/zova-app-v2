@@ -77,7 +77,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { colorScheme } from 'nativewind';
-import { SessionProvider, useSession } from '@/lib/auth';
 import { useAppStore, initializeApp } from '@/stores/auth/app';
 import { useThemeHydration } from '@/stores/ui/theme';
 import { useAuthListener } from '@/hooks/shared/useAuthListener';
@@ -159,9 +158,7 @@ export default function RootLayout() {
               <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
                 <StatusBar style={isDarkColorScheme ? 'light' : 'dark'} />
                 <BottomSheetModalProvider>
-                  <SessionProvider>
-                    <RootNavigator />
-                  </SessionProvider>
+                  <RootNavigator />
                 </BottomSheetModalProvider>
                 <PortalHost />
               </ThemeProvider>
@@ -174,9 +171,7 @@ export default function RootLayout() {
 }
 
 function RootNavigator() {
-  const { session } = useSession();
   const { userRole, isAuthenticated, isLoggingOut, isOnboardingComplete, isLoading } = useAppStore();
-  const [isMounted, setIsMounted] = React.useState(false);
   const { showPrompt, bookingId, providerName, serviceName, dismissPrompt, startReview, completeReview } = useReviewPrompt();
   const [showReviewModal, setShowReviewModal] = React.useState(false);
   const pathname = usePathname();
@@ -190,27 +185,15 @@ function RootNavigator() {
   // ✅ Handle post-login navigation with React Query
   const { navigationDecision, navigateToDestination, isReady } = useAuthNavigation();
 
-  // ✅ Mark component as mounted after first render
-  React.useEffect(() => {
-    setIsMounted(true);
-  }, []);
+  // ✅ PURE COMPUTATION: Check if should redirect to onboarding (no useEffect needed!)
+  const shouldRedirectToOnboarding = React.useMemo(() => {
+    // Only redirect if app is initialized and user needs onboarding
+    if (isLoading) return false;
+    return !isAuthenticated && !isOnboardingComplete && !isLoggingOut;
+  }, [isAuthenticated, isOnboardingComplete, isLoggingOut, isLoading]);
 
-  // ✅ Handle post-authentication navigation (onboarding check) - only after mounted AND app initialized
-  React.useEffect(() => {
-    // Only run navigation logic after component is mounted AND app is initialized
-    if (!isMounted || isLoading) return;
-
-    // Only redirect to onboarding if:
-    // 1. User is NOT authenticated (new user)
-    // 2. Onboarding is NOT complete
-    // 3. Not currently logging out
-    if (!isAuthenticated && !isOnboardingComplete && !isLoggingOut) {
-      console.log('[RootNavigator] New user onboarding not complete, redirecting to onboarding');
-      router.replace('/onboarding');
-    }
-  }, [isAuthenticated, isOnboardingComplete, isLoggingOut, isMounted, isLoading]);
-
-  // ✅ Handle post-login navigation - navigate to correct destination when authenticated
+  // ✅ SYSTEM INTEGRATION: Handle post-login navigation (router requires useEffect for timing)
+  // This is a legitimate exception - router.replace() needs to be called outside render cycle
   React.useEffect(() => {
     if (isAuthenticated && isReady && navigationDecision?.shouldNavigate && !isLoggingOut && !isLoading) {
       // ✅ Don't interfere with manual navigation within verification flow
@@ -219,8 +202,7 @@ function RootNavigator() {
       const isNavigatingToVerificationFlow = navigationDecision.destination.startsWith('/provider-verification');
       
       if (isOnVerificationFlow && isNavigatingToVerificationFlow) {
-        // Temporarily disabled verbose logging to reduce console noise during form input
-        // console.log('[RootNavigator] Skipping navigation - user is already in verification flow, allowing manual navigation');
+        // User is already in verification flow, allow manual navigation
         return;
       }
       
@@ -230,17 +212,19 @@ function RootNavigator() {
         navigateToDestination();
       }, 100);
     }
-  }, [isAuthenticated, isReady, navigationDecision, navigateToDestination, isLoggingOut, isLoading]);
-
-  // ✅ Log state changes immediately - no useEffect needed
-  const currentState = { session: !!session, isAuthenticated, userRole, isOnboardingComplete, isLoading };
-  // Temporarily disabled verbose logging to reduce console noise during form input
-  // console.log('[RootNavigator] State:', currentState);
+  }, [isAuthenticated, isReady, navigationDecision, navigateToDestination, isLoggingOut, isLoading, pathname]);
 
   // ✅ Wait for app initialization before rendering anything
   if (isLoading) {
     console.log('[RootNavigator] Waiting for app initialization...');
-    return null; // Show nothing while initializing
+    return null;
+  }
+
+  // ✅ DECLARATIVE REDIRECT: Onboarding redirect (pure computation, no useEffect!)
+  if (shouldRedirectToOnboarding) {
+    console.log('[RootNavigator] New user onboarding not complete, redirecting to onboarding');
+    router.replace('/onboarding');
+    return null;
   }
 
   return (

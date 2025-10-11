@@ -2642,6 +2642,15 @@ export type Database = {
         Args: { customer_profile_id: string }
         Returns: boolean
       }
+      check_provider_role_consistency: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          email: string
+          has_provider_progress: boolean
+          profile_role: Database["public"]["Enums"]["user_role"]
+          user_id: string
+        }[]
+      }
       cleanup_expired_payment_intents: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -4442,7 +4451,13 @@ export type Database = {
       price_type: "fixed" | "hourly"
       user_availability: "available" | "busy" | "unavailable"
       user_role: "customer" | "provider" | "admin" | "super-admin"
-      verification_status: "pending" | "approved" | "rejected" | "in_review"
+      verification_status:
+        | "pending"
+        | "approved"
+        | "rejected"
+        | "in_review"
+        | "in_progress"
+        | "submitted"
     }
     CompositeTypes: {
       geometry_dump: {
@@ -4593,7 +4608,14 @@ export const Constants = {
       price_type: ["fixed", "hourly"],
       user_availability: ["available", "busy", "unavailable"],
       user_role: ["customer", "provider", "admin", "super-admin"],
-      verification_status: ["pending", "approved", "rejected", "in_review"],
+      verification_status: [
+        "pending",
+        "approved",
+        "rejected",
+        "in_review",
+        "in_progress",
+        "submitted",
+      ],
     },
   },
 } as const

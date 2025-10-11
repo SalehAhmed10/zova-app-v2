@@ -155,20 +155,53 @@ export const useAuthNavigation = () => {
               shouldNavigate: true,
               reason: 'provider-approved'
             };
-          } else if (verificationStatus === 'in_review' || verificationStatus === 'pending') {
-            console.log('[AuthNavigation] Provider verification', verificationStatus, '- redirecting to status screen');
+          } else if (verificationStatus === 'in_review') {
+            // ✅ in_review means admin is actively reviewing - always show status screen
+            console.log('[AuthNavigation] Provider verification in_review - redirecting to status screen');
             return {
               destination: '/provider-verification/verification-status',
               shouldNavigate: true,
-              reason: `provider-${verificationStatus}-waiting-approval`
+              reason: 'provider-in_review-waiting-approval'
+            };
+          } else if (verificationStatus === 'in_progress') {
+            // ✅ CLEAR STATUS: Provider is actively completing verification steps
+            // Always continue verification flow - check which step to route to
+            const verificationData = {
+              documentData,
+              selfieData,
+              businessData,
+              categoryData,
+              servicesData,
+              portfolioData,
+              bioData,
+              termsData
+            };
+            
+            const firstIncompleteStep = VerificationFlowManager.findFirstIncompleteStep(verificationData);
+            const destination = VerificationFlowManager.getRouteForStep(firstIncompleteStep as any);
+            console.log(`[AuthNavigation] Verification in_progress (step ${firstIncompleteStep}) - continuing flow: ${destination}`);
+            
+            return {
+              destination,
+              shouldNavigate: true,
+              reason: `provider-verification-step-${firstIncompleteStep}`
+            };
+          } else if (verificationStatus === 'submitted' || verificationStatus === 'pending') {
+            // ✅ CLEAR STATUS: All steps completed, awaiting admin review
+            // 'submitted' = new clear status, 'pending' = legacy support
+            console.log('[AuthNavigation] Verification submitted/pending - awaiting admin review');
+            return {
+              destination: '/provider-verification/verification-status',
+              shouldNavigate: true,
+              reason: 'provider-submitted-waiting-approval'
             };
           } else if (verificationStatus === 'rejected') {
-            console.log('[AuthNavigation] Provider verification rejected - redirecting to verification');
-            // Redirect to first step for rejected providers
+            console.log('[AuthNavigation] Provider verification rejected - redirecting to status screen with restart option');
+            // Show rejection screen with restart option instead of redirecting to first step
             return {
-              destination: '/provider-verification',
+              destination: '/provider-verification/verification-status',
               shouldNavigate: true,
-              reason: 'provider-rejected'
+              reason: 'provider-rejected-show-feedback'
             };
           }
         }
@@ -197,11 +230,43 @@ export const useAuthNavigation = () => {
               shouldNavigate: true,
               reason: 'provider-verified'
             };
-          } else if (profile?.verification_status === 'in_review' || profile?.verification_status === 'pending') {
+          } else if (profile?.verification_status === 'in_review') {
+            // ✅ in_review means admin is actively reviewing - always show status screen
             return {
               destination: '/provider-verification/verification-status',
               shouldNavigate: true,
               reason: `provider-${profile.verification_status}-waiting-approval`
+            };
+          } else if (profile?.verification_status === 'in_progress') {
+            // ✅ CLEAR STATUS: Provider is actively completing verification steps
+            const verificationData = {
+              documentData,
+              selfieData,
+              businessData,
+              categoryData,
+              servicesData,
+              portfolioData,
+              bioData,
+              termsData
+            };
+            
+            const firstIncompleteStep = VerificationFlowManager.findFirstIncompleteStep(verificationData);
+            const destination = VerificationFlowManager.getRouteForStep(firstIncompleteStep as any);
+            console.log(`[AuthNavigation] Verification in_progress (step ${firstIncompleteStep}) - continuing flow: ${destination}`);
+            
+            return {
+              destination,
+              shouldNavigate: true,
+              reason: `provider-verification-step-${firstIncompleteStep}`
+            };
+          } else if (profile?.verification_status === 'submitted' || profile?.verification_status === 'pending') {
+            // ✅ CLEAR STATUS: All steps completed, awaiting admin review
+            // 'submitted' = new clear status, 'pending' = legacy support
+            console.log('[AuthNavigation] Verification submitted/pending - awaiting admin review');
+            return {
+              destination: '/provider-verification/verification-status',
+              shouldNavigate: true,
+              reason: 'provider-submitted-waiting-approval'
             };
           } else {
             // For rejected or any other status, go to verification steps

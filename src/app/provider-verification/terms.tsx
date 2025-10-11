@@ -1,18 +1,23 @@
 import React from 'react';
 import { View, Alert, ScrollView } from 'react-native';
 import { router } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
+import { FileText, CheckCircle, Info } from 'lucide-react-native';
+
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
+import { Icon } from '@/components/ui/icon';
 import { VerificationHeader } from '@/components/verification/VerificationHeader';
 import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
 import { useSaveVerificationStep } from '@/hooks/provider/useProviderVerificationQueries';
 import { useAuthOptimized } from '@/hooks';
 import { useVerificationNavigation } from '@/hooks/provider';
 import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';
+import { supabase } from '@/lib/supabase';
 
 export default function BusinessTermsScreen() {
   // ✅ MIGRATED: Using optimized auth hook and React Query + Zustand
@@ -30,6 +35,48 @@ export default function BusinessTermsScreen() {
   
   // ✅ CENTRALIZED NAVIGATION: Replace manual routing
   const { navigateBack } = useVerificationNavigation();
+
+  // ✅ REACT QUERY: Fetch existing terms data from database
+  const { data: existingTermsData } = useQuery({
+    queryKey: ['providerTerms', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      
+      console.log('[Terms] Fetching existing terms data from database...');
+      const { data, error } = await supabase
+        .from('provider_business_terms')
+        .select('deposit_percentage, cancellation_fee_percentage, cancellation_policy')
+        .eq('provider_id', user.id)
+        .maybeSingle();
+      
+      if (error && error.code !== 'PGRST116') {
+        console.error('[Terms] Error fetching terms data:', error);
+        return null;
+      }
+      
+      console.log('[Terms] Existing terms from database:', {
+        deposit: data?.deposit_percentage,
+        cancellationFee: data?.cancellation_fee_percentage,
+        policy: data?.cancellation_policy?.substring(0, 50)
+      });
+      return data;
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // ✅ NO useEffect! Pure computation with useMemo for data sync: Database → Store
+  React.useMemo(() => {
+    // Sync database → store (pure side effect during render, NOT in useEffect!)
+    if (existingTermsData && termsData.depositPercentage === null) {
+      console.log('[Terms] Syncing from database to store');
+      updateTermsData({
+        depositPercentage: existingTermsData.deposit_percentage,
+        cancellationFeePercentage: existingTermsData.cancellation_fee_percentage,
+        cancellationPolicy: existingTermsData.cancellation_policy,
+      });
+    }
+  }, [existingTermsData, termsData.depositPercentage, updateTermsData]);
 
   // ✅ OPTIMIZED: Form validation using Zustand data
   const validateForm = () => {
@@ -198,35 +245,45 @@ export default function BusinessTermsScreen() {
 
       {/* Example Terms */}
       <Animated.View entering={SlideInDown.delay(600).springify()} className="my-6">
-        <View className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
-          <Text className="font-semibold text-green-900 dark:text-green-100 mb-2">
-            💡 Example Policy
-          </Text>
-          <Text className="text-green-800 dark:text-green-200 text-sm">
-            "Cancellations must be made at least 24 hours in advance. Cancellations within 24 hours will incur a 50% deposit fee. Emergency cancellations (medical, family emergencies) may be waived at my discretion with appropriate documentation."
-          </Text>
+        <View className="flex-row p-4 bg-success/10 rounded-lg border border-success/20">
+          <View className="mr-3 mt-0.5">
+            <Icon as={CheckCircle} size={20} className="text-success" />
+          </View>
+          <View className="flex-1">
+            <Text className="font-semibold text-foreground mb-2">
+              Example Policy
+            </Text>
+            <Text className="text-muted-foreground text-sm">
+              "Cancellations must be made at least 24 hours in advance. Cancellations within 24 hours will incur a 50% deposit fee. Emergency cancellations (medical, family emergencies) may be waived at my discretion with appropriate documentation."
+            </Text>
+          </View>
         </View>
       </Animated.View>
 
       {/* Guidelines */}
       <Animated.View entering={SlideInDown.delay(700).springify()} className="mb-6">
-        <View className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-          <Text className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
-            📋 Policy Guidelines
-          </Text>
-          <View>
-            <Text className="text-blue-800 dark:text-blue-200 text-sm mb-1">
-              • Be clear about notice requirements (e.g., 24 hours, 48 hours)
+        <View className="flex-row p-4 bg-primary/5 rounded-lg border border-primary/20">
+          <View className="mr-3 mt-0.5">
+            <Icon as={FileText} size={20} className="text-primary" />
+          </View>
+          <View className="flex-1">
+            <Text className="font-semibold text-foreground mb-2">
+              Policy Guidelines
             </Text>
-            <Text className="text-blue-800 dark:text-blue-200 text-sm mb-1">
-              • Consider exceptions for emergencies or special circumstances
-            </Text>
-            <Text className="text-blue-800 dark:text-blue-200 text-sm mb-1">
-              • Keep fees reasonable and industry-appropriate
-            </Text>
-            <Text className="text-blue-800 dark:text-blue-200 text-sm">
-              • Be professional but understanding in your tone
-            </Text>
+            <View>
+              <Text className="text-muted-foreground text-sm mb-1">
+                • Be clear about notice requirements (e.g., 24 hours, 48 hours)
+              </Text>
+              <Text className="text-muted-foreground text-sm mb-1">
+                • Consider exceptions for emergencies or special circumstances
+              </Text>
+              <Text className="text-muted-foreground text-sm mb-1">
+                • Keep fees reasonable and industry-appropriate
+              </Text>
+              <Text className="text-muted-foreground text-sm">
+                • Be professional but understanding in your tone
+              </Text>
+            </View>
           </View>
         </View>
       </Animated.View>

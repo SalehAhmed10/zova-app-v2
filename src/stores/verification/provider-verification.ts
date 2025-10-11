@@ -149,11 +149,6 @@ interface ProviderVerificationState {
     houseCallExtraFee: number;
     termsAccepted: boolean;
   };
-  
-  paymentData: {
-    stripeAccountId: string | null;
-    accountSetupComplete: boolean;
-  };
 }
 
 interface ProviderVerificationActions {
@@ -203,7 +198,6 @@ interface ProviderVerificationActions {
   updatePortfolioData: (data: Partial<ProviderVerificationState['portfolioData']>) => void;
   updateBioData: (data: Partial<ProviderVerificationState['bioData']>) => void;
   updateTermsData: (data: Partial<ProviderVerificationState['termsData']>) => void;
-  updatePaymentData: (data: Partial<ProviderVerificationState['paymentData']>) => void;
   
   // Legacy Status management (keeping for backward compatibility)
   setVerificationStatus: (status: ProviderVerificationState['verificationStatus']) => void;
@@ -279,13 +273,6 @@ const initialSteps: Record<number, VerificationStep> = {
     description: 'Set your business terms',
     isCompleted: false,
     isRequired: true,
-  },
-  9: {
-    stepNumber: 9,
-    title: 'Payment Setup',
-    description: 'Connect your Stripe account to receive payments',
-    isCompleted: false,
-    isRequired: false, // Make optional
   },
 };
 
@@ -369,11 +356,6 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
         houseCallAvailable: false,
         houseCallExtraFee: 0,
         termsAccepted: false,
-      },
-      
-      paymentData: {
-        stripeAccountId: null,
-        accountSetupComplete: false,
       },
       
       // Enhanced Actions - Phase 1
@@ -735,12 +717,6 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
         }));
       },
       
-      updatePaymentData: (data) => {
-        set(state => ({
-          paymentData: { ...state.paymentData, ...data }
-        }));
-      },
-      
       setVerificationStatus: (status) => {
         set({ verificationStatus: status });
       },
@@ -795,9 +771,8 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
           get().updateBioData(data);
         } else if (stepNumber === 8 && data) {
           get().updateTermsData(data);
-        } else if (stepNumber === 9 && data) {
-          get().updatePaymentData(data);
         }
+        // Step 9 (payment) has been removed - now handled in dashboard
       },
       
       setHasHydrated: (hasHydrated) => {
@@ -859,10 +834,6 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
             houseCallExtraFee: 0,
             termsAccepted: false,
           },
-          paymentData: {
-            stripeAccountId: null,
-            accountSetupComplete: false,
-          },
         });
       },
       
@@ -888,7 +859,6 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
           portfolioData: state.portfolioData,
           bioData: state.bioData,
           termsData: state.termsData,
-          paymentData: state.paymentData,
         });
         
         console.log('[Store] Validation result:', {
@@ -960,9 +930,7 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
           case 8:
             stepData = state.termsData;
             break;
-          case 9:
-            stepData = state.paymentData;
-            break;
+          // Step 9 (payment) removed - now handled in dashboard
           default:
             return false;
         }

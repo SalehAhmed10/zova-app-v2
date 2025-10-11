@@ -38,16 +38,27 @@ export const useVerificationStatusPure = (userId: string | undefined) => {
         .from('provider_onboarding_progress')
         .select('verification_status')
         .eq('provider_id', userId)
-        .single();
+        .maybeSingle(); // ✅ FIX: Use maybeSingle() instead of single() to handle new providers
 
+      // ✅ NEW PROVIDER: If no row exists, return 'pending' as default
       if (error) {
-        console.error('[useVerificationStatusPure] Database error:', error);
-        throw error;
+        // Only throw on real database errors, not "no rows" errors
+        if (error.code !== 'PGRST116') {
+          console.error('[useVerificationStatusPure] Database error:', error);
+          throw error;
+        }
+        console.log('[useVerificationStatusPure] No progress row found - new provider with pending status');
       }
 
-      if (!profile?.verification_status) {
-        console.warn('[useVerificationStatusPure] No verification status found');
-        throw new Error('No verification status found');
+      // Handle new provider (no row in database yet)
+      if (!profile || !profile.verification_status) {
+        console.log('[useVerificationStatusPure] New provider detected - returning pending status');
+        const defaultStatus: VerificationStatus = 'pending';
+        
+        // ✅ SYNC: Update profile store with default status
+        useProfileStore.getState().setProfile(userId, defaultStatus);
+        
+        return { status: defaultStatus };
       }
 
       const status = profile.verification_status as VerificationStatus;
@@ -224,11 +235,11 @@ export const useVerificationStateInitializer = (userId: string | undefined) => {
       businessData: store.businessData,
       categoryData: store.categoryData,
       documentData: store.documentData,
-      paymentData: store.paymentData,
       portfolioData: store.portfolioData,
       selfieData: store.selfieData,
       servicesData: store.servicesData,
       termsData: store.termsData
+      // ✅ REMOVED: paymentData (step 9 removed - now handled in dashboard)
     });
 
     return firstIncompleteStep;

@@ -1,19 +1,23 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { useQuery } from '@tanstack/react-query';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { router } from 'expo-router';
+import { Info, AlertCircle } from 'lucide-react-native';
+
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
+import { Icon } from '@/components/ui/icon';
 import { VerificationHeader } from '@/components/verification/VerificationHeader';
 import { useProviderVerificationStore, useProviderVerificationSelectors } from '@/stores/verification/provider-verification';
 import { useAuthOptimized } from '@/hooks';
 import { useSaveVerificationStep } from '@/hooks/provider/useProviderVerificationQueries';
 import { useVerificationNavigation } from '@/hooks/provider';
 import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';
+import { supabase } from '@/lib/supabase';
 
 interface BusinessInfoForm {
   businessName: string;
@@ -35,26 +39,81 @@ export default function BusinessInfoScreen() {
     currentStep,
   } = useProviderVerificationStore();
   
+  // ✅ REACT QUERY: Fetch existing business info from database
+  const { data: existingBusinessInfo, isLoading: isLoadingBusinessInfo } = useQuery({
+    queryKey: ['businessInfo', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      
+      console.log('[Business Info] Fetching existing data for provider:', user.id);
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('business_name, phone_number, country_code, address, city, postal_code')
+        .eq('id', user.id)
+        .single();
+
+      if (error) {
+        console.error('[Business Info] Error fetching existing data:', error);
+        return null;
+      }
+
+      console.log('[Business Info] Existing data found:', {
+        businessName: data?.business_name,
+        phoneNumber: data?.phone_number,
+        hasAddress: !!data?.address
+      });
+
+      return data;
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000, // 5 minutes - data doesn't change often
+  });
+  
   // ✅ REACT QUERY: Mutation for saving business info
   const saveBusinessInfoMutation = useSaveVerificationStep();
   
   // ✅ CENTRALIZED NAVIGATION: Replace manual routing
   const { navigateNext, navigateBack } = useVerificationNavigation();
 
-  // ✅ OPTIMIZED: React Hook Form with Zustand integration
+  // ✅ PURE COMPUTATION: Merge database data with store data (NO useEffect!)
+  // Following copilot-rules.md: React Query + Zustand with NO side effects
+  const formDefaultValues = useMemo(() => {
+    // Priority: Database data → Store data → Empty string
+    const values = {
+      businessName: existingBusinessInfo?.business_name || businessData.businessName || '',
+      phoneNumber: existingBusinessInfo?.phone_number || businessData.phoneNumber || '',
+      address: existingBusinessInfo?.address || businessData.address || '',
+      city: existingBusinessInfo?.city || businessData.city || '',
+      postalCode: existingBusinessInfo?.postal_code || businessData.postalCode || '',
+    };
+
+    // ✅ SYNC TO STORE: Only if database has data but store is empty
+    // This is a pure side effect during render, not in useEffect
+    if (existingBusinessInfo?.business_name && !businessData.businessName) {
+      console.log('[Business Info] Syncing database data to store');
+      updateBusinessData({
+        businessName: existingBusinessInfo.business_name || '',
+        phoneNumber: existingBusinessInfo.phone_number || '',
+        countryCode: existingBusinessInfo.country_code || '+44',
+        address: existingBusinessInfo.address || '',
+        city: existingBusinessInfo.city || '',
+        postalCode: existingBusinessInfo.postal_code || '',
+      });
+    }
+
+    return values;
+  }, [existingBusinessInfo, businessData]);
+
+  // ✅ REACT HOOK FORM: Use computed default values (re-initializes when data changes)
   const {
     control,
     handleSubmit,
     formState: { errors, isValid },
   } = useForm<BusinessInfoForm>({
     mode: 'onChange',
-    defaultValues: {
-      businessName: businessData.businessName || '',
-      phoneNumber: businessData.phoneNumber || '',
-      address: businessData.address || '',
-      city: businessData.city || '',
-      postalCode: businessData.postalCode || '',
-    },
+    defaultValues: formDefaultValues,
+    values: formDefaultValues, // ✅ KEY FIX: Auto-updates form when data changes
   });
 
   // ✅ REACT QUERY MUTATION: Handle form submission  
@@ -315,25 +374,35 @@ export default function BusinessInfoScreen() {
         </View>
 
         {/* Info Note */}
-        <View className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-          <Text className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
-            ℹ️ Business Information
-          </Text>
-          <Text className="text-blue-800 dark:text-blue-200 text-sm">
-            This information will be used to set up your business profile and 
-            help customers find and contact you. You can update these details later.
-          </Text>
+        <View className="flex-row p-4 bg-primary/5 rounded-lg border border-primary/20">
+          <View className="mr-3 mt-0.5">
+            <Icon as={Info} size={20} className="text-primary" />
+          </View>
+          <View className="flex-1">
+            <Text className="font-semibold text-foreground mb-2">
+              Business Information
+            </Text>
+            <Text className="text-muted-foreground text-sm">
+              This information will be used to set up your business profile and 
+              help customers find and contact you. You can update these details later.
+            </Text>
+          </View>
         </View>
 
         {/* Error Display */}
         {saveBusinessInfoMutation.error && (
-          <View className="p-4 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800">
-            <Text className="font-semibold text-red-900 dark:text-red-100 mb-2">
-              ❌ Error
-            </Text>
-            <Text className="text-red-800 dark:text-red-200 text-sm">
-              {saveBusinessInfoMutation.error.message}
-            </Text>
+          <View className="flex-row p-4 bg-destructive/10 rounded-lg border border-destructive/20">
+            <View className="mr-3 mt-0.5">
+              <Icon as={AlertCircle} size={20} className="text-destructive" />
+            </View>
+            <View className="flex-1">
+              <Text className="font-semibold text-destructive mb-2">
+                Error
+              </Text>
+              <Text className="text-destructive/90 text-sm">
+                {saveBusinessInfoMutation.error.message}
+              </Text>
+            </View>
           </View>
         )}
 

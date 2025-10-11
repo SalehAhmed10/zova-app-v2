@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { View, Alert, Image, Pressable } from 'react-native';
+import { View, Alert, Image, Pressable, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import * as ImagePicker from 'expo-image-picker';
+import { Upload, Loader2 } from 'lucide-react-native';
+
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
+import { Icon } from '@/components/ui/icon';
 import { VerificationHeader } from '@/components/verification/VerificationHeader';
 import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/verification/provider-verification';
 import { supabase } from '@/lib/supabase';
@@ -350,15 +353,18 @@ export default function PortfolioUploadScreen() {
       {/* Existing Images Section */}
       {existingImages.length > 0 && selectedImages.length === 0 && (
         <Animated.View entering={SlideInDown.delay(400).springify()} className="mb-6">
-          <View className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800 mb-4">
-            <View className="flex-row items-center mb-2">
-              <Text className="text-green-700 dark:text-green-300 font-semibold">
-                ✅ Existing Portfolio Found
+          <View className="flex-row p-4 bg-success/10 rounded-lg border border-success/20 mb-4">
+            <View className="mr-3 mt-0.5">
+              <Icon as={Upload} size={20} className="text-success" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-success font-semibold mb-1">
+                Existing Portfolio Found
+              </Text>
+              <Text className="text-success/90 text-sm">
+                You have {existingImages.length} portfolio image{existingImages.length > 1 ? 's' : ''} already uploaded
               </Text>
             </View>
-            <Text className="text-green-700 dark:text-green-300 text-sm">
-              You have {existingImages.length} portfolio image{existingImages.length > 1 ? 's' : ''} already uploaded
-            </Text>
           </View>
 
           <View className="flex-row flex-wrap gap-3 mb-4">
@@ -468,21 +474,24 @@ export default function PortfolioUploadScreen() {
 
       {/* Guidelines */}
       <Animated.View entering={SlideInDown.delay(600).springify()} className="mb-6">
-        <View className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
-          <Text className="font-semibold text-green-900 dark:text-green-100 mb-2">
-            📸 Portfolio Guidelines
-          </Text>
-          <View className="gap-1">
-            <Text className="text-green-800 dark:text-green-200 text-sm">
+        <View className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+          <View className="flex-row items-center mb-3">
+            <Icon as={Upload} size={20} className="text-primary mr-2" />
+            <Text className="font-semibold text-foreground">
+              Portfolio Guidelines
+            </Text>
+          </View>
+          <View className="gap-1.5">
+            <Text className="text-muted-foreground text-sm">
               • Upload high-quality, well-lit images
             </Text>
-            <Text className="text-green-800 dark:text-green-200 text-sm">
+            <Text className="text-muted-foreground text-sm">
               • Show your best and most recent work
             </Text>
-            <Text className="text-green-800 dark:text-green-200 text-sm">
+            <Text className="text-muted-foreground text-sm">
               • No offensive or inappropriate content
             </Text>
-            <Text className="text-green-800 dark:text-green-200 text-sm">
+            <Text className="text-muted-foreground text-sm">
               • Images will be reviewed before approval
             </Text>
           </View>
@@ -518,6 +527,29 @@ export default function PortfolioUploadScreen() {
         </Button>
       </Animated.View>
     </ScreenWrapper>
+
+    {/* Upload Loading Overlay */}
+    {uploadPortfolioMutation.isPending && (
+      <View className="absolute inset-0 bg-background/95 items-center justify-center z-50">
+        <View className="bg-card border border-border rounded-2xl p-8 items-center shadow-sm">
+          <View className="w-16 h-16 bg-primary/10 rounded-full items-center justify-center mb-4">
+            <Icon as={Loader2} size={32} className="text-primary animate-spin" />
+          </View>
+          <Text className="text-foreground font-semibold text-lg mb-2">
+            Uploading Portfolio...
+          </Text>
+          <Text className="text-muted-foreground text-center text-sm">
+            Please wait while we upload your images
+          </Text>
+          <View className="flex-row items-center mt-4 px-4 py-2 bg-primary/5 rounded-full">
+            <Icon as={Upload} size={16} className="text-primary mr-2" />
+            <Text className="text-primary text-sm font-medium">
+              {selectedImages.length} image{selectedImages.length !== 1 ? 's' : ''}
+            </Text>
+          </View>
+        </View>
+      </View>
+    )}
     </View>
   );
 }

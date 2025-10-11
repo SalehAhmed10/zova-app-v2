@@ -16,6 +16,7 @@ import {
   useProviderEarningsAnalytics,
   useStripeAccountStatus
 } from '@/hooks';
+import { useProviderAccess } from '@/hooks/provider/useProviderAccess';
 import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
 import { useColorScheme } from '@/lib/core/useColorScheme';
@@ -71,6 +72,13 @@ export default function ProviderEarningsScreen() {
   const colors = isDarkColorScheme ? THEME.dark : THEME.light;
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('30d');
   const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'payouts'>('overview');
+
+  // ✅ REACT QUERY + ZUSTAND: Access control for feature gates
+  const { 
+    canViewEarnings, 
+    needsPaymentSetup,
+    getPrimaryCTA 
+  } = useProviderAccess();
 
   // React Query hooks
   const {
@@ -184,8 +192,88 @@ export default function ProviderEarningsScreen() {
         </View>
       </View>
 
-      {/* Tab Navigation - Sticky */}
-      <View className="px-4 py-4 bg-card border-b border-border">
+      {/* ✅ FEATURE GATE: Earnings Screen (50-60% conversion) */}
+      {!canViewEarnings && needsPaymentSetup ? (
+        <ScrollView 
+          className="flex-1"
+          contentContainerStyle={{ padding: 20, alignItems: 'center', justifyContent: 'center', flexGrow: 1 }}
+        >
+          <Card className="w-full max-w-md border-amber-200 dark:border-amber-800">
+            <CardContent className="p-6 items-center">
+              {/* Icon */}
+              <View className="w-20 h-20 bg-amber-100 dark:bg-amber-900 rounded-full items-center justify-center mb-4">
+                <Wallet size={40} className="text-amber-600 dark:text-amber-400" />
+              </View>
+
+              {/* Title */}
+              <Text className="text-2xl font-bold text-center mb-2 text-foreground">
+                Setup Payments to View Earnings
+              </Text>
+
+              {/* Description */}
+              <Text className="text-muted-foreground text-center mb-6">
+                Connect your payment account to start accepting bookings and track your earnings in real-time.
+              </Text>
+
+              {/* Benefits List */}
+              <View className="w-full gap-3 mb-6">
+                <View className="flex-row items-center gap-3">
+                  <View className="w-8 h-8 bg-green-100 dark:bg-green-900 rounded-full items-center justify-center">
+                    <CheckCircle size={16} className="text-green-600 dark:text-green-400" />
+                  </View>
+                  <Text className="flex-1 text-foreground">
+                    Receive payments securely
+                  </Text>
+                </View>
+                <View className="flex-row items-center gap-3">
+                  <View className="w-8 h-8 bg-green-100 dark:bg-green-900 rounded-full items-center justify-center">
+                    <CheckCircle size={16} className="text-green-600 dark:text-green-400" />
+                  </View>
+                  <Text className="flex-1 text-foreground">
+                    Track earnings in real-time
+                  </Text>
+                </View>
+                <View className="flex-row items-center gap-3">
+                  <View className="w-8 h-8 bg-green-100 dark:bg-green-900 rounded-full items-center justify-center">
+                    <CheckCircle size={16} className="text-green-600 dark:text-green-400" />
+                  </View>
+                  <Text className="flex-1 text-foreground">
+                    Fast payouts to your bank
+                  </Text>
+                </View>
+                <View className="flex-row items-center gap-3">
+                  <View className="w-8 h-8 bg-green-100 dark:bg-green-900 rounded-full items-center justify-center">
+                    <CheckCircle size={16} className="text-green-600 dark:text-green-400" />
+                  </View>
+                  <Text className="flex-1 text-foreground">
+                    Accept bookings from customers
+                  </Text>
+                </View>
+              </View>
+
+              {/* CTA Button */}
+              <Button 
+                size="lg" 
+                className="w-full"
+                onPress={() => router.push('/provider/setup-payment' as any)}
+              >
+                <Wallet size={20} className="text-primary-foreground mr-2" />
+                <Text className="font-semibold text-primary-foreground">
+                  Setup Payments Now
+                </Text>
+              </Button>
+
+              {/* Secondary Info */}
+              <Text className="text-xs text-muted-foreground text-center mt-4">
+                Takes only 2 minutes • Powered by Stripe
+              </Text>
+            </CardContent>
+          </Card>
+        </ScrollView>
+      ) : (
+        <>
+          {/* Tab Navigation - Sticky */}
+          <View className="px-4 py-4 bg-card border-b border-border">
         <View className="flex-row bg-muted rounded-lg p-1">
           {[
             { key: 'overview' as const, label: 'Overview', icon: Activity },
@@ -241,7 +329,7 @@ export default function ProviderEarningsScreen() {
                         </Text>
                         <Button
                           size="sm"
-                          onPress={() => router.push('/provider-verification/payment')}
+                          onPress={() => router.push('/provider/setup-payment' as any)}
                           className="self-start"
                         >
                           <Text className="text-primary-foreground font-medium">Complete Setup</Text>
@@ -778,6 +866,8 @@ export default function ProviderEarningsScreen() {
           )}
         </View>
       </ScrollView>
+        </>
+      )}
     </SafeAreaView>
   );
 }

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-type VerificationStatus = "pending" | "in_review" | "approved" | "rejected";
+type VerificationStatus = "in_progress" | "submitted" | "pending" | "in_review" | "approved" | "rejected";
 
 interface ProfileState {
   userId: string | null;
@@ -22,7 +22,7 @@ export const useProfileStore = create<ProfileState>()(
       _hasHydrated: false,
       setProfile: (userId, status) => {
         // Validate status - allow null for unverified providers
-        const validStatuses: (VerificationStatus | null)[] = ["pending", "in_review", "approved", "rejected", null];
+        const validStatuses: (VerificationStatus | null)[] = ["in_progress", "submitted", "pending", "in_review", "approved", "rejected", null];
         if (!validStatuses.includes(status)) {
           console.warn("[ProfileStore] Invalid verification status:", status);
           return;

@@ -56,7 +56,6 @@ export default function ProviderVerificationLayout() {
       portfolioData: storeState.portfolioData,
       bioData: storeState.bioData,
       termsData: storeState.termsData,
-      paymentData: storeState.paymentData,
     };
 
     // Find the first incomplete step based on actual data
@@ -136,7 +135,7 @@ export default function ProviderVerificationLayout() {
           <Stack.Screen name="portfolio" />
           <Stack.Screen name="bio" />
           <Stack.Screen name="terms" />
-          <Stack.Screen name="payment" />
+          {/* payment route removed - now at /provider/setup-payment */}
           <Stack.Screen name="complete" />
           <Stack.Screen name="verification-status" />
         </Stack>

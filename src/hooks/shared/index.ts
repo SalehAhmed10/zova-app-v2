@@ -2,10 +2,7 @@
 export { useAuthPure as useAuthOptimized } from './useAuthPure';
 export { useProfileSync } from './useProfileSync';
 
-// ✅ PURE: Navigation decision hooks - NO useEffect
-export { useNavigationDecision } from './useNavigationDecision';
-
-// ✅ OPTIMIZED: New architecture hooks without useEffect
+// ✅ OPTIMIZED: Navigation hooks without useEffect
 export { useAppInitialization } from './useAppInitialization';
 export { useAuthNavigation } from './useAuthNavigation';
 

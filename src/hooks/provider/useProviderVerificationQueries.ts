@@ -119,17 +119,21 @@ export const useSaveVerificationStep = () => {
         }
       }
       
-      // ✅ TERMS STEP: Save terms data to profiles table
+      // ✅ TERMS STEP: Save terms data to provider_business_terms table
       if (step === 'terms' || step === 8) {
         const { error } = await supabase
-          .from('profiles')
-          .update({
+          .from('provider_business_terms')
+          .upsert({
+            provider_id: providerId,
             deposit_percentage: data.depositPercentage,
             cancellation_fee_percentage: data.cancellationFeePercentage,
             cancellation_policy: data.cancellationPolicy,
+            terms_accepted: data.termsAccepted ?? true,
+            terms_accepted_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-          })
-          .eq('id', providerId);
+          }, {
+            onConflict: 'provider_id'
+          });
 
         if (error) {
           console.error('[VerificationMutation] Error saving terms:', error);

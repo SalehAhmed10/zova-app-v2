@@ -29,6 +29,46 @@ export default function BusinessBioScreen() {
   // ✅ CENTRALIZED NAVIGATION: Replace manual routing
   const { navigateBack } = useVerificationNavigation();
 
+  // ✅ REACT QUERY: Fetch existing bio data from database
+  const { data: existingBioData } = useQuery({
+    queryKey: ['providerBio', providerId],
+    queryFn: async () => {
+      if (!providerId) return null;
+      
+      console.log('[Bio] Fetching existing bio data from database...');
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('business_description, years_of_experience')
+        .eq('id', providerId)
+        .maybeSingle();
+      
+      if (error && error.code !== 'PGRST116') {
+        console.error('[Bio] Error fetching bio data:', error);
+        return null;
+      }
+      
+      console.log('[Bio] Existing bio from database:', {
+        description: data?.business_description?.substring(0, 50),
+        experience: data?.years_of_experience
+      });
+      return data;
+    },
+    enabled: !!providerId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // ✅ NO useEffect! Pure computation with useMemo for data sync: Database → Store
+  React.useMemo(() => {
+    // Sync database → store (pure side effect during render, NOT in useEffect!)
+    if (existingBioData?.business_description && !bioData.businessDescription) {
+      console.log('[Bio] Syncing from database to store');
+      updateBioData({
+        businessDescription: existingBioData.business_description,
+        yearsOfExperience: existingBioData.years_of_experience,
+      });
+    }
+  }, [existingBioData, bioData.businessDescription, updateBioData]);
+
   // ✅ REACT QUERY: Bio submission mutation
   const submitBioMutation = useMutation({
     mutationFn: async (data: { businessDescription: string; yearsOfExperience: number }) => {

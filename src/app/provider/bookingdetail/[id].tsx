@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useProviderBookingDetail } from '@/hooks/provider';
 import { useUpdateBookingStatus, useCompleteService } from '@/hooks/shared/useBookings';
+import { useProviderAccess } from '@/hooks/provider/useProviderAccess';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { THEME } from '@/lib/theme';
 import { cn, formatCurrency } from '@/lib/utils';
@@ -18,6 +19,13 @@ export default function ProviderBookingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { isDarkColorScheme, colorScheme } = useColorScheme();
   const colors = THEME[colorScheme];
+  
+  // ✅ REACT QUERY + ZUSTAND: Access control for payment gates
+  const { 
+    canAcceptBookings, 
+    needsPaymentSetup,
+    getPrimaryCTA 
+  } = useProviderAccess();
   
   const {
     data: booking,
@@ -28,9 +36,35 @@ export default function ProviderBookingDetailScreen() {
   const updateBookingStatusMutation = useUpdateBookingStatus();
   const completeServiceMutation = useCompleteService();
 
+  /**
+   * ✅ PAYMENT GATE: Booking Accept Action Guard
+   * This is the HIGHEST conversion touchpoint (80-90%)
+   * Shows Alert modal if payment not setup
+   */
   const handleAcceptBooking = async () => {
     if (!booking) return;
     
+    // ✅ ACTION GUARD: Check payment setup before accepting
+    if (!canAcceptBookings && needsPaymentSetup) {
+      Alert.alert(
+        '💳 Payment Setup Required',
+        'You need to connect your payment account before accepting bookings. This ensures you can receive payments from customers.',
+        [
+          {
+            text: 'Setup Payments',
+            onPress: () => router.push('/provider/setup-payment' as any),
+            style: 'default'
+          },
+          {
+            text: 'Not Now',
+            style: 'cancel'
+          }
+        ]
+      );
+      return; // Block the action
+    }
+    
+    // Payment is active, proceed with accepting booking
     try {
       await updateBookingStatusMutation.mutateAsync({
         bookingId: booking.id,

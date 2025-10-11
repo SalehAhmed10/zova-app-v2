@@ -40,6 +40,9 @@ export {
   type StripeAccountStatus
 } from './useStripeAccountStatus';
 
+// ✅ Provider access control hook - Feature gates & action guards
+export { useProviderAccess, type ProviderAccess } from './useProviderAccess';
+
 // ✅ PURE verification status hooks - ZERO useEffect patterns
 export {
   useVerificationStatusPure,

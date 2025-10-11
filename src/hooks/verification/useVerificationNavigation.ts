@@ -59,8 +59,9 @@ export const useVerificationNavigation = () => {
     if (nextStep) {
       VerificationFlowManager.navigateToStep(nextStep, 'user-navigation-next');
     } else {
-      console.log('[VerificationNavigation] Verification complete');
-      VerificationFlowManager.navigateToStep(9, 'verification-complete');
+      // No next step - verification complete, navigate to completion screen
+      console.log('[VerificationNavigation] Verification complete (all 8 steps done)');
+      VerificationFlowManager.navigateToStep(8, 'verification-complete');
     }
   };
 

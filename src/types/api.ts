@@ -101,7 +101,7 @@ export interface Provider {
   bio?: string;
   rating: number;
   review_count: number;
-  verification_status: 'pending' | 'in_review' | 'approved' | 'rejected';
+  verification_status: 'in_progress' | 'submitted' | 'pending' | 'in_review' | 'approved' | 'rejected';
   services: Service[];
   location?: {
     latitude: number;

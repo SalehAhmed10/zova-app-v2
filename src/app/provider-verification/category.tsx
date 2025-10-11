@@ -113,6 +113,32 @@ export default function CategorySelectionScreen() {
     clearSearch 
   } = useCategorySearchStore();
   
+  // ✅ REACT QUERY: Fetch existing category from database (provider_selected_categories table)
+  const { data: existingProgress } = useQuery({
+    queryKey: ['providerSelectedCategory', providerId],
+    queryFn: async () => {
+      if (!providerId) return null;
+      
+      console.log('[Categories] Fetching existing category selection from database...');
+      const { data, error } = await supabase
+        .from('provider_selected_categories')
+        .select('category_id')
+        .eq('provider_id', providerId)
+        .maybeSingle();
+      
+      if (error && error.code !== 'PGRST116') {
+        console.error('[Categories] Error fetching category:', error);
+        return null;
+      }
+      
+      const categoryId = data?.category_id || null;
+      console.log('[Categories] Existing category from database:', categoryId);
+      return categoryId;
+    },
+    enabled: !!providerId && isHydrated,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
   // ✅ REACT QUERY: Fetch service categories
   const { data: categories = [], isLoading: loading, error: categoriesError } = useQuery({
     queryKey: ['serviceCategories'],
@@ -137,13 +163,29 @@ export default function CategorySelectionScreen() {
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
-  // ✅ SYNC: Initialize selected category from verification store (using useEffect, not render)
-  React.useEffect(() => {
-    if (categoryData.selectedCategoryId && selectedCategoryId !== categoryData.selectedCategoryId) {
-      console.log('[Categories] Syncing selected category from store:', categoryData.selectedCategoryId);
+  // ✅ NO useEffect! Pure computation with useMemo for data flow: Database → Verification Store → UI Store
+  React.useMemo(() => {
+    // Priority: Database → Store → Empty
+    const computedCategoryId = existingProgress || categoryData.selectedCategoryId || null;
+    
+    // Sync database → verification store (pure side effect during render, NOT in useEffect!)
+    if (existingProgress && existingProgress !== categoryData.selectedCategoryId) {
+      const categoryName = categories.find(c => c.id === existingProgress)?.name || '';
+      console.log('[Categories] Syncing from database to store:', { existingProgress, categoryName });
+      updateCategoryData({
+        selectedCategoryId: existingProgress,
+        categoryName,
+      });
+    }
+    
+    // Sync verification store → UI store (pure side effect during render, NOT in useEffect!)
+    if (categoryData.selectedCategoryId && categoryData.selectedCategoryId !== selectedCategoryId) {
+      console.log('[Categories] Syncing from verification store to UI store:', categoryData.selectedCategoryId);
       setSelectedCategoryId(categoryData.selectedCategoryId);
     }
-  }, [categoryData.selectedCategoryId, selectedCategoryId]);
+    
+    return computedCategoryId;
+  }, [existingProgress, categoryData.selectedCategoryId, selectedCategoryId, categories, updateCategoryData, setSelectedCategoryId]);
 
   // ✅ REACT QUERY: Use centralized mutation for saving category selection
   const saveCategoryMutation = useSaveVerificationStep();
