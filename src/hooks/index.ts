@@ -1,6 +1,19 @@
 // Shared hooks
 export { useAuthOptimized, useNavigationDecision, useProfileSync, useAppInitialization, useAuthNavigation } from './shared';
 
+// Search hooks (NEW - keyword-based full-text search)
+export { 
+  useServiceSearch,
+  type ServiceSearchResult,
+  type UseServiceSearchOptions
+} from './shared/use-service-search';
+export { 
+  useProviderSearch,
+  type ProviderSearchResult,
+  type UseProviderSearchOptions
+} from './shared/use-provider-search';
+export { useServiceCategories } from './customer/useSearch';
+
 // Provider hooks (export first)
 export * from './provider';
 

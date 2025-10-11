@@ -1,6 +1,7 @@
 // Enhanced search hooks with direct database queries
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/core/supabase';
+import { calculateDistance } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 import { useSearchStore } from '@/stores/customer/search-store';
 
 export function useSearchResults() {
@@ -8,60 +9,42 @@ export function useSearchResults() {
 
   console.log('[useSearchResults] Current state:', { searchQuery, searchMode, filters });
 
-  // Direct database queries for optimal performance and reliability
+  // Use smart provider search Edge function for GPS-enabled search
   const providersQuery = useQuery({
-    queryKey: ['search-providers', searchQuery, filters.sortBy, filters.sortOrder, filters.fiveStarOnly, filters.houseCallOnly, filters.remoteServiceOnly, filters.requiresDeposit, filters.locationRadius],
+    queryKey: ['search-providers', searchQuery, filters.sortBy, filters.sortOrder, filters.fiveStarOnly, filters.houseCallOnly, filters.remoteServiceOnly, filters.requiresDeposit, filters.locationRadius, filters.userLatitude, filters.userLongitude, filters.locationMode],
     queryFn: async () => {
-      console.log('🔍 Fetching providers directly from database');
+      console.log('🔍 Fetching providers using smart search Edge function');
 
-      const { data: providers, error } = await supabase
-        .from('profiles')
-        .select(`
-          id,
-          first_name,
-          last_name,
-          business_name,
-          avatar_url,
-          bio,
-          city,
-          country,
-          provider_services (
-            id,
-            title,
-            base_price,
-            price_type,
-            description,
-            house_call_available,
-            service_subcategories (
-              name,
-              service_categories (
-                name
-              )
-            )
-          ),
-          reviews!reviews_provider_id_fkey (
-            rating
-          )
-        `)
-        .eq('role', 'provider')
-        .eq('is_business_visible', true)
-        .eq('verification_status', 'approved')
-        .eq('availability_status', 'available')
-        .limit(20);
+      // Prepare filters for Edge function
+      const searchFilters = {
+        query: searchQuery || '',
+        minRating: filters.fiveStarOnly ? 5 : undefined,
+        maxDistance: filters.locationMode === 'global' ? undefined : (filters.locationRadius || 50),
+        userLat: filters.locationMode === 'global' ? undefined : filters.userLatitude,
+        userLng: filters.locationMode === 'global' ? undefined : filters.userLongitude,
+        houseCallOnly: filters.houseCallOnly || false,
+        sortBy: filters.sortBy === 'distance' ? 'distance' : (filters.sortBy === 'price' ? 'price' : 'rating'),
+        sortOrder: filters.sortOrder || 'desc',
+        maxResults: 50,
+      };
+
+      const { data, error } = await supabase.functions.invoke('smart-provider-search', {
+        body: searchFilters,
+      });
 
       if (error) {
-        console.error('🔍 Provider search error:', error);
+        console.error('🔍 Smart provider search error:', error);
         throw error;
       }
 
-      console.log('🔍 Raw providers data:', providers?.length || 0);
+      // Edge function returns { data: array, count: number, query: object }
+      const providersData = data?.data || [];
+      console.log('🔍 Smart search results:', providersData.length);
 
-      // Transform the data
-      const transformedProviders = (providers || []).map(provider => {
+      // Transform the data to match existing component expectations
+      const transformedProviders = providersData.map(provider => {
         const reviews = provider.reviews || [];
-        const avgRating = reviews.length > 0
-          ? reviews.reduce((sum: number, review: any) => sum + (review.rating || 0), 0) / reviews.length
-          : 0;
+        const avgRating = provider.avg_rating || 0;
 
         return {
           id: provider.id,
@@ -69,11 +52,11 @@ export function useSearchResults() {
           avatar: provider.avatar_url,
           location: [provider.city, provider.country].filter(Boolean).join(', ') || 'Location not specified',
           bio: provider.bio,
-          avg_rating: avgRating, // Changed from 'rating' to 'avg_rating' to match component expectations
-          total_reviews: reviews.length, // Added total_reviews count
-          yearsOfExperience: 0,
+          avg_rating: avgRating,
+          total_reviews: provider.total_reviews || reviews.length,
+          yearsOfExperience: 0, // TODO: Add this field to Edge function
           serviceCount: provider.provider_services?.length || 0,
-          distance: null,
+          distance: provider.distance,
           services: provider.provider_services?.map((service: any) => service.title) || [],
           provider_services: provider.provider_services?.map((service: any) => ({
             id: service.id,
@@ -94,9 +77,9 @@ export function useSearchResults() {
     staleTime: 30 * 1000,
   });
 
-  // For services mode, use the existing basic implementation
+  // For services mode, use the existing basic implementation with GPS awareness
   const servicesQuery = useQuery({
-    queryKey: ['search-services', searchQuery, filters.sortBy, filters.sortOrder, filters.fiveStarOnly, filters.houseCallOnly, filters.remoteServiceOnly, filters.requiresDeposit, filters.locationRadius],
+    queryKey: ['search-services', searchQuery, filters.sortBy, filters.sortOrder, filters.fiveStarOnly, filters.houseCallOnly, filters.remoteServiceOnly, filters.requiresDeposit, filters.locationRadius, filters.userLatitude, filters.userLongitude, filters.locationMode],
     queryFn: async () => {
       console.log('🔍 [Services Query] Query ENABLED and EXECUTING');
       console.log('🔍 [Services Query] Query key values:', {
@@ -107,7 +90,9 @@ export function useSearchResults() {
         houseCallOnly: filters.houseCallOnly,
         remoteServiceOnly: filters.remoteServiceOnly,
         requiresDeposit: filters.requiresDeposit,
-        locationRadius: filters.locationRadius
+        locationRadius: filters.locationRadius,
+        userLatitude: filters.userLatitude,
+        userLongitude: filters.userLongitude
       });
       console.log('🔍 [Services Query] Starting services search...');
       console.log('🔍 [Services Query] Query params:', { searchQuery, searchMode, filters });
@@ -124,6 +109,7 @@ export function useSearchResults() {
             avatar_url,
             city,
             country,
+            coordinates,
             bio,
             years_of_experience,
             availability_status
@@ -136,7 +122,7 @@ export function useSearchResults() {
         `)
         .eq('is_active', true)
         .neq('profiles.availability_status', 'unavailable')
-        .limit(20);
+        .limit(50);
 
       console.log('🔍 [Services Query] Database response:', {
         servicesCount: services?.length || 0,
@@ -174,6 +160,7 @@ export function useSearchResults() {
               avatar: service.profiles.avatar_url,
               location: [service.profiles.city, service.profiles.country].filter(Boolean).join(', ') || 'Location not specified',
               yearsOfExperience: service.profiles.years_of_experience || 0,
+              coordinates: service.profiles.coordinates,
             } : null,
           };
         });
@@ -190,6 +177,45 @@ export function useSearchResults() {
           service.provider?.name?.toLowerCase().includes(query)
         );
         console.log('🔍 [Services Query] After search filter:', filteredServices.length);
+      }
+
+      // Apply location filtering if in detected mode
+      if (filters.locationMode === 'detected' && filters.userLatitude && filters.userLongitude) {
+        const maxDistance = filters.locationRadius || 50;
+        filteredServices = filteredServices.filter(service => {
+          if (!service.provider?.coordinates) return false;
+
+          // Parse coordinates (could be PostGIS point or array)
+          let providerLat: number | null = null;
+          let providerLng: number | null = null;
+
+          try {
+            if (typeof service.provider.coordinates === 'string') {
+              // PostGIS POINT(lng lat) format
+              const match = service.provider.coordinates.match(/POINT\(([^ ]+) ([^)]+)\)/);
+              if (match) {
+                providerLng = parseFloat(match[1]);
+                providerLat = parseFloat(match[2]);
+              }
+            } else if (Array.isArray(service.provider.coordinates) && service.provider.coordinates.length === 2) {
+              [providerLng, providerLat] = service.provider.coordinates;
+            } else if (typeof service.provider.coordinates === 'object' && service.provider.coordinates.coordinates) {
+              [providerLng, providerLat] = service.provider.coordinates.coordinates;
+            }
+          } catch (err) {
+            console.warn('🔍 [Services Query] Error parsing coordinates for service', service.id, err);
+            return false;
+          }
+
+          if (providerLat === null || providerLng === null || isNaN(providerLat) || isNaN(providerLng)) {
+            return false;
+          }
+
+          // Calculate distance using haversine formula
+          const distance = calculateDistance(filters.userLatitude, filters.userLongitude, providerLat, providerLng);
+          return distance <= maxDistance;
+        });
+        console.log('🔍 [Services Query] After location filter:', filteredServices.length);
       }
 
       console.log('🔍 [Services Query] Final result:', filteredServices.length, 'services');

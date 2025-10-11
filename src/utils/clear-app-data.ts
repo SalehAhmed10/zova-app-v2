@@ -4,7 +4,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppStore } from '@/stores/auth/app';
 import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import { QueryClient } from '@tanstack/react-query';
 
 /**

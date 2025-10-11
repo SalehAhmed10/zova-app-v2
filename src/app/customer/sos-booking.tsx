@@ -19,7 +19,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Icon } from '@/components/ui/icon';
 import { useStripe } from '@stripe/stripe-react-native';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import { 
   Shield, 
   Clock, 

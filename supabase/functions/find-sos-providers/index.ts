@@ -38,9 +38,11 @@ interface DatabaseProvider {
   avatar_url?: string
   city?: string
   service_radius: number
-  verification_status: string
   availability_status: string
   auto_confirm_bookings: boolean
+  provider_onboarding_progress: {
+    verification_status: string
+  }[]
   provider_services: ProviderService[]
 }
 
@@ -111,11 +113,13 @@ Deno.serve(async (req) => {
         avatar_url,
         city,
         service_radius,
-        verification_status,
         availability_status,
         auto_confirm_bookings,
         rating,
         review_count,
+        provider_onboarding_progress!inner (
+          verification_status
+        ),
         provider_services!inner (
           id,
           title,
@@ -130,7 +134,7 @@ Deno.serve(async (req) => {
         )
       `)
       .eq('role', 'provider')
-      .eq('verification_status', 'approved')
+      .eq('provider_onboarding_progress.verification_status', 'approved')
       .eq('availability_status', 'available')
       .eq('provider_services.is_active', true)
       .eq('provider_services.allows_sos_booking', true)
@@ -159,7 +163,7 @@ Deno.serve(async (req) => {
         specializations: services.map((s: any) => s.title),
         bio: provider.bio || `Professional ${services.map((s: any) => s.service_subcategories?.name).join(', ')} provider`,
         profile_picture_url: provider.avatar_url,
-        is_verified: provider.verification_status === 'approved',
+        is_verified: provider.provider_onboarding_progress?.[0]?.verification_status === 'approved',
         emergency_available: true,
         services: services.map((s: any) => s.title),
         pricing: mainService ? `From £${mainService.base_price}` : 'Contact for pricing',

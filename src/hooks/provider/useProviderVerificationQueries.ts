@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
 
 // Step name to number mapping

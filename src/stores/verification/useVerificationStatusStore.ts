@@ -13,7 +13,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 
 type VerificationStatus = 'pending' | 'in_review' | 'approved' | 'rejected';
 
@@ -85,8 +85,8 @@ export const useVerificationStatusStore = create<VerificationStatusState>()(
             {
               event: 'UPDATE',
               schema: 'public',
-              table: 'profiles',
-              filter: `id=eq.${userId}`,
+              table: 'provider_onboarding_progress',
+              filter: `provider_id=eq.${userId}`,
             },
             (payload) => {
               console.log('[VerificationStatusStore] Real-time update received:', payload);

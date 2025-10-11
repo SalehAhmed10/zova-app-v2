@@ -42,7 +42,7 @@ import {
 import { SessionRecoveryBanner } from '@/components/verification/SessionRecoveryBanner';
 import { useAppStore } from '@/stores/auth/app';
 import { LogoutButton } from '@/components/ui/logout-button';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
 
 type VerificationStatus = 'pending' | 'in_review' | 'approved' | 'rejected';
@@ -54,7 +54,8 @@ interface StatusConfig {
   title: string;
   subtitle: string;
   badgeText: string;
-  badgeColor: string;
+  badgeBgColor: string;
+  badgeTextColor: string;
   timeline: Array<{
     icon: string;
     iconColor: string;
@@ -75,7 +76,8 @@ const statusConfigs: Record<VerificationStatus, StatusConfig> = {
     title: 'Verification Pending',
     subtitle: 'Your verification application has been submitted and is currently under review by our team.',
     badgeText: 'Pending Admin Review',
-    badgeColor: 'bg-orange-100 dark:bg-orange-900/20 text-orange-800 dark:text-orange-200',
+    badgeBgColor: 'bg-orange-100 dark:bg-orange-900/20',
+    badgeTextColor: 'text-orange-800 dark:text-orange-200',
     timeline: [
       {
         icon: 'checkmark',
@@ -114,7 +116,8 @@ const statusConfigs: Record<VerificationStatus, StatusConfig> = {
     title: 'Under Review',
     subtitle: 'Our verification team is actively reviewing your application.',
     badgeText: 'In Review',
-    badgeColor: 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200',
+    badgeBgColor: 'bg-blue-100 dark:bg-blue-900/20',
+    badgeTextColor: 'text-blue-800 dark:text-blue-200',
     timeline: [
       {
         icon: 'checkmark',
@@ -153,7 +156,8 @@ const statusConfigs: Record<VerificationStatus, StatusConfig> = {
     title: 'Verification Approved',
     subtitle: 'Congratulations! Your verification has been approved. You can now start accepting bookings.',
     badgeText: 'Approved',
-    badgeColor: 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-200',
+    badgeBgColor: 'bg-green-100 dark:bg-green-900/20',
+    badgeTextColor: 'text-green-800 dark:text-green-200',
     timeline: [
       {
         icon: 'checkmark',
@@ -193,7 +197,8 @@ const statusConfigs: Record<VerificationStatus, StatusConfig> = {
     title: 'Verification Not Approved',
     subtitle: 'Unfortunately, your verification application was not approved. Please review the feedback and submit a new application.',
     badgeText: 'Not Approved',
-    badgeColor: 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-200',
+    badgeBgColor: 'bg-red-100 dark:bg-red-900/20',
+    badgeTextColor: 'text-red-800 dark:text-red-200',
     timeline: [
       {
         icon: 'checkmark',
@@ -283,9 +288,9 @@ export default function VerificationStatusScreen() {
       
       // Update database status back to 'pending'
       const { error } = await supabase
-        .from('profiles')
+        .from('provider_onboarding_progress')
         .update({ verification_status: 'pending' })
-        .eq('id', user.id);
+        .eq('provider_id', user.id);
         
       if (error) throw error;
       
@@ -318,11 +323,14 @@ export default function VerificationStatusScreen() {
   // ✅ COMPUTED PROPERTIES: Pure derivation (replaces useState)
   const rawStatus = verificationData?.status || storeStatus || 'pending';
   const currentStatus = (['pending', 'in_review', 'approved', 'rejected'].includes(rawStatus) ? rawStatus : 'pending') as VerificationStatus;
-  const config = statusConfigs[currentStatus];
+  const config = statusConfigs[currentStatus] || statusConfigs.pending;
   const isRefreshing = isFetching && !isLoading;
 
   // ✅ PURE NAVIGATION: No useEffect in component - navigation logic is pure computation
   const { shouldNavigateToProvider, shouldRedirectToAuth } = useVerificationNavigationPure(currentStatus, isLoading);
+
+  // ✅ DEBUG: Log config to help debug text rendering issues
+  console.log('[VerificationStatus] Config for status', currentStatus, ':', config);
 
   // ✅ REACT QUERY LOADING: Handle loading states properly
   if (isLoading && !currentStatus) {
@@ -382,16 +390,16 @@ export default function VerificationStatusScreen() {
       >
         {/* Status Badge */}
         <View className="items-center mb-6 px-6 pt-4">
-          <View className={`rounded-full p-4 mb-4 ${config.bgColor}`}>
+          <View className={`rounded-full p-4 mb-4 ${config?.bgColor || 'bg-orange-100 dark:bg-orange-900/20'}`}>
             <Ionicons 
-              name={config.icon as any} 
+              name={(config?.icon as any) || 'time'} 
               size={48} 
-              color={config.iconColor} 
+              color={config?.iconColor || '#f59e0b'} 
             />
           </View>
-          <View className={`rounded-full px-4 py-2 mb-2 ${config.badgeColor}`}>
-            <Text className="font-semibold text-sm">
-              {config.badgeText}
+          <View className={`rounded-full px-4 py-2 mb-2 ${config?.badgeBgColor || 'bg-orange-100 dark:bg-orange-900/20'}`}>
+            <Text className={`font-semibold text-sm ${config?.badgeTextColor || 'text-orange-800 dark:text-orange-200'}`}>
+              {config?.badgeText || 'Loading...'}
             </Text>
           </View>
           {__DEV__ && lastUpdated && typeof lastUpdated === 'number' && lastUpdated > 0 && (
@@ -401,7 +409,7 @@ export default function VerificationStatusScreen() {
               </Text>
             </View>
           )}
-          {isSubscribed && (
+          {typeof isSubscribed === 'boolean' && isSubscribed && (
             <View className="bg-green-500/20 rounded-full px-3 py-1 mt-2">
               <Text className="text-green-700 dark:text-green-300 text-xs">Live</Text>
             </View>
@@ -442,7 +450,7 @@ export default function VerificationStatusScreen() {
                 <View key={index} className="flex-row items-start mb-4 last:mb-0">
                   <View className="mr-4 mt-1">
                     <Ionicons
-                      name={step?.icon as any || 'checkmark'}
+                      name={(step?.icon as any) || 'checkmark'}
                       size={20}
                       color={step?.iconColor || '#6b7280'}
                     />
@@ -472,7 +480,7 @@ export default function VerificationStatusScreen() {
                     {index + 1}.
                   </Text>
                   <Text className="text-muted-foreground flex-1 leading-5">
-                    {step || 'Step description'}
+                    {typeof step === 'string' ? step : 'Step description'}
                   </Text>
                 </View>
               ))}
@@ -481,7 +489,7 @@ export default function VerificationStatusScreen() {
 
           {/* Action Buttons */}
           <View className="gap-4 mb-8">
-            {config?.showRetryButton && (
+            {typeof config?.showRetryButton === 'boolean' && config?.showRetryButton && (
               <Button
                 onPress={() => restartVerificationMutation.mutate()}
                 disabled={restartVerificationMutation.isPending}
@@ -504,7 +512,7 @@ export default function VerificationStatusScreen() {
               </Button>
             )}
 
-            {config?.showContactSupport && (
+            {typeof config?.showContactSupport === 'boolean' && config?.showContactSupport && (
               <Button
                 variant="outline"
                 onPress={() => {

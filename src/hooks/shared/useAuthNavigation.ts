@@ -10,7 +10,7 @@ import { useCallback } from 'react';
 import { useAppStore } from '@/stores/auth/app';
 import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
 import { useProfileStore, useProfileHydration } from '@/stores/verification/useProfileStore';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';
 import { useLoadVerificationData } from '@/hooks/provider/useProviderVerificationQueries';
 import { useVerificationStatusPure } from '@/hooks/provider/useVerificationStatusPure';
@@ -186,9 +186,9 @@ export const useAuthNavigation = () => {
           }
 
           const { data: profile } = await supabase
-            .from('profiles')
+            .from('provider_onboarding_progress')
             .select('verification_status')
-            .eq('id', user.id)
+            .eq('provider_id', user.id)
             .single();
 
           if (profile?.verification_status === 'approved') {

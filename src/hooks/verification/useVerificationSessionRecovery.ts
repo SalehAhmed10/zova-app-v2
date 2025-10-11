@@ -9,7 +9,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthPure as useAuthOptimized } from '../shared/useAuthPure';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 
 interface VerificationSessionRecovery {
   hasIncompleteSession: boolean;
@@ -36,13 +36,13 @@ export const useVerificationSessionRecovery = (): VerificationSessionRecovery =>
       console.log('[SessionRecovery] Checking for incomplete sessions for user:', user.id);
 
       // ✅ OPTIMIZATION: Quick check first - if user is already approved, skip complex checks
-      const { data: quickProfile, error: quickError } = await supabase
-        .from('profiles')
+      const { data: quickProgress, error: quickError } = await supabase
+        .from('provider_onboarding_progress')
         .select('verification_status')
-        .eq('id', user.id)
+        .eq('provider_id', user.id)
         .single();
 
-      if (!quickError && quickProfile?.verification_status === 'approved') {
+      if (!quickError && quickProgress?.verification_status === 'approved') {
         console.log('[SessionRecovery] User already approved, skipping session checks');
         return {
           hasIncompleteSession: false,

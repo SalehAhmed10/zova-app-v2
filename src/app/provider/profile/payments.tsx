@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import Animated, { FadeIn, SlideInDown, SlideInUp } from 'react-native-reanimated';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { usePaymentSetupStore } from '@/stores/verification/usePaymentSetupStore';

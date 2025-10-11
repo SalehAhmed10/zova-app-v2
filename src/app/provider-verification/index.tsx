@@ -11,7 +11,7 @@ import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { VerificationHeader } from '@/components/verification/VerificationHeader';
 import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/verification/provider-verification';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import { createStorageService } from '@/lib/storage/organized-storage';
 import { normalizeImageUri } from '@/lib/utils';
 import { useStripeVerificationIntegration } from '@/lib/payment/stripe-verification-integration';

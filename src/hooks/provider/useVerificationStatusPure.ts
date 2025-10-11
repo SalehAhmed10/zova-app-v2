@@ -12,7 +12,7 @@
 
 import React, { useCallback } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import { useVerificationStatusStore } from '@/stores/verification/useVerificationStatusStore';
 import { useProfileStore } from '@/stores/verification/useProfileStore';
 import { useAuthPure } from '@/hooks/shared/useAuthPure';
@@ -35,9 +35,9 @@ export const useVerificationStatusPure = (userId: string | undefined) => {
       console.log('[useVerificationStatusPure] Fetching from database for user:', userId);
 
       const { data: profile, error } = await supabase
-        .from('profiles')
+        .from('provider_onboarding_progress')
         .select('verification_status')
-        .eq('id', userId)
+        .eq('provider_id', userId)
         .single();
 
       if (error) {

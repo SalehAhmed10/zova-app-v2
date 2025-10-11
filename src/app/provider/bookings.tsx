@@ -16,7 +16,7 @@ import { usePendingBookings } from '@/hooks/provider';
 import { BookingRequestCard } from '@/components/provider';
 import { FlashList } from '@shopify/flash-list';
 import { cn, formatCurrency } from '@/lib/utils';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 
 
 

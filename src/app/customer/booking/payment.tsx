@@ -10,7 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useStripe } from '@stripe/stripe-react-native';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { THEME } from '@/lib/theme';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 
 import { useCreateBooking } from '@/hooks/shared';
 import { useAuthPure } from '@/hooks/shared/useAuthPure';

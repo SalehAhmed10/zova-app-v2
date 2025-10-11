@@ -4,7 +4,7 @@
  * Real-time subscriptions managed at app level, not in hooks
  */
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import { useProfileStore } from "@/stores/verification/useProfileStore";
 
 // ✅ PURE REACT QUERY HOOK: Profile data fetching
@@ -19,15 +19,15 @@ export function useProfileSync(userId?: string) {
       
       console.log('[ProfileSync] Fetching profile for:', userId);
       const { data, error } = await supabase
-        .from("profiles")
-        .select("id, verification_status")
-        .eq("id", userId)
+        .from("provider_onboarding_progress")
+        .select("provider_id, verification_status")
+        .eq("provider_id", userId)
         .single();
       
       if (error) throw error;
       
       // ✅ PURE SYNC: Update Zustand store immediately on successful fetch
-      setProfile(data.id, data.verification_status);
+      setProfile(data.provider_id, data.verification_status);
       
       return data;
     },

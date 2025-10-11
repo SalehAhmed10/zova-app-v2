@@ -16,7 +16,7 @@ import {
   useProviderEarningsAnalytics,
   useStripeAccountStatus
 } from '@/hooks';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { THEME } from '@/lib/theme';

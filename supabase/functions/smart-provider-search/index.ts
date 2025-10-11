@@ -19,367 +19,330 @@ interface SearchRequest {
   maxResults?: number
 }
 
-// Keyword mappings for smart search
-const KEYWORD_MAPPINGS: Record<string, string[]> = {
-  'nails': ['nails', 'manicure', 'pedicure', 'gel nails', 'acrylic nails'],
-  'nail tech': ['nails', 'manicure', 'pedicure'],
-  'manicure': ['nails', 'manicure'],
-  'pedicure': ['nails', 'pedicure'],
-  'hair': ['hair', 'hairdressing', 'hair styling', 'haircut'],
-  'hairdresser': ['hair', 'hairdressing'],
-  'haircut': ['hair', 'hairdressing'],
-  'makeup': ['makeup', 'makeup artist'],
-  'lashes': ['lashes', 'eyelash extensions'],
-  'brows': ['brows', 'eyebrow shaping', 'eyebrow threading'],
-  'facial': ['facial', 'skincare'],
-  'massage': ['massage', 'spa'],
-  'spa': ['spa', 'massage', 'facial'],
-  'dj': ['dj', 'music', 'entertainment'],
-  'photographer': ['photography', 'photos'],
-  'photography': ['photography', 'photos'],
-  'catering': ['catering', 'food'],
-  'decorator': ['decoration', 'event planning'],
-  'event planner': ['event planning', 'decoration'],
-  'wedding': ['wedding', 'event planning'],
-}
-
-function expandSearchQuery(query: string): string[] {
-  const lowerQuery = query.toLowerCase().trim()
-  const expandedTerms = new Set([lowerQuery])
-
-  // Add direct mappings
-  Object.entries(KEYWORD_MAPPINGS).forEach(([key, mappings]) => {
-    if (lowerQuery.includes(key) || mappings.some(mapping => lowerQuery.includes(mapping))) {
-      mappings.forEach(mapping => expandedTerms.add(mapping))
-    }
-  })
-
-  // Add partial matches for categories/subcategories
-  const words = lowerQuery.split(' ')
-  words.forEach(word => {
-    if (word.length > 2) {
-      Object.values(KEYWORD_MAPPINGS).forEach(mappings => {
-        mappings.forEach(mapping => {
-          if (mapping.includes(word)) {
-            expandedTerms.add(mapping)
-          }
-        })
-      })
-    }
-  })
-
-  return Array.from(expandedTerms)
-}
-
+// Haversine distance calculation
 function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371 // Earth's radius in kilometers
   const dLat = (lat2 - lat1) * Math.PI / 180
   const dLng = (lng2 - lng1) * Math.PI / 180
-  const a =
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
     Math.sin(dLng/2) * Math.sin(dLng/2)
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
   return R * c
 }
 
-export async function smartProviderSearch(filters: SearchRequest) {
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  )
-
-  const {
-    query,
-    category,
-    subcategory,
-    minPrice,
-    maxPrice,
-    minRating,
-    maxDistance,
-    userLat,
-    userLng,
-    houseCallOnly = false,
-    sortBy = 'relevance',
-    sortOrder = 'desc',
-    maxResults = 50
-  } = filters
-
-  console.log('🔍 Smart Search Edge Function - Starting with filters:', filters)
-
-  // Build expanded search terms
-  const searchTerms = query ? expandSearchQuery(query) : []
-  console.log('🔍 Smart Search - Expanded terms:', searchTerms)
-
+Deno.serve(async (req: Request) => {
   try {
-    // Build the main query
-    let queryBuilder = supabase
-      .from('profiles')
-      .select(`
-        id,
-        first_name,
-        last_name,
-        business_name,
-        avatar_url,
-        bio,
-        address,
-        city,
-        country,
-        provider_services (
-          id,
-          title,
-          base_price,
-          price_type,
-          description,
-          house_call_available,
-          service_subcategories (
-            id,
-            name,
-            service_categories (
-              id,
-              name
-            )
-          )
-        ),
-        reviews!reviews_provider_id_fkey (
-          rating
-        ),
-        user_addresses (
-          coordinates,
-          street_address
-        )
-      `)
-      .eq('role', 'provider')
-      .eq('is_business_visible', true)
-      .eq('verification_status', 'approved')
-      .eq('availability_status', 'available')
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+    )
 
-    // Apply house call filter
-    if (houseCallOnly) {
-      queryBuilder = queryBuilder.eq('provider_services.house_call_available', true)
+    const url = new URL(req.url)
+    const filters: SearchRequest = {}
+
+    // Parse query parameters (for GET requests)
+    for (const [key, value] of url.searchParams) {
+      if (key === 'query' || key === 'category' || key === 'subcategory') {
+        (filters as any)[key] = value
+      } else if (key === 'sortBy') {
+        filters[key] = value as 'relevance' | 'rating' | 'distance' | 'price' | 'name'
+      } else if (key === 'sortOrder') {
+        filters[key] = value as 'asc' | 'desc'
+      } else if (key === 'houseCallOnly') {
+        filters[key] = value === 'true'
+      } else {
+        const numValue = parseFloat(value)
+        if (!isNaN(numValue)) {
+          (filters as any)[key] = numValue
+        }
+      }
     }
 
-    // Apply category filter
-    if (category) {
-      queryBuilder = queryBuilder.eq('provider_services.service_subcategories.service_categories.name', category)
+    // Parse JSON body (for POST requests)
+    if (req.method === 'POST' && req.headers.get('content-type')?.includes('application/json')) {
+      try {
+        const body = await req.json()
+        Object.assign(filters, body)
+      } catch (err) {
+        console.log('🔍 Smart Search - Error parsing JSON body:', err)
+      }
     }
 
-    // Apply subcategory filter
-    if (subcategory) {
-      queryBuilder = queryBuilder.eq('provider_services.service_subcategories.name', subcategory)
-    }
+    const {
+      query,
+      category,
+      subcategory,
+      minPrice,
+      maxPrice,
+      minRating = 0,
+      maxDistance,
+      userLat,
+      userLng,
+      houseCallOnly = false,
+      sortBy = 'relevance',
+      sortOrder = 'desc',
+      maxResults = 50
+    } = filters
 
-    // Apply price filters
-    if (minPrice !== undefined) {
-      queryBuilder = queryBuilder.gte('provider_services.base_price', minPrice)
-    }
-    if (maxPrice !== undefined) {
-      queryBuilder = queryBuilder.lte('provider_services.base_price', maxPrice)
-    }
+    console.log('🔍 Smart Search Edge Function - Starting with filters:', filters)
 
-    // Smart search implementation - simplified for now
-    if (searchTerms.length > 0) {
-      // Use ilike directly on the provider_services table
-      // Since we can't easily filter nested tables with OR, we'll filter after fetching
-      // For now, just fetch more data and filter in JavaScript
-      console.log('🔍 Smart Search - Would filter by terms:', searchTerms)
-    }
+    // Build expanded search terms
+    const searchTerms = query ? [query.toLowerCase()] : []
+    console.log('🔍 Smart Search - Search terms:', searchTerms)
 
-    // Execute query with higher limit for post-processing
-    const { data: rawData, error } = await queryBuilder.limit(maxResults * 2)
+    // For text-based searches, disable distance filtering to allow global results
+    // GPS is only used for proximity sorting when no specific search query is provided
+    const effectiveMaxDistance = searchTerms.length > 0 ? undefined : maxDistance
+    console.log('🔍 Smart Search - Text search detected:', searchTerms.length > 0, 'Effective max distance:', effectiveMaxDistance)
+
+    console.log('🔍 Smart Search - Executing database function call')
+
+    const { data: rawData, error } = await supabase.rpc('get_providers_with_coordinates', {
+      p_limit: maxResults * 2,
+      p_house_call_only: houseCallOnly,
+      p_category: category,
+      p_subcategory: subcategory,
+      p_min_price: minPrice,
+      p_max_price: maxPrice
+    })
 
     if (error) {
-      console.error('🔍 Smart Search - Query error:', error)
+      console.error('🔍 Smart Search - Database function error:', error)
       throw error
     }
 
-    console.log('🔍 Smart Search - Raw results:', rawData?.length || 0)
+    console.log('🔍 Smart Search - Raw database results:', rawData?.length || 0)
+    if (rawData && rawData.length > 0) {
+      console.log('🔍 Smart Search - First provider coordinates data:', {
+        id: rawData[0].id,
+        provider_lat: rawData[0].provider_lat,
+        provider_lng: rawData[0].provider_lng,
+        coordinates: rawData[0].coordinates
+      })
+    }
 
-    let processedData: any[] = rawData || []
+    // Patch: If provider_lat/provider_lng are null, but coordinates is a hex string, parse it using PostGIS EWKB
+    let processedData: any[] = (rawData || []).map((provider: any) => {
+      let { provider_lat, provider_lng, coordinates } = provider;
+      // If provider_lat/lng are null and coordinates is a hex string, try to parse
+      if ((provider_lat == null || provider_lng == null) && typeof coordinates === 'string' && coordinates.length === 48) {
+        // Try to parse EWKB hex string (PostGIS geography)
+        // Example: "0101000020E61000004182E2C7988F5DC0F46C567DAE064140"
+        try {
+          // Extract X (lng) and Y (lat) from hex
+          // Bytes 16-23: X (lng), 24-31: Y (lat)
+          const hexToDouble = (hex: string) => {
+            const buf = new ArrayBuffer(8);
+            const view = new DataView(buf);
+            for (let i = 0; i < 8; i++) {
+              view.setUint8(i, parseInt(hex.substr(i * 2, 2), 16));
+            }
+            return view.getFloat64(0, true);
+          };
+          provider_lng = hexToDouble(coordinates.substr(16, 16));
+          provider_lat = hexToDouble(coordinates.substr(32, 16));
+        } catch (err) {
+          console.log('🔍 Smart Search - Failed to parse EWKB hex:', coordinates, err);
+        }
+      }
+      return { ...provider, provider_lat, provider_lng };
+    });
 
-    // Apply search term filtering if needed
+    // Debug coordinates
+    if (processedData.length > 0) {
+      console.log('🔍 Smart Search - First provider coordinates:', processedData[0])
+    }
+
+    // Apply search term filtering
     if (searchTerms.length > 0) {
       processedData = processedData.filter(provider => {
-        return provider.provider_services?.some((service: any) => {
-          const title = service.title?.toLowerCase() || ''
-          return searchTerms.some(term => title.includes(term.toLowerCase()))
+        // Search in service titles (existing functionality)
+        const serviceMatch = provider.provider_services?.some((service: any) => {
+          const title = service?.title?.toLowerCase() || ''
+          return searchTerms.some(term => title.includes(term))
         })
+
+        // Search in provider information (business name, city, country, bio)
+        const providerMatch = searchTerms.some(term => {
+          const businessName = provider.business_name?.toLowerCase() || ''
+          const city = provider.city?.toLowerCase() || ''
+          const country = provider.country?.toLowerCase() || ''
+          const bio = provider.bio?.toLowerCase() || ''
+          const firstName = provider.first_name?.toLowerCase() || ''
+          const lastName = provider.last_name?.toLowerCase() || ''
+
+          return businessName.includes(term) ||
+                 city.includes(term) ||
+                 country.includes(term) ||
+                 bio.includes(term) ||
+                 `${firstName} ${lastName}`.includes(term)
+        })
+
+        return serviceMatch || providerMatch
       })
       console.log('🔍 Smart Search - After search filtering:', processedData.length)
     }
 
-    // Simple location filtering - just match city/country for now
-    // TODO: Add proper GPS-based distance calculation later
-    if (processedData.length > 0) {
-      // For now, skip distance calculation and just ensure providers have location data
-      processedData = processedData.map((provider: any) => ({
-        ...provider,
-        distance: null, // Simplified - no distance calculation for now
-        closest_address: provider.user_addresses?.[0] || null
-      }))
+    // Calculate distances and filter by max distance if coordinates provided
+    if (processedData.length > 0 && userLat !== undefined && userLng !== undefined) {
+      console.log('🔍 Smart Search - Calculating distances for', processedData.length, 'providers')
+
+      processedData = processedData.map((provider: any) => {
+        let distance = null
+        let providerLat = provider.provider_lat
+        let providerLng = provider.provider_lng
+
+        // If SQL extraction didn't work, try fallback parsing
+        if ((providerLat === null || providerLng === null) && provider.coordinates) {
+          try {
+            // If coordinates is a string like "POINT(lng lat)"
+            if (typeof provider.coordinates === 'string') {
+              const match = provider.coordinates.match(/POINT\(([^ ]+) ([^)]+)\)/)
+              if (match) {
+                providerLng = parseFloat(match[1])
+                providerLat = parseFloat(match[2])
+              }
+            }
+            // If coordinates is an array [lng, lat]
+            else if (Array.isArray(provider.coordinates) && provider.coordinates.length === 2) {
+              providerLng = provider.coordinates[0]
+              providerLat = provider.coordinates[1]
+            }
+            // If coordinates is a PostGIS point object
+            else if (typeof provider.coordinates === 'object' && provider.coordinates.coordinates) {
+              [providerLng, providerLat] = provider.coordinates.coordinates
+            }
+          } catch (err) {
+            console.log('🔍 Smart Search - Error parsing coordinates for provider', provider.id, err)
+          }
+        }
+
+        // Calculate distance if we have coordinates
+        if (providerLat !== null && providerLng !== null && !isNaN(providerLat) && !isNaN(providerLng)) {
+          distance = calculateDistance(userLat, userLng, providerLat, providerLng)
+          console.log(`🔍 Smart Search - Provider ${provider.business_name}: distance ${distance?.toFixed(2)}km`)
+        }
+
+        return {
+          ...provider,
+          distance,
+          provider_lat: providerLat,
+          provider_lng: providerLng
+        }
+      })
+
+      // Filter by max distance if specified
+      if (effectiveMaxDistance !== undefined) {
+        const beforeFilter = processedData.length
+        processedData = processedData.filter(provider => {
+          return provider.distance === null || provider.distance <= effectiveMaxDistance
+        })
+        console.log(`🔍 Smart Search - Filtered by max distance ${effectiveMaxDistance}km: ${beforeFilter} -> ${processedData.length}`)
+      }
     }
 
-    // Calculate ratings and filter by minimum rating
+    // Calculate average ratings
     processedData = processedData.map(provider => {
       const reviews = provider.reviews || []
       const avgRating = reviews.length > 0
-        ? reviews.reduce((sum: number, review: any) => sum + (review.rating || 0), 0) / reviews.length
+        ? reviews.reduce((sum: number, r: any) => sum + r.rating, 0) / reviews.length
         : 0
 
       return {
         ...provider,
-        avg_rating: avgRating,
-        total_reviews: reviews.length
+        avg_rating: Math.round(avgRating * 10) / 10,
+        review_count: reviews.length
       }
     })
 
     // Apply rating filter
-    if (minRating !== undefined) {
+    if (minRating > 0) {
       processedData = processedData.filter(provider => provider.avg_rating >= minRating)
     }
 
     // Sort results
     processedData.sort((a: any, b: any) => {
-      let aValue: any, bValue: any
+      let comparison = 0
 
       switch (sortBy) {
-        case 'relevance':
-          aValue = query ? (
-            (a.business_name?.toLowerCase().includes(query.toLowerCase()) ? 10 : 0) +
-            (a.provider_services?.some((s: any) => s.title?.toLowerCase().includes(query.toLowerCase())) ? 5 : 0) +
-            (a.avg_rating || 0)
-          ) : (a.avg_rating || 0)
-          bValue = query ? (
-            (b.business_name?.toLowerCase().includes(query.toLowerCase()) ? 10 : 0) +
-            (b.provider_services?.some((s: any) => s.title?.toLowerCase().includes(query.toLowerCase())) ? 5 : 0) +
-            (b.avg_rating || 0)
-          ) : (b.avg_rating || 0)
-          break
         case 'rating':
-          aValue = a.avg_rating || 0
-          bValue = b.avg_rating || 0
+          comparison = b.avg_rating - a.avg_rating
           break
         case 'distance':
-          // Simplified - no distance sorting for now, sort by rating instead
-          aValue = a.avg_rating || 0
-          bValue = b.avg_rating || 0
+          if (a.distance === null && b.distance === null) comparison = 0
+          else if (a.distance === null) comparison = 1
+          else if (b.distance === null) comparison = -1
+          else comparison = a.distance - b.distance
           break
         case 'price':
-          aValue = Math.min(...(a.provider_services?.map((s: any) => s.base_price) || [Infinity]))
-          bValue = Math.min(...(b.provider_services?.map((s: any) => s.base_price) || [Infinity]))
+          const aPrice = a.provider_services?.[0]?.base_price || 0
+          const bPrice = b.provider_services?.[0]?.base_price || 0
+          comparison = aPrice - bPrice
           break
         case 'name':
-          aValue = (a.business_name || `${a.first_name} ${a.last_name}`).toLowerCase()
-          bValue = (b.business_name || `${b.first_name} ${b.last_name}`).toLowerCase()
+          comparison = (a.business_name || a.first_name || '').localeCompare(b.business_name || b.first_name || '')
           break
+        case 'relevance':
         default:
-          aValue = a.avg_rating || 0
-          bValue = b.avg_rating || 0
+          // Default relevance sorting (could be improved)
+          comparison = b.avg_rating - a.avg_rating
+          break
       }
 
-      if (sortOrder === 'asc') {
-        return aValue > bValue ? 1 : -1
-      } else {
-        return aValue < bValue ? 1 : -1
-      }
+      return sortOrder === 'desc' ? comparison : -comparison
     })
 
-    // Limit results
-    const finalResults = processedData.slice(0, maxResults)
+    // Format final results
+    const finalResults = processedData.slice(0, maxResults).map(provider => ({
+      id: provider.id,
+      first_name: provider.first_name,
+      last_name: provider.last_name,
+      business_name: provider.business_name,
+      avatar_url: provider.avatar_url,
+      bio: provider.bio,
+      address: provider.address,
+      city: provider.city,
+      country: provider.country,
+      distance: provider.distance !== null && provider.distance !== undefined ? Math.round(provider.distance * 10) / 10 : null,
+      avg_rating: provider.avg_rating,
+      review_count: provider.review_count,
+      services: provider.provider_services?.map((service: any) => ({
+        id: service.id,
+        title: service.title,
+        base_price: service.base_price,
+        price_type: service.price_type,
+        description: service.description,
+        house_call_available: service.house_call_available,
+        category: service.service_subcategories?.service_categories?.name,
+        subcategory: service.service_subcategories?.name
+      })) || []
+    }))
 
     console.log('🔍 Smart Search - Final results:', finalResults.length)
 
-    // If no results found, return test data to verify connection
-    if (finalResults.length === 0) {
-      console.log('🔍 Smart Search - No results found, returning test data')
-      return {
-        data: [{
-          id: 'test-provider-1',
-          first_name: 'Test',
-          last_name: 'Provider',
-          business_name: 'Test Beauty Services',
-          avatar_url: null,
-          bio: 'Test provider for debugging',
-          address: '123 Test Street',
-          city: 'Test City',
-          country: 'Test Country',
-          distance: 5.2,
-          avg_rating: 4.5,
-          total_reviews: 10,
-          closest_address: null,
-          provider_services: [{
-            id: 'test-service-1',
-            title: 'Test Service',
-            base_price: 50,
-            price_type: 'fixed',
-            description: 'Test service description',
-            house_call_available: true,
-            service_subcategories: {
-              id: 'test-subcategory-1',
-              name: 'Test Subcategory',
-              service_categories: {
-                id: 'test-category-1',
-                name: 'Beauty & Grooming'
-              }
-            }
-          }],
-          reviews: [{ rating: 5 }, { rating: 4 }],
-          user_addresses: []
-        }],
-        error: null
-      }
-    }
-
-    return { data: finalResults, error: null }
-  } catch (error) {
-    console.error('🔍 Smart Search - Error:', error)
-    return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
-  }
-}
-
-// Main Edge Function handler
-Deno.serve(async (req: Request) => {
-  // Handle CORS
-  if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      },
-    })
-  }
-
-  try {
-    const body = await req.json()
-    console.log('🔍 Edge Function called with body:', body)
-
-    const result = await smartProviderSearch(body)
-
     return new Response(
-      JSON.stringify(result),
+      JSON.stringify({
+        data: finalResults,
+        count: finalResults.length,
+        query: filters
+      }),
       {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
+        headers: { 'Content-Type': 'application/json' },
+        status: 200
       }
     )
+
   } catch (error) {
-    console.error('🔍 Edge Function error:', error)
+    console.error('🔍 Smart Search - Error:', error)
     return new Response(
       JSON.stringify({
         data: null,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: (error as Error).message || 'Unknown error'
       }),
       {
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
+        headers: { 'Content-Type': 'application/json' },
+        status: 500
       }
     )
   }

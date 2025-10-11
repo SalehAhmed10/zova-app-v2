@@ -5,7 +5,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 
 export interface ProviderProfile {
   id: string;
@@ -31,7 +31,7 @@ export function useProviderProfile(providerId?: string) {
 
       // Fetch provider profile data with calculated ratings and job counts
       const [profileResult, ratingsResult, jobsResult] = await Promise.all([
-        // Get basic profile info
+        // Get basic profile info with verification status from provider_onboarding_progress
         supabase
           .from('profiles')
           .select(`
@@ -41,9 +41,9 @@ export function useProviderProfile(providerId?: string) {
             avatar_url,
             phone_number,
             email,
-            verification_status,
             business_name,
-            bio
+            bio,
+            provider_onboarding_progress(verification_status)
           `)
           .eq('id', providerId)
           .single(),
@@ -80,6 +80,9 @@ export function useProviderProfile(providerId?: string) {
       // Get completed jobs count
       const completedJobsCount = jobsResult.data?.length || 0;
 
+      // Get verification status from provider_onboarding_progress
+      const verificationStatus = (data as any).provider_onboarding_progress?.[0]?.verification_status || 'pending';
+
       return {
         id: data.id,
         name: data.first_name && data.last_name 
@@ -89,7 +92,7 @@ export function useProviderProfile(providerId?: string) {
         rating: Math.round(averageRating * 10) / 10, // Round to 1 decimal place
         phone: data.phone_number,
         email: data.email,
-        is_verified: data.verification_status === 'approved',
+        is_verified: verificationStatus === 'approved',
         completed_jobs: completedJobsCount,
         business_name: data.business_name,
         bio: data.bio

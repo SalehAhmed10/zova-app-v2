@@ -10,7 +10,7 @@ import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import { VerificationHeader } from '@/components/verification/VerificationHeader';
 import * as WebBrowser from 'expo-web-browser';
 import * as Clipboard from 'expo-clipboard';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/verification/provider-verification';
 import { PaymentAnalyticsService } from '@/lib/payment/payment-analytics';
 import { useVerificationNavigation } from '@/hooks/provider';

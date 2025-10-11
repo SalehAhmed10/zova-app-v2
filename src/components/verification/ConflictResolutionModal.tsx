@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 
 interface ConflictResolutionModalProps {
   visible: boolean;

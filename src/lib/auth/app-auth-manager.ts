@@ -10,7 +10,7 @@
  * PURPOSE: Replace useEffect patterns in auth hooks with app-level management
  */
 
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/stores/auth/app';
 import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
 

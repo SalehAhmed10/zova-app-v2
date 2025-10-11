@@ -6,7 +6,7 @@
  * This follows the pattern established in useDeepLinkHandler.
  */
 import { useEffect } from 'react';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/stores/auth/app';
 import { getUserProfile } from '@/lib/auth/profile';
 import { useProfileStore } from '@/stores/verification/useProfileStore';

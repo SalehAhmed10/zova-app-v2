@@ -13,7 +13,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/stores/auth/app';
 import { getUserProfile } from '@/lib/auth/profile';
 import { useProviderVerificationStore } from '@/stores/verification/provider-verification';

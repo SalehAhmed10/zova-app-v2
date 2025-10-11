@@ -30,7 +30,7 @@ import {
 import { useAuthOptimized } from '@/hooks';
 import { useAppStore } from '@/stores/auth/app';
 import { registrationSchema, type RegistrationFormData } from '@/lib/validation/authValidation';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 
 interface RoleSwitchData {
   currentRole: 'customer' | 'provider';

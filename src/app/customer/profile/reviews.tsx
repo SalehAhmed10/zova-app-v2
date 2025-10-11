@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuthOptimized } from '@/hooks';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { cn } from '@/lib/utils';
 

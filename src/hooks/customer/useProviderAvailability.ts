@@ -6,7 +6,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 
 // Helper function to add minutes to a time string (HH:MM format)
 function addMinutesToTime(time: string, minutes: number): string {
@@ -277,8 +277,7 @@ export function useTimeSlotAvailability(providerId: string, date: string, time: 
  */
 async function checkProviderAvailability(providerId: string, date: string): Promise<ProviderAvailability> {
   try {
-    const { supabase } = await import('@/lib/core/supabase');
-
+    // Use the already imported supabase instance
     // Get provider schedule
     const { data: schedule } = await supabase
       .from('provider_schedules')

@@ -10,7 +10,7 @@ import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import { VerificationHeader } from '@/components/verification/VerificationHeader';
 import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/verification/provider-verification';
 import { useCategorySearchStore, useCategorySearchResults } from '@/stores/ui';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSaveVerificationStep } from '@/hooks/provider/useProviderVerificationQueries';
 import { useVerificationNavigation } from '@/hooks/provider';

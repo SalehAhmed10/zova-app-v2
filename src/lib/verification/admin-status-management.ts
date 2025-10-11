@@ -3,7 +3,7 @@
  * Provides safe status change operations with confirmations and logging
  */
 
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 
 export interface StatusChangeRequest {
   userId: string;
@@ -22,13 +22,13 @@ export const updateVerificationStatus = async (request: StatusChangeRequest) => 
   console.log(`[AdminStatusUpdate] Updating user ${userId} to ${newStatus} by admin ${adminId}`);
 
   // ✅ VALIDATION: Check if this is a downgrade from approved
-  const { data: currentProfile } = await supabase
-    .from('profiles')
+  const { data: currentProgress } = await supabase
+    .from('provider_onboarding_progress')
     .select('verification_status')
-    .eq('id', userId)
+    .eq('provider_id', userId)
     .single();
 
-  const isDowngradeFromApproved = currentProfile?.verification_status === 'approved' &&
+  const isDowngradeFromApproved = currentProgress?.verification_status === 'approved' &&
                                   newStatus !== 'approved';
 
   if (isDowngradeFromApproved && requiresConfirmation) {
@@ -38,22 +38,24 @@ export const updateVerificationStatus = async (request: StatusChangeRequest) => 
     // For now, we'll log it and proceed with extra logging
   }
 
-  // ✅ UPDATE: Change the status
+  // ✅ UPDATE: Change the status in provider_onboarding_progress table
   const { error } = await supabase
-    .from('profiles')
+    .from('provider_onboarding_progress')
     .update({
       verification_status: newStatus,
       updated_at: new Date().toISOString(),
-      // Could add audit fields here
-      last_status_change: {
-        from: currentProfile?.verification_status,
-        to: newStatus,
-        admin_id: adminId,
-        reason: reason,
-        timestamp: new Date().toISOString()
+      // Add audit metadata
+      metadata: {
+        last_status_change: {
+          from: currentProgress?.verification_status,
+          to: newStatus,
+          admin_id: adminId,
+          reason: reason,
+          timestamp: new Date().toISOString()
+        }
       }
     })
-    .eq('id', userId);
+    .eq('provider_id', userId);
 
   if (error) {
     console.error('[AdminStatusUpdate] Failed to update status:', error);
@@ -65,7 +67,7 @@ export const updateVerificationStatus = async (request: StatusChangeRequest) => 
   // ✅ NOTIFICATION: Could send push notification to user about status change
   // This would inform the user of the change in real-time
 
-  return { success: true, previousStatus: currentProfile?.verification_status };
+  return { success: true, previousStatus: currentProgress?.verification_status };
 };
 
 /**

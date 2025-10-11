@@ -9,64 +9,113 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, useWatch } from 'react-hook-form';
 import { useUpdateProfile } from '@/hooks';
 import { useProfile } from '@/hooks/shared/useProfileData';
 import { useAuthOptimized } from '@/hooks';
-import { ChevronLeft, CheckCircle } from 'lucide-react-native';
+import { useGeocoding } from '@/hooks/shared/useGeocoding';
+import { COUNTRIES, getCountryByCode } from '@/constants/countries';
+import { SearchableCountrySelect } from '@/components/ui/searchable-country-select';
+import { SearchableCitySelect } from '@/components/ui/searchable-city-select';
+import { SearchableCountryCodeSelect } from '@/components/ui/searchable-country-code-select';
+import { ChevronLeft, CheckCircle, AlertCircle, AlertTriangle, Loader2 } from 'lucide-react-native';
 import { cn } from '@/lib/utils';
 
 interface PersonalInfoForm {
   first_name: string;
   last_name: string;
   email: string;
+  phone_country_code?: {
+    name: string;
+    dial_code: string;
+    code: string;
+    flag: string;
+  };
   phone_number?: string;
   bio?: string;
   address?: string;
   city?: string;
   postal_code?: string;
-  country: string;
-  country_code?: string;
+  country_code: string; // Changed from country: string
 }
 
 export default function PersonalInfoScreen() {
   const { user } = useAuthOptimized();
   const { data: profileData, isLoading } = useProfile(user?.id);
   const updateProfileMutation = useUpdateProfile();
+  const { validateAddress: validateGeocoding, isValidating: isGeocoding, validationError: geocodingError, validationWarning: geocodingWarning, lastValidatedCoordinates } = useGeocoding();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [addressValidated, setAddressValidated] = useState(false);
   const { isDarkColorScheme } = useColorScheme();
 
-  const { control, handleSubmit, formState: { errors, isDirty }, reset } = useForm<PersonalInfoForm>({
+  const { control, handleSubmit, formState: { errors, isDirty }, reset, watch } = useForm<PersonalInfoForm>({
     defaultValues: {
       first_name: profileData?.first_name || '',
       last_name: profileData?.last_name || '',
       email: profileData?.email || '',
+      phone_country_code: undefined, // Will be set from profile data
       phone_number: profileData?.phone_number || '',
       bio: profileData?.bio || '',
       address: profileData?.address || '',
       city: profileData?.city || '',
       postal_code: profileData?.postal_code || '',
-      country: profileData?.country || '',
       country_code: profileData?.country_code || '',
     }
+  });
+
+  // Watch country_code to enable/disable city selection
+  const selectedCountryCode = useWatch({
+    control,
+    name: 'country_code',
   });
 
   // Update form when profile data loads
   useEffect(() => {
     if (profileData) {
+      // Parse phone number to extract country code if present
+      let phoneCountryCode = undefined;
+      let phoneNumber = profileData.phone_number || '';
+
+      if (phoneNumber) {
+        // Try to match common country code patterns like +1, +44, +91, etc.
+        const countryCodeMatch = phoneNumber.match(/^(\+\d{1,4})\s*(.+)$/);
+        if (countryCodeMatch) {
+          const dialCode = countryCodeMatch[1];
+          const number = countryCodeMatch[2];
+
+          // Find the matching country from our country codes
+          const matchingCountry = COUNTRIES.find(country => {
+            const fullCountry = require('country-state-city').Country.getCountryByCode(country.code);
+            return fullCountry?.phonecode && `+${fullCountry.phonecode}` === dialCode;
+          });
+
+          if (matchingCountry) {
+            phoneCountryCode = {
+              name: matchingCountry.label,
+              dial_code: dialCode,
+              code: matchingCountry.value,
+              flag: matchingCountry.flag || '🇺🇸',
+            };
+            phoneNumber = number;
+          }
+        }
+      }
+
       reset({
         first_name: profileData.first_name || '',
         last_name: profileData.last_name || '',
         email: profileData.email || '',
-        phone_number: profileData.phone_number || '',
+        phone_country_code: phoneCountryCode,
+        phone_number: phoneNumber,
         bio: profileData.bio || '',
         address: profileData.address || '',
         city: profileData.city || '',
         postal_code: profileData.postal_code || '',
-        country: profileData.country || '',
         country_code: profileData.country_code || '',
       });
+      // Clear geocoding state when profile data loads
+      setAddressValidated(false);
     }
   }, [profileData, reset]);
 
@@ -75,22 +124,76 @@ export default function PersonalInfoScreen() {
 
     setIsSubmitting(true);
     try {
+      // Validate address if any address fields are provided
+      let coordinates = null;
+      if (data.address || data.city || data.country_code) {
+        const countryInfo = getCountryByCode(data.country_code);
+        const addressComponents = {
+          address: data.address,
+          city: data.city,
+          postal_code: data.postal_code,
+          country: countryInfo?.name || data.country_code, // Use country name for geocoding
+        };
+
+        console.log('[PersonalInfo] 🔍 Starting address validation...');
+        console.log('[PersonalInfo] 📍 Address components:', addressComponents);
+
+        const validationResult = await validateGeocoding(addressComponents);
+
+        console.log('[PersonalInfo] ✅ Validation result:', {
+          isValid: validationResult.isValid,
+          hasCoordinates: !!validationResult.coordinates,
+          coordinates: validationResult.coordinates,
+          warning: validationResult.warning,
+          error: geocodingError
+        });
+
+        if (!validationResult.isValid) {
+          // Address validation failed, but we'll still allow saving
+          // The geocoding error will be shown to the user
+          console.warn('[PersonalInfo] ⚠️ Address validation failed:', geocodingError);
+          console.log('[PersonalInfo] 💾 Allowing save without coordinates due to lenient validation');
+        } else {
+          coordinates = validationResult.coordinates;
+          setAddressValidated(true);
+
+          if (coordinates) {
+            console.log('[PersonalInfo] 📌 Coordinates found and will be saved:', coordinates);
+          } else {
+            console.log('[PersonalInfo] 📭 No coordinates found, saving address without location data');
+          }
+
+          if (validationResult.warning) {
+            console.warn('[PersonalInfo] ⚠️ Address saved with warning:', validationResult.warning);
+          } else {
+            console.log('[PersonalInfo] ✅ Address validated successfully');
+          }
+        }
+      } else {
+        console.log('[PersonalInfo] ⏭️ No address fields provided, skipping geocoding validation');
+      }
+
       await updateProfileMutation.mutateAsync({
         id: profileData.id,
         first_name: data.first_name,
         last_name: data.last_name,
-        phone_number: data.phone_number,
+        phone_number: data.phone_country_code && data.phone_number
+          ? `${data.phone_country_code.dial_code} ${data.phone_number}`.trim()
+          : data.phone_number,
         bio: data.bio,
         address: data.address,
         city: data.city,
         postal_code: data.postal_code,
-        country: data.country,
+        country: getCountryByCode(data.country_code)?.name || '',
+        country_code: data.country_code,
+        coordinates: coordinates,
       });
+
+      console.log('[PersonalInfo] 📤 Submitting profile update with coordinates:', coordinates);
 
       setShowSuccess(true);
       setTimeout(() => {
         setShowSuccess(false);
-        router.back();
       }, 2000);
     } catch (error) {
       console.error('Failed to update profile:', error);
@@ -138,7 +241,7 @@ export default function PersonalInfoScreen() {
         className="flex-1"
       >
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-          <View className="p-4 gap-6">
+          <View className="px-0 py-4 gap-6">
           {/* Basic Information */}
           <Card>
             <CardHeader>
@@ -157,7 +260,7 @@ export default function PersonalInfoScreen() {
                         value={value}
                         onChangeText={onChange}
                         placeholder="Enter first name"
-                        className={cn(errors.first_name && 'border-destructive')}
+                        className={cn("h-11", errors.first_name && 'border-destructive')}
                       />
                     )}
                   />
@@ -176,7 +279,7 @@ export default function PersonalInfoScreen() {
                         value={value}
                         onChangeText={onChange}
                         placeholder="Enter last name"
-                        className={cn(errors.last_name && 'border-destructive')}
+                        className={cn("h-11", errors.last_name && 'border-destructive')}
                       />
                     )}
                   />
@@ -205,7 +308,7 @@ export default function PersonalInfoScreen() {
                       placeholder="Enter email"
                       keyboardType="email-address"
                       autoCapitalize="none"
-                      className={cn(errors.email && 'border-destructive')}
+                      className={cn("h-11", errors.email && 'border-destructive')}
                     />
                   )}
                 />
@@ -216,18 +319,50 @@ export default function PersonalInfoScreen() {
 
               <View>
                 <Text className="text-sm font-medium mb-2">Phone Number</Text>
-                <Controller
-                  control={control}
-                  name="phone_number"
-                  render={({ field: { onChange, value } }) => (
-                    <Input
-                      value={value}
-                      onChangeText={onChange}
-                      placeholder="Enter phone number"
-                      keyboardType="phone-pad"
+                <View className="flex-row gap-2">
+                  <View className="w-[35%]">
+                    <Controller
+                      control={control}
+                      name="phone_country_code"
+                      render={({ field: { onChange, value } }) => (
+                        <SearchableCountryCodeSelect
+                          value={value}
+                          onValueChange={onChange}
+                          placeholder="+1"
+                        />
+                      )}
                     />
-                  )}
-                />
+                  </View>
+                  <View className="w-[65%]">
+                    <Controller
+                      control={control}
+                      name="phone_number"
+                      rules={{
+                        validate: (value) => {
+                          if (watch('phone_country_code') && !value?.trim()) {
+                            return 'Phone number is required when country code is selected';
+                          }
+                          if (value && !/^[\d\s\-\(\)\+]+$/.test(value)) {
+                            return 'Please enter a valid phone number';
+                          }
+                          return true;
+                        }
+                      }}
+                      render={({ field: { onChange, value } }) => (
+                        <Input
+                          value={value}
+                          onChangeText={onChange}
+                          placeholder="Enter phone number"
+                          keyboardType="phone-pad"
+                          className={cn("h-11", errors.phone_number && 'border-destructive')}
+                        />
+                      )}
+                    />
+                  </View>
+                </View>
+                {errors.phone_number && (
+                  <Text className="text-destructive text-xs mt-1">{errors.phone_number.message}</Text>
+                )}
               </View>
             </CardContent>
           </Card>
@@ -243,15 +378,29 @@ export default function PersonalInfoScreen() {
                 <Controller
                   control={control}
                   name="bio"
+                  rules={{
+                    maxLength: {
+                      value: 500,
+                      message: 'Bio must be less than 500 characters'
+                    }
+                  }}
                   render={({ field: { onChange, value } }) => (
                     <Textarea
                       value={value}
                       onChangeText={onChange}
                       placeholder="Tell us about yourself..."
-                      className="min-h-[80px]"
+                      className={cn("min-h-[80px]", errors.bio && 'border-destructive')}
                     />
                   )}
                 />
+                {errors.bio && (
+                  <Text className="text-destructive text-xs mt-1">{errors.bio.message}</Text>
+                )}
+                {watch('bio') && (
+                  <Text className="text-muted-foreground text-xs mt-1 text-right">
+                    {watch('bio').length}/500 characters
+                  </Text>
+                )}
               </View>
             </CardContent>
           </Card>
@@ -267,14 +416,27 @@ export default function PersonalInfoScreen() {
                 <Controller
                   control={control}
                   name="address"
+                  rules={{
+                    validate: (value) => {
+                      const hasAnyAddressField = watch('city') || watch('postal_code') || watch('country_code');
+                      if (hasAnyAddressField && !value?.trim()) {
+                        return 'Street address is required when providing other address details';
+                      }
+                      return true;
+                    }
+                  }}
                   render={({ field: { onChange, value } }) => (
                     <Input
                       value={value}
                       onChangeText={onChange}
                       placeholder="Enter street address"
+                      className={cn("h-11", errors.address && 'border-destructive')}
                     />
                   )}
                 />
+                {errors.address && (
+                  <Text className="text-destructive text-xs mt-1">{errors.address.message}</Text>
+                )}
               </View>
 
               <View className="flex-row gap-3">
@@ -283,28 +445,60 @@ export default function PersonalInfoScreen() {
                   <Controller
                     control={control}
                     name="city"
+                    rules={{
+                      validate: (value) => {
+                        const hasAnyAddressField = watch('address') || watch('postal_code') || watch('country_code');
+                        if (hasAnyAddressField && !value?.trim()) {
+                          return 'City is required when providing other address details';
+                        }
+                        return true;
+                      }
+                    }}
                     render={({ field: { onChange, value } }) => (
-                      <Input
+                      <SearchableCitySelect
                         value={value}
-                        onChangeText={onChange}
-                        placeholder="Enter city"
+                        onValueChange={onChange}
+                        placeholder="Select city"
+                        countryCode={selectedCountryCode}
+                        disabled={!selectedCountryCode}
+                        className={cn(errors.city && 'border-destructive')}
                       />
                     )}
                   />
+                  {errors.city && (
+                    <Text className="text-destructive text-xs mt-1">{errors.city.message}</Text>
+                  )}
                 </View>
                 <View className="flex-1">
                   <Text className="text-sm font-medium mb-2">Postal Code</Text>
                   <Controller
                     control={control}
                     name="postal_code"
+                    rules={{
+                      validate: (value) => {
+                        const hasAnyAddressField = watch('address') || watch('city') || watch('country_code');
+                        if (hasAnyAddressField && !value?.trim()) {
+                          return 'Postal code is required when providing other address details';
+                        }
+                        // Basic postal code validation (alphanumeric, spaces, hyphens)
+                        if (value && !/^[A-Za-z0-9\s\-]+$/.test(value)) {
+                          return 'Please enter a valid postal code';
+                        }
+                        return true;
+                      }
+                    }}
                     render={({ field: { onChange, value } }) => (
                       <Input
                         value={value}
                         onChangeText={onChange}
                         placeholder="Enter postal code"
+                        className={cn("h-11", errors.postal_code && 'border-destructive')}
                       />
                     )}
                   />
+                  {errors.postal_code && (
+                    <Text className="text-destructive text-xs mt-1">{errors.postal_code.message}</Text>
+                  )}
                 </View>
               </View>
 
@@ -312,21 +506,55 @@ export default function PersonalInfoScreen() {
                 <Text className="text-sm font-medium mb-2">Country</Text>
                 <Controller
                   control={control}
-                  name="country"
+                  name="country_code"
                   rules={{ required: 'Country is required' }}
-                  render={({ field: { onChange, value } }) => (
-                    <Input
-                      value={value}
-                      onChangeText={onChange}
-                      placeholder="Enter country"
-                      className={cn(errors.country && 'border-destructive')}
-                    />
-                  )}
+                  render={({ field: { onChange, value } }) => {
+                    const selectedCountry = COUNTRIES.find(c => c.value === value);
+                    return (
+                      <SearchableCountrySelect
+                        value={selectedCountry}
+                        onValueChange={(country) => onChange(country?.value || '')}
+                        placeholder="Select country"
+                        countries={COUNTRIES}
+                        className={cn(errors.country_code && 'border-destructive')}
+                      />
+                    );
+                  }}
                 />
-                {errors.country && (
-                  <Text className="text-destructive text-xs mt-1">{errors.country.message}</Text>
+                {errors.country_code && (
+                  <Text className="text-destructive text-xs mt-1">{errors.country_code.message}</Text>
                 )}
               </View>
+
+              {/* Geocoding Status */}
+              {(isGeocoding || geocodingError || geocodingWarning || addressValidated) && (
+                <View className="flex-row items-center gap-2 p-3 rounded-lg bg-muted">
+                  {isGeocoding && (
+                    <>
+                      <Loader2 size={16} className="text-muted-foreground animate-spin" />
+                      <Text className="text-sm text-muted-foreground">Validating address...</Text>
+                    </>
+                  )}
+                  {geocodingError && !isGeocoding && (
+                    <>
+                      <AlertCircle size={16} className="text-destructive" />
+                      <Text className="text-sm text-destructive">{geocodingError}</Text>
+                    </>
+                  )}
+                  {geocodingWarning && !isGeocoding && !geocodingError && (
+                    <>
+                      <AlertTriangle size={16} className="text-orange-500" />
+                      <Text className="text-sm text-orange-600 dark:text-orange-400">{geocodingWarning}</Text>
+                    </>
+                  )}
+                  {addressValidated && !isGeocoding && !geocodingError && !geocodingWarning && (
+                    <>
+                      <CheckCircle size={16} className="text-green-600" />
+                      <Text className="text-sm text-green-600">Address validated successfully</Text>
+                    </>
+                  )}
+                </View>
+              )}
             </CardContent>
           </Card>
         </View>

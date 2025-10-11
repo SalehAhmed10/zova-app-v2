@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useVerificationSessionRecovery } from '@/hooks/verification';
 import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 
 interface SessionRecoveryBannerProps {
   className?: string;

@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthPure as useAuthOptimized } from '../shared/useAuthPure';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 
 interface ConflictData {
   hasConflict: boolean;

@@ -14,7 +14,7 @@ import { useVerificationNavigation } from '@/hooks/provider';
 import { PaymentEmailCampaignService } from '@/lib/payment/payment-email-campaigns';
 import { PaymentAnalyticsService } from '@/lib/payment/payment-analytics';
 
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 
 export default function VerificationCompleteScreen() {
   console.log('[Complete Screen] Rendered');

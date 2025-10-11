@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import { useProviderProfile } from './useProviderProfile';
 
 // ✅ Business availability hooks - Following React Query + Zustand architecture

@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import { VerificationHeader } from '@/components/verification/VerificationHeader';
 import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/verification/provider-verification';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import { createStorageService } from '@/lib/storage/organized-storage';
 import { useVerificationNavigation } from '@/hooks/provider';
 import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';

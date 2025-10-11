@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import { useAuthOptimized } from '@/hooks';
 import { useAppStore } from '@/stores/auth/app';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import { createOrUpdateUserProfile } from '@/lib/auth/profile';
 
 export default function OTPVerificationScreen() {

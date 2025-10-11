@@ -27,7 +27,7 @@ export { useCustomerBookings, type BookingData } from './useBookings';
 
 // ✅ Import required dependencies for hooks
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import { SearchFilters, useProviderSearch } from '../provider/useProviderSearch';
 
 // ✅ Customer-specific hooks with proper data structures
@@ -51,17 +51,19 @@ export const useAllProviders = (limit: number = 50) => {
           business_name,
           avatar_url,
           bio,
-          verification_status,
           availability_status,
           is_business_visible,
           created_at,
+          provider_onboarding_progress!inner (
+            verification_status
+          ),
           reviews!reviews_provider_id_fkey (
             rating
           )
         `)
         .eq('role', 'provider')
         .eq('is_business_visible', true)
-        .eq('verification_status', 'approved')
+        .eq('provider_onboarding_progress.verification_status', 'approved')
         .eq('availability_status', 'available')
         .order('created_at', { ascending: false })
         .limit(limit);
@@ -156,15 +158,25 @@ export const useUpdateProfile = () => {
       city?: string;
       postal_code?: string;
       country?: string;
+      country_code?: string;
+      coordinates?: { latitude: number; longitude: number } | null;
     }) => {
       console.log('[useUpdateProfile] Starting database update for user:', profileData.id);
       console.log('[useUpdateProfile] Update payload:', profileData);
       
-      const { id, ...updateData } = profileData;
+      const { id, coordinates, ...updateData } = profileData;
+      
+      // Convert coordinates to PostGIS format if provided
+      const finalUpdateData = {
+        ...updateData,
+        ...(coordinates && {
+          coordinates: `POINT(${coordinates.longitude} ${coordinates.latitude})`
+        }),
+      };
       
       const { data, error } = await supabase
         .from('profiles')
-        .update(updateData)
+        .update(finalUpdateData)
         .eq('id', id)
         .select()
         .single();

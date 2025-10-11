@@ -4,7 +4,7 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 
 interface DebugPanelProps {
   providerId: string;

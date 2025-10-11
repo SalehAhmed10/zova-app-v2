@@ -205,10 +205,15 @@ The ZOVA Team`
    */
   static async queuePaymentSetupEmails(providerId: string): Promise<void> {
     try {
-      // Get provider information
+      // Get provider information with verification status from progress table
       const { data: provider, error } = await supabase
         .from('profiles')
-        .select('email, first_name, verification_status, stripe_charges_enabled')
+        .select(`
+          email,
+          first_name,
+          stripe_charges_enabled,
+          provider_onboarding_progress(verification_status)
+        `)
         .eq('id', providerId)
         .eq('role', 'provider')
         .single();
@@ -218,8 +223,11 @@ The ZOVA Team`
         return;
       }
 
+      // Extract verification status from joined table
+      const verificationStatus = (provider as any).provider_onboarding_progress?.[0]?.verification_status;
+
       // Only queue emails if verification is complete but payment not set up
-      if (provider.verification_status === 'approved' && !provider.stripe_charges_enabled) {
+      if (verificationStatus === 'approved' && !provider.stripe_charges_enabled) {
         for (const template of this.EMAIL_TEMPLATES) {
           await this.scheduleEmail(providerId, template, provider);
         }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 
 // Types
 export interface UserFavorite {
@@ -263,6 +263,7 @@ export const useToggleFavorite = () => {
     }) => {
       if (isFavorited) {
         // Remove from favorites
+        console.log('🗑️ Removing favorite:', { userId, type, itemId });
         const { error } = await supabase
           .from('user_favorites')
           .delete()
@@ -270,9 +271,29 @@ export const useToggleFavorite = () => {
           .eq('favorite_type', type)
           .eq('favorite_id', itemId);
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Error removing favorite:', error);
+          throw error;
+        }
+        console.log('✅ Favorite removed successfully');
       } else {
-        // Add to favorites
+        // Add to favorites - check if already exists first
+        console.log('➕ Adding favorite:', { userId, type, itemId });
+        
+        // First check if it already exists (race condition protection)
+        const { data: existing } = await supabase
+          .from('user_favorites')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('favorite_type', type)
+          .eq('favorite_id', itemId)
+          .single();
+
+        if (existing) {
+          console.log('⚠️ Favorite already exists, skipping insert');
+          return; // Already favorited, no need to insert
+        }
+
         const { error } = await supabase
           .from('user_favorites')
           .insert({
@@ -281,18 +302,47 @@ export const useToggleFavorite = () => {
             favorite_id: itemId
           });
 
-        if (error) throw error;
+        if (error) {
+          // If duplicate key error (race condition), ignore it
+          if (error.code === '23505') {
+            console.log('⚠️ Duplicate favorite detected, ignoring error');
+            return;
+          }
+          console.error('❌ Error adding favorite:', error);
+          throw error;
+        }
+        console.log('✅ Favorite added successfully');
       }
     },
+    // Optimistic update - immediately update cache before server response
+    onMutate: async ({ userId, type, itemId, isFavorited }) => {
+      console.log('🔄 Optimistic update:', { userId, type, itemId, toggling: !isFavorited });
+      
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['is-favorited', userId, type, itemId] });
+      
+      // Snapshot previous value
+      const previousValue = queryClient.getQueryData(['is-favorited', userId, type, itemId]);
+      
+      // Optimistically update to new value
+      queryClient.setQueryData(['is-favorited', userId, type, itemId], !isFavorited);
+      
+      return { previousValue };
+    },
     onSuccess: (_, { userId, type, itemId, isFavorited }) => {
-      console.log('useToggleFavorite: Success - userId:', userId, 'type:', type, 'itemId:', itemId, 'isFavorited:', isFavorited);
-      // Invalidate related queries
+      console.log('✅ useToggleFavorite: Success - userId:', userId, 'type:', type, 'itemId:', itemId, 'was favorited:', isFavorited);
+      // Invalidate related queries to refetch from server
       queryClient.invalidateQueries({ queryKey: ['user-favorites', userId] });
       queryClient.invalidateQueries({ queryKey: ['is-favorited'] });
-      console.log('useToggleFavorite: Cache invalidated for userId:', userId);
+      console.log('🔄 useToggleFavorite: Cache invalidated for userId:', userId);
     },
-    onError: (error, { userId, type, itemId, isFavorited }) => {
-      console.error('useToggleFavorite: Error - userId:', userId, 'type:', type, 'itemId:', itemId, 'isFavorited:', isFavorited, 'error:', error);
+    onError: (error: any, { userId, type, itemId, isFavorited }, context: any) => {
+      console.error('❌ useToggleFavorite: Error - userId:', userId, 'type:', type, 'itemId:', itemId, 'isFavorited:', isFavorited, 'error:', error);
+      
+      // Rollback optimistic update on error
+      if (context?.previousValue !== undefined) {
+        queryClient.setQueryData(['is-favorited', userId, type, itemId], context.previousValue);
+      }
     },
   });
 };

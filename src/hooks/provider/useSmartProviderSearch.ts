@@ -4,7 +4,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import { useSearchStore } from '@/stores/customer/search-store';
 
 export interface SmartSearchFilters {

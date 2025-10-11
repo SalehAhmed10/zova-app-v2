@@ -175,22 +175,69 @@ export default function SearchFiltersSheet({
               <CardTitle className="text-lg">Location</CardTitle>
             </CardHeader>
             <CardContent className="gap-4">
-              <Input
-                placeholder="Search location..."
-                value={filters.query || ''}
-                onChangeText={(text) => updateFilters({ query: text })}
-              />
-              <View className="gap-2">
-                <Text className="text-sm text-muted-foreground">
-                  Search radius: {filters.locationRadius || 10} km
-                </Text>
-                <Slider
-                  value={[filters.locationRadius || 10]}
-                  onValueChange={(value) => updateFilters({ locationRadius: value[0] })}
-                  minimumValue={1}
-                  maximumValue={50}
-                  step={1}
-                />
+              {/* Location Mode Toggle */}
+              <View className="gap-3">
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-sm text-foreground">Search Mode</Text>
+                  <View className="flex-row bg-muted rounded-lg p-1">
+                    <TouchableOpacity
+                      onPress={() => updateFilters({ locationMode: 'detected' })}
+                      className={`px-3 py-1 rounded-md ${
+                        filters.locationMode === 'detected' ? 'bg-primary' : 'bg-transparent'
+                      }`}
+                    >
+                      <Text className={`text-xs font-medium ${
+                        filters.locationMode === 'detected' ? 'text-primary-foreground' : 'text-muted-foreground'
+                      }`}>
+                        Near Me
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => updateFilters({ locationMode: 'global' })}
+                      className={`px-3 py-1 rounded-md ${
+                        filters.locationMode === 'global' ? 'bg-primary' : 'bg-transparent'
+                      }`}
+                    >
+                      <Text className={`text-xs font-medium ${
+                        filters.locationMode === 'global' ? 'text-primary-foreground' : 'text-muted-foreground'
+                      }`}>
+                        Global
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Location Input - Only show when in detected mode */}
+                {filters.locationMode === 'detected' && (
+                  <>
+                    <Input
+                      placeholder="Search location..."
+                      value={filters.query || ''}
+                      onChangeText={(text) => updateFilters({ query: text })}
+                    />
+                    <View className="gap-2">
+                      <Text className="text-sm text-muted-foreground">
+                        Search radius: {filters.locationRadius || 10} km
+                      </Text>
+                      <Slider
+                        value={[filters.locationRadius || 10]}
+                        onValueChange={(value) => updateFilters({ locationRadius: value[0] })}
+                        minimumValue={1}
+                        maximumValue={200}
+                        step={5}
+                      />
+                    </View>
+                  </>
+                )}
+
+                {/* Global Search Info */}
+                {filters.locationMode === 'global' && (
+                  <View className="bg-muted/50 rounded-lg p-3">
+                    <Text className="text-sm text-muted-foreground">
+                      Global search will show results from anywhere, ignoring location filters.
+                    </Text>
+                  </View>
+                )}
               </View>
             </CardContent>
           </Card>

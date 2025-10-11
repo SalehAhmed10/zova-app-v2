@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 import { useAuthPure } from '@/hooks/shared/useAuthPure';
 import { getSubscriptionConfig } from '@/lib/payment/subscription-config';
 

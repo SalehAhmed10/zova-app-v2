@@ -10,7 +10,7 @@ import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import { Calendar } from '@/components/ui/calendar';
 import { Ionicons } from '@expo/vector-icons';
 
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib/supabase';
 
 // React Query hooks
 import { useServiceDetails } from '@/hooks/customer/useServiceDetails';

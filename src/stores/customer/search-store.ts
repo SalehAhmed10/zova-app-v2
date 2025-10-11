@@ -17,7 +17,10 @@ export interface SearchFilters {
   remoteServiceOnly?: boolean;
   requiresDeposit?: boolean;
   locationRadius?: number;
-  sortBy?: 'price' | 'rating' | 'popularity';
+  userLatitude?: number;
+  userLongitude?: number;
+  locationMode?: 'detected' | 'global';
+  sortBy?: 'price' | 'rating' | 'popularity' | 'distance';
   sortOrder?: 'asc' | 'desc';
   query?: string;
 }
@@ -40,6 +43,8 @@ export interface SearchState {
   setSearchMode: (mode: 'services' | 'providers') => void;
   handleModeSwitch: (mode: 'services' | 'providers') => void;
   handleFiltersChange: (filters: Partial<SearchFilters>) => void;
+  setUserLocation: (latitude: number, longitude: number) => void;
+  clearUserLocation: () => void;
   toggleFiltersCollapsed: () => void;
   togglePriceSortDirection: () => void;
   clearFilters: () => void;
@@ -53,7 +58,8 @@ const defaultFilters: SearchFilters = {
   houseCallOnly: false,
   remoteServiceOnly: false,
   requiresDeposit: false,
-  locationRadius: 50,
+  locationRadius: 200,
+  locationMode: 'detected',
   query: '',
 };
 
@@ -88,6 +94,20 @@ export const useSearchStore = create<SearchState>()(
         console.log(`[SearchStore] Updating filters:`, newFilters);
         set((state) => ({
           filters: { ...state.filters, ...newFilters },
+        }));
+      },
+
+      setUserLocation: (latitude: number, longitude: number) => {
+        console.log(`[SearchStore] Setting user location: ${latitude}, ${longitude}`);
+        set((state) => ({
+          filters: { ...state.filters, userLatitude: latitude, userLongitude: longitude },
+        }));
+      },
+
+      clearUserLocation: () => {
+        console.log(`[SearchStore] Clearing user location`);
+        set((state) => ({
+          filters: { ...state.filters, userLatitude: undefined, userLongitude: undefined },
         }));
       },
 
@@ -144,6 +164,8 @@ export const useSearchActions = () => {
     setSearchQuery,
     handleModeSwitch,
     handleFiltersChange,
+    setUserLocation,
+    clearUserLocation,
     toggleFiltersCollapsed,
     togglePriceSortDirection,
     clearFilters,
@@ -154,6 +176,8 @@ export const useSearchActions = () => {
     setSearchQuery,
     handleModeSwitch,
     handleFiltersChange,
+    setUserLocation,
+    clearUserLocation,
     toggleFiltersCollapsed,
     togglePriceSortDirection,
     clearFilters,
