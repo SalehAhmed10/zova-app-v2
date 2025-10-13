@@ -53,7 +53,7 @@ export const SessionRecoveryBanner: React.FC<SessionRecoveryBannerProps> = ({
     },
     onSuccess: (resumeStep) => {
       console.log('[SessionRecovery] Successfully resumed at step:', resumeStep);
-      router.replace('/provider-verification');
+      router.replace('/(provider-verification)');
     },
     onError: (error) => {
       console.error('[SessionRecovery] Failed to resume session:', error);
@@ -63,7 +63,7 @@ export const SessionRecoveryBanner: React.FC<SessionRecoveryBannerProps> = ({
         [
           {
             text: 'Start Over',
-            onPress: () => router.replace('/provider-verification')
+            onPress: () => router.replace('/(provider-verification)')
           }
         ]
       );
@@ -83,7 +83,7 @@ export const SessionRecoveryBanner: React.FC<SessionRecoveryBannerProps> = ({
         {
           text: 'Start Over',
           style: 'destructive',
-          onPress: () => router.replace('/provider-verification')
+          onPress: () => router.replace('/(provider-verification)')
         },
         {
           text: 'Resume',
@@ -126,7 +126,7 @@ export const SessionRecoveryBanner: React.FC<SessionRecoveryBannerProps> = ({
               <Button
                 variant="outline"
                 size="sm"
-                onPress={() => router.replace('/provider-verification')}
+                onPress={() => router.replace('/(provider-verification)')}
                 className="flex-1"
               >
                 <Text className="text-muted-foreground font-medium">

@@ -80,7 +80,7 @@ export function PaymentSetupBanner() {
   };
 
   const handleSetupPayment = () => {
-    router.push('/provider/setup-payment' as any);
+    router.push('/(provider)/setup-payment' as any);
   };
 
   // Don't show if:
@@ -96,60 +96,53 @@ export function PaymentSetupBanner() {
   return (
     <Animated.View 
       entering={SlideInDown.duration(400).springify()}
-      className="bg-amber-50 dark:bg-amber-950 border-b border-amber-200 dark:border-amber-800"
+      className="px-4 pb-3"
     >
-      <View className="px-4 py-3">
-        <View className="flex-row items-center gap-3">
-          {/* Icon */}
-          <View className="w-10 h-10 bg-amber-100 dark:bg-amber-900 rounded-full items-center justify-center">
+      <View className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
+        {/* Left accent stripe */}
+        <View className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500" />
+        
+        <View className="flex-row items-center pl-4 pr-2 py-3.5">
+          {/* Icon in circular background */}
+          <View className="w-10 h-10 rounded-full bg-amber-500/10 items-center justify-center mr-3">
             <CreditCard size={20} className="text-amber-600 dark:text-amber-400" />
           </View>
 
           {/* Content */}
           <Pressable 
             onPress={handleSetupPayment}
-            className="flex-1"
-            android_ripple={{ color: 'rgba(245, 158, 11, 0.1)' }}
+            className="flex-1 mr-2"
+            android_ripple={{ color: 'rgba(245, 158, 11, 0.05)' }}
           >
-            <View className="flex-row items-center justify-between">
-              <View className="flex-1 mr-2">
-                <Text className="font-semibold text-amber-900 dark:text-amber-100 mb-0.5">
-                  Setup Payments to Accept Bookings
-                </Text>
-                <Text className="text-xs text-amber-700 dark:text-amber-300">
-                  Connect your payment account • Takes 2 minutes
-                </Text>
-              </View>
-              
-              <ChevronRight 
-                size={20} 
-                className="text-amber-600 dark:text-amber-400" 
-              />
-            </View>
+            <Text className="font-semibold text-foreground text-sm mb-0.5">
+              Setup payments to start earning
+            </Text>
+            <Text className="text-muted-foreground text-xs">
+              Connect your payment account • Takes 2 minutes
+            </Text>
+          </Pressable>
+
+          {/* Navigation arrow */}
+          <Pressable
+            onPress={handleSetupPayment}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            className="p-1.5"
+          >
+            <ChevronRight 
+              size={20} 
+              className="text-muted-foreground" 
+            />
           </Pressable>
 
           {/* Dismiss Button */}
           <Pressable
             onPress={handleDismiss}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            className="p-1"
+            className="p-1.5"
           >
-            <X size={20} className="text-amber-600 dark:text-amber-400" />
+            <X size={18} className="text-muted-foreground" />
           </Pressable>
         </View>
-
-        {/* Optional: CTA Button (uncomment if you want a button instead of just tap-anywhere) */}
-        {/* <View className="mt-2">
-          <Button 
-            size="sm"
-            onPress={handleSetupPayment}
-            className="bg-amber-600 dark:bg-amber-500"
-          >
-            <Text className="text-white font-medium text-xs">
-              Setup Now
-            </Text>
-          </Button>
-        </View> */}
       </View>
     </Animated.View>
   );

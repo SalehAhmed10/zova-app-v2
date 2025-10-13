@@ -220,7 +220,7 @@ function SubscriptionCard({ subscription, type }: SubscriptionCardProps) {
           
           <Button 
             variant="ghost"
-            onPress={() => router.push('/customer/profile')}
+            onPress={() => router.push('/(customer)/profile')}
           >
             <CreditCard size={16} className="text-muted-foreground" />
           </Button>

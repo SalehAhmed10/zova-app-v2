@@ -57,7 +57,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
       targetId: service.id,
       providerId: service.provider?.id,
     });
-    router.push(`/customer/service/${service.id}`);
+    router.push(`/(customer)/service/${service.id}` as any);
   };
 
   const handleToggleFavorite = (e: any) => {
@@ -69,7 +69,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
     if (onActionPress) {
       onActionPress();
     } else {
-      router.push('/customer/bookings');
+      router.push('/(customer)/bookings');
     }
   };
 

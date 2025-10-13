@@ -1,9 +1,10 @@
 /**
- * ✅ VERIFICATION STATUS BANNER - Phase 4
+ * ✅ VERIFICATION STATUS BANNER - Phase 4 (Redesigned)
  * 
- * PURPOSE: Informational banner showing verification review progress
- * LOCATION: Provider dashboard layout (above tabs)
- * PATTERN: Non-blocking, informational (NOT a gate)
+ * PURPOSE: Sleek, modern banner showing verification review progress
+ * DESIGN: Inspired by Airbnb/Uber - minimal, elegant, theme-aware
+ * LOCATION: Top of provider dashboard (below header, above content)
+ * PATTERN: Non-blocking, informational, dismissible
  * 
  * SHOWS WHEN:
  * - verification_status = 'pending' OR 'in_review'
@@ -18,8 +19,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Pressable } from 'react-native';
 import { router } from 'expo-router';
-import Animated, { SlideInDown } from 'react-native-reanimated';
-import { Clock, Eye, AlertCircle, X } from 'lucide-react-native';
+import Animated, { FadeInDown, FadeOut } from 'react-native-reanimated';
+import { Clock, Eye, X, ChevronRight } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { Text } from '@/components/ui/text';
@@ -32,29 +33,31 @@ const BANNER_DISMISSED_KEY = 'verification-status-banner-dismissed';
 const DISMISS_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours (respawn daily)
 
 /**
- * Banner configuration by verification status
+ * Modern banner configuration - minimal and elegant
  */
 const getBannerConfig = (status: string) => {
   switch (status) {
     case 'pending':
       return {
         Icon: Clock,
+        title: 'Verification in progress',
+        subtitle: 'We\'re reviewing your application',
+        time: '24-48h',
+        gradient: 'from-amber-500/10 to-orange-500/10',
+        iconBg: 'bg-amber-500/10',
         iconColor: 'text-amber-600 dark:text-amber-400',
-        bgColor: 'bg-amber-50 dark:bg-amber-950/30',
-        borderColor: 'border-amber-200 dark:border-amber-800',
-        title: 'Verification Pending',
-        subtitle: 'Your application is submitted and awaiting review',
-        estimatedTime: '24-48 hours',
+        accentColor: 'border-l-amber-500',
       };
     case 'in_review':
       return {
         Icon: Eye,
+        title: 'Under active review',
+        subtitle: 'Your application is being processed',
+        time: '12-24h',
+        gradient: 'from-blue-500/10 to-cyan-500/10',
+        iconBg: 'bg-blue-500/10',
         iconColor: 'text-blue-600 dark:text-blue-400',
-        bgColor: 'bg-blue-50 dark:bg-blue-950/30',
-        borderColor: 'border-blue-200 dark:border-blue-800',
-        title: 'Under Review',
-        subtitle: 'Our team is actively reviewing your application',
-        estimatedTime: '12-24 hours',
+        accentColor: 'border-l-blue-500',
       };
     default:
       return null;
@@ -133,7 +136,7 @@ export function VerificationStatusBanner() {
 
   // Handle banner tap (navigate to verification status screen)
   const handlePress = () => {
-    router.push('/provider-verification/verification-status');
+    router.push('/(provider-verification)/verification-status');
   };
 
   // Don't show banner if loading, dismissed, or status doesn't match
@@ -143,61 +146,73 @@ export function VerificationStatusBanner() {
     return null;
   }
 
-  const { Icon, iconColor, bgColor, borderColor, title, subtitle, estimatedTime } = config;
+  const { Icon, title, subtitle, time, gradient, iconBg, iconColor, accentColor } = config;
 
   return (
     <Animated.View 
-      entering={SlideInDown.duration(400).springify()}
-      className="w-full"
+      entering={FadeInDown.duration(500).springify()}
+      exiting={FadeOut.duration(300)}
+      className="w-full px-4 pb-3"
     >
-      <View className="px-4 pt-2 pb-0">
-        <Pressable
-          onPress={handlePress}
-          className={cn(
-            'rounded-lg border p-3',
-            bgColor,
-            borderColor,
-            'active:opacity-70'
-          )}
-        >
-          <View className="flex-row items-start gap-3">
-            {/* Icon */}
-            <View className="pt-0.5">
-              <Icon 
-                size={20} 
-                className={iconColor}
-              />
-            </View>
+      {/* Modern Card Design - Airbnb/Uber Style */}
+      <Pressable
+        onPress={handlePress}
+        className={cn(
+          'rounded-2xl overflow-hidden',
+          'bg-card border border-border',
+          'active:scale-[0.98]',
+          'shadow-sm'
+        )}
+        style={{
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.05,
+          shadowRadius: 2,
+          elevation: 2,
+        }}
+      >
+        {/* Left Accent Border */}
+        <View className={cn('absolute left-0 top-0 bottom-0 w-1', accentColor)} />
+        
+        {/* Content Container */}
+        <View className="flex-row items-center pl-4 pr-2 py-3.5">
+          {/* Icon with Background Circle */}
+          <View className={cn('w-10 h-10 rounded-full items-center justify-center mr-3', iconBg)}>
+            <Icon size={20} className={iconColor} />
+          </View>
 
-            {/* Content */}
-            <View className="flex-1">
-              <Text className="font-semibold text-foreground text-sm mb-0.5">
-                {title}
-              </Text>
-              <Text className="text-muted-foreground text-xs leading-4">
-                {subtitle}
-              </Text>
-              <Text className="text-muted-foreground text-xs mt-1">
-                Estimated: {estimatedTime}
-              </Text>
-            </View>
+          {/* Text Content */}
+          <View className="flex-1 mr-2">
+            <Text className="font-semibold text-foreground text-sm mb-0.5">
+              {title}
+            </Text>
+            <Text className="text-muted-foreground text-xs leading-tight">
+              {subtitle} • Est. {time}
+            </Text>
+          </View>
+
+          {/* Right Side Actions */}
+          <View className="flex-row items-center gap-2">
+            {/* View Details Arrow */}
+            <Pressable
+              onPress={handlePress}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              className="active:opacity-50"
+            >
+              <ChevronRight size={20} className="text-muted-foreground" />
+            </Pressable>
 
             {/* Dismiss Button */}
             <Pressable
               onPress={handleDismiss}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              className="active:opacity-50"
+              className="active:opacity-50 ml-1"
             >
               <X size={18} className="text-muted-foreground" />
             </Pressable>
           </View>
-
-          {/* Tap to view details hint */}
-          <Text className="text-muted-foreground text-xs text-center mt-2 opacity-70">
-            Tap for details
-          </Text>
-        </Pressable>
-      </View>
+        </View>
+      </Pressable>
     </Animated.View>
   );
 }

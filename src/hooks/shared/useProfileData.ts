@@ -20,6 +20,11 @@ export interface ProfileData {
   phone_number?: string;
   country_code?: string;
   verification_status?: 'in_progress' | 'submitted' | 'pending' | 'in_review' | 'approved' | 'rejected';
+  // Stripe payment fields
+  stripe_account_id?: string;
+  stripe_charges_enabled?: boolean;
+  stripe_details_submitted?: boolean;
+  stripe_account_status?: 'pending' | 'active' | 'inactive';
 }
 
 export interface BookingData {

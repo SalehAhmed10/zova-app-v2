@@ -82,9 +82,9 @@ export default function SubscriptionCheckoutScreen() {
             text: 'Continue',
             onPress: () => {
               if (type === 'CUSTOMER_SOS') {
-                router.replace('/customer/subscriptions');
+                router.replace('/(customer)/subscriptions');
               } else {
-                router.replace('/provider/profile/subscriptions');
+                router.replace('/(provider)/profile/subscriptions');
               }
             }
           }

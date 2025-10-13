@@ -48,8 +48,8 @@ export function LogoutLoadingScreen({ visible }: LogoutLoadingScreenProps) {
     opacity: fadeAnim.value,
   }), []);
 
+  // ✅ CLEAN: Early return without logging (reduces console noise during app init)
   if (!visible) {
-    console.log('[LogoutLoadingScreen] ❌ Not visible, returning null');
     return null;
   }
 

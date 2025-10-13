@@ -30,10 +30,10 @@ export const useProviderAccess = () => {
     queryFn: async () => {
       if (!user?.id) return null;
       
+      // Fetch from profiles (payment info) and provider_onboarding_progress (verification)
       const { data, error } = await supabase
         .from('profiles')
         .select(`
-          verification_status,
           stripe_account_status,
           stripe_charges_enabled,
           stripe_details_submitted
@@ -42,7 +42,18 @@ export const useProviderAccess = () => {
         .single();
 
       if (error) throw error;
-      return data;
+
+      // Get verification status from provider_onboarding_progress
+      const { data: onboardingData } = await supabase
+        .from('provider_onboarding_progress')
+        .select('verification_status')
+        .eq('provider_id', user.id)
+        .single();
+
+      return {
+        ...data,
+        verification_status: onboardingData?.verification_status || 'pending'
+      };
     },
     enabled: !!user?.id,
     staleTime: 30000, // Cache for 30 seconds
@@ -200,7 +211,7 @@ export const useProviderAccess = () => {
       if (isVerificationRejected) {
         return {
           label: 'Resubmit Verification',
-          route: '/provider-verification',
+          route: '/(provider-verification)',
           variant: 'default' as const,
         };
       }
@@ -208,7 +219,7 @@ export const useProviderAccess = () => {
       if (isVerificationPending) {
         return {
           label: 'Check Verification Status',
-          route: '/provider-verification/verification-status',
+          route: '/(provider-verification)/verification-status',
           variant: 'secondary' as const,
         };
       }
@@ -216,7 +227,7 @@ export const useProviderAccess = () => {
       if (needsVerification) {
         return {
           label: 'Complete Verification',
-          route: '/provider-verification',
+          route: '/(provider-verification)',
           variant: 'default' as const,
         };
       }
@@ -224,7 +235,7 @@ export const useProviderAccess = () => {
       if (needsPaymentSetup) {
         return {
           label: 'Setup Payments',
-          route: '/provider/setup-payment',
+          route: '/(provider)/setup-payment',
           variant: 'default' as const,
         };
       }
@@ -232,7 +243,7 @@ export const useProviderAccess = () => {
       if (isPaymentPending) {
         return {
           label: 'Check Payment Status',
-          route: '/provider/setup-payment',
+          route: '/(provider)/setup-payment',
           variant: 'secondary' as const,
         };
       }

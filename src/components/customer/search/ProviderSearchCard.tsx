@@ -54,13 +54,13 @@ export function ProviderSearchCard({
   const heartScale = useSharedValue(isFavorited ? 1 : 0.8);
 
   const handlePress = () => {
-    router.push(`/customer/provider/${provider.provider_id}`);
+    router.push(`/(customer)/provider/${provider.provider_id}` as any);
   };
 
   const handleFavoritePress = () => {
     if (!user?.id) {
       // Navigate to auth screen
-      router.push('/auth');
+      router.push('/(auth)');
       return;
     }
 
@@ -140,8 +140,8 @@ export function ProviderSearchCard({
                   {/* Service Count */}
                   {provider.services_count !== undefined && provider.services_count > 0 && (
                     <Badge variant="secondary" className="flex-row items-center gap-1 px-2 py-0.5">
-                      <Icon as={Briefcase} size={10} className="text-muted-foreground" />
-                      <Text className="text-xs text-muted-foreground">
+                      <Icon as={Briefcase} size={10} className="text-secondary-foreground" />
+                      <Text className="text-xs text-secondary-foreground">
                         {provider.services_count} {provider.services_count === 1 ? 'service' : 'services'}
                       </Text>
                     </Badge>

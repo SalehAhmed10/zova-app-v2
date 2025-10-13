@@ -14,7 +14,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
-import { useAppStore } from '@/stores/auth/app';
+import { useAuthStore } from '@/stores/auth';
 import { getUserProfile } from '@/lib/auth/profile';
 import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
 import type { Session } from '@supabase/supabase-js';
@@ -35,14 +35,11 @@ const authKeys = {
  * - NO side effects: App-level auth listener handles auth changes
  */
 export const useAuthPure = () => {
-  const { 
-    isAuthenticated, 
-    userRole, 
-    isLoggingOut,
-    setAuthenticated
-  } = useAppStore();
+  const session = useAuthStore((state) => state.session);
+  const userRole = useAuthStore((state) => state.userRole);
   
   const queryClient = useQueryClient();
+  const isAuthenticated = !!session;
 
   // ✅ PURE REACT QUERY: Session data (server state)
   const sessionQuery = useQuery({
@@ -86,20 +83,10 @@ export const useAuthPure = () => {
     refetchOnWindowFocus: false,
   });
 
-  // ✅ PURE COMPUTED VALUES: Auth state derived from React Query + Zustand
+  // ✅ PURE COMPUTED VALUES: Auth state derived from React Query + SessionProvider
   const authState = useMemo(() => {
     const user = sessionQuery.data?.user;
     const profile = profileQuery.data;
-    
-    // Skip updates during logout
-    if (isLoggingOut) {
-      console.log('[AuthPure] Skipping auth updates - logout in progress');
-      return {
-        isFullyAuthenticated: false,
-        needsAuth: false,
-        shouldClearAuth: false
-      };
-    }
     
     const hasValidSession = user && user.email_confirmed_at;
     const hasProfile = !!profile;
@@ -111,7 +98,7 @@ export const useAuthPure = () => {
       user,
       profile
     };
-  }, [sessionQuery.data?.user, profileQuery.data, isAuthenticated, isLoggingOut]);
+  }, [sessionQuery.data?.user, profileQuery.data, isAuthenticated]);
 
   // ✅ PURE AUTH ACTIONS: Simple Supabase calls with query invalidation
   const signIn = async (email: string, password: string) => {
@@ -266,15 +253,5 @@ export const useAuthPure = () => {
     // Computed states
     hasProfile: !!authState.profile,
     emailVerified: !!sessionQuery.data?.user?.email_confirmed_at,
-    
-    // Auth state management (for app-level auth handler)
-    setAuthenticated,
-    clearAuthState: () => {
-      setAuthenticated(false);
-      useProviderVerificationStore.getState().resetVerification();
-    },
-    updateAuthState: (role: 'customer' | 'provider') => {
-      setAuthenticated(true, role);
-    },
   };
 };

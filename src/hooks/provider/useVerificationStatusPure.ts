@@ -70,8 +70,9 @@ export const useVerificationStatusPure = (userId: string | undefined) => {
       return { status };
     },
     enabled: !!userId,
-    staleTime: __DEV__ ? 5 * 1000 : 30 * 1000, // 5 seconds in dev, 30 seconds in prod
+    staleTime: 0, // ✅ FIX: Always fetch fresh data to prevent banner cache issues
     gcTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnMount: 'always', // ✅ FIX: Always refetch on component mount
     retry: (failureCount, error) => {
       console.log(`[useVerificationStatusPure] Retry ${failureCount}, error:`, error?.message);
 
@@ -206,10 +207,10 @@ export const VerificationNavigationHandler: React.FC<{
   React.useEffect(() => {
     if (shouldNavigateToProvider) {
       console.log('[VerificationNavigationHandler] Navigating to provider dashboard');
-      router.replace('/provider');
+      router.replace('/(provider)');
     } else if (shouldRedirectToAuth) {
       console.log('[VerificationNavigationHandler] Redirecting to auth');
-      router.replace('/auth');
+      router.replace('/(auth)');
     }
   }, [shouldNavigateToProvider, shouldRedirectToAuth]);
 

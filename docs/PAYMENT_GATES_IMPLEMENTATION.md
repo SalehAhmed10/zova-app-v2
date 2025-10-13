@@ -262,7 +262,7 @@ export default function EarningsScreen() {
           <View>
             <Button 
               variant="outline"
-              onPress={() => router.push('/provider/setup-payment')}
+              router.push('/(provider)/setup-payment')}
             >
               Setup Payment to Withdraw
             </Button>

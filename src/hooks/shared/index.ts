@@ -2,15 +2,10 @@
 export { useAuthPure as useAuthOptimized } from './useAuthPure';
 export { useProfileSync } from './useProfileSync';
 
-// ✅ OPTIMIZED: Navigation hooks without useEffect
-export { useAppInitialization } from './useAppInitialization';
-export { useAuthNavigation } from './useAuthNavigation';
-
 // ✅ SYSTEM INTEGRATION: Deep link handler (encapsulated useEffect for system events)
 export { useDeepLinkHandler } from './useDeepLinkHandler';
 
-// ✅ SYSTEM INTEGRATION: Auth listener (encapsulated useEffect for Supabase auth events)
-export { useAuthListener } from './useAuthListener';
+// ✅ SYSTEM INTEGRATION: Pending registration handler
 export { usePendingRegistration } from './usePendingRegistration';
 
 // ✅ UTILITY: Debounce hook for search optimization

@@ -90,6 +90,9 @@ export const useProviderSearch = (filters: SearchFilters = {}) => {
           business_name,
           avatar_url,
           bio,
+          provider_onboarding_progress!inner (
+            verification_status
+          ),
           provider_services (
             id,
             title,
@@ -109,7 +112,7 @@ export const useProviderSearch = (filters: SearchFilters = {}) => {
         `)
         .eq('role', 'provider')
         .eq('is_business_visible', true)
-        .eq('verification_status', 'approved')  // Fixed: use verification_status instead of is_verified
+        .eq('provider_onboarding_progress.verification_status', 'approved')
         .eq('availability_status', 'available')  // Added: ensure provider is available
 
       // Apply search query filter - simplified approach
@@ -165,6 +168,9 @@ export const useProviderSearch = (filters: SearchFilters = {}) => {
             business_name,
             avatar_url,
             bio,
+            provider_onboarding_progress!inner (
+              verification_status
+            ),
             provider_services!inner (
               id,
               title,
@@ -184,7 +190,7 @@ export const useProviderSearch = (filters: SearchFilters = {}) => {
           `)
           .eq('role', 'provider')
           .eq('is_business_visible', true)
-          .eq('verification_status', 'approved')  // Fixed: use verification_status instead of is_verified
+          .eq('provider_onboarding_progress.verification_status', 'approved')
           .eq('availability_status', 'available')  // Added: ensure provider is available
           .ilike('provider_services.title', `%${query}%`)
           .limit(maxResults);

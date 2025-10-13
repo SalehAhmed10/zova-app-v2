@@ -23,56 +23,56 @@ export const VERIFICATION_STEPS = {
   1: {
     id: 1,
     title: 'Document Verification',
-    route: '/provider-verification',
+    route: '/(provider-verification)',
     required: true,
     description: 'Upload government-issued ID document'
   },
   2: {
     id: 2,
     title: 'Identity Selfie',
-    route: '/provider-verification/selfie',
+    route: '/(provider-verification)/selfie',
     required: true,
     description: 'Take a selfie for identity verification'
   },
   3: {
     id: 3,
     title: 'Business Information',
-    route: '/provider-verification/business-info',
+    route: '/(provider-verification)/business-info',
     required: true,
     description: 'Provide business contact details'
   },
   4: {
     id: 4,
     title: 'Service Category',
-    route: '/provider-verification/category',
+    route: '/(provider-verification)/category',
     required: true,
     description: 'Select your service category'
   },
   5: {
     id: 5,
     title: 'Service Details',
-    route: '/provider-verification/services',
+    route: '/(provider-verification)/services',
     required: true,
     description: 'Define your specific services'
   },
   6: {
     id: 6,
     title: 'Portfolio',
-    route: '/provider-verification/portfolio',
+    route: '/(provider-verification)/portfolio',
     required: true,
     description: 'Showcase your work examples'
   },
   7: {
     id: 7,
     title: 'Business Bio',
-    route: '/provider-verification/bio',
+    route: '/(provider-verification)/bio',
     required: true,
     description: 'Describe your business'
   },
   8: {
     id: 8,
     title: 'Terms & Policies',
-    route: '/provider-verification/terms',
+    route: '/(provider-verification)/terms',
     required: true,
     description: 'Set booking terms and policies'
   }
@@ -124,7 +124,7 @@ export class VerificationFlowManager {
    * Get route for step
    */
   static getRouteForStep(stepId: VerificationStepId): string {
-    return VERIFICATION_STEPS[stepId]?.route || '/provider-verification';
+    return VERIFICATION_STEPS[stepId]?.route || '/(provider-verification)';
   }
 
   /**
@@ -366,12 +366,12 @@ export class VerificationFlowManager {
       // Verification complete
       // Temporarily disabled verbose logging to reduce console noise during form input
       // console.log('[VerificationFlowManager] Verification complete, navigating to complete screen');
-      router.replace('/provider-verification/complete');
+      router.replace('/(provider-verification)/complete');
       return {
         success: true,
         fromStep: currentStep,
         toStep: -1,
-        route: '/provider-verification/complete',
+        route: '/(provider-verification)/complete',
         reason: 'verification-complete'
       };
     }

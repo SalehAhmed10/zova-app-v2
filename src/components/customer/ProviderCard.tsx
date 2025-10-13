@@ -47,7 +47,7 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({
       type: 'profile',
       targetId: provider.id,
     });
-    router.push(`/customer/provider/${provider.id}`);
+    router.push(`/(customer)/provider/${provider.id}` as any);
   };
 
   const handleToggleFavorite = (e: any) => {

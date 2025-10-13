@@ -13,8 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useAppStore } from '@/stores/auth/app';
-import { useAuthPure } from '@/hooks/shared/useAuthPure';
+import { useSession } from '@/app/ctx';
 import { cn } from '@/lib/utils';
 
 interface LogoutButtonProps {
@@ -38,8 +37,7 @@ export function LogoutButton({
   showIcon = true,
   fullWidth = false
 }: LogoutButtonProps) {
-  const { logout, setLoggingOut } = useAppStore();
-  const { signOut } = useAuthPure();
+  const { signOut } = useSession();
   const [isLoading, setIsLoading] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
 
@@ -48,36 +46,17 @@ export function LogoutButton({
       setIsLoading(true);
       setShowDialog(false);
       
-      // ✅ CLEAN: Set logout state - triggers app-level loading screen
-      setLoggingOut(true);
-      console.log('[LogoutButton] Starting clean logout process');
+      console.log('[LogoutButton] Starting logout process');
       
-      // ✅ ROBUST: Immediate state clearing - no delays needed
-      logout();
-      console.log('[LogoutButton] App state cleared');
+      // ✅ CLEAN: Sign out with SessionProvider
+      await signOut();
+      console.log('[LogoutButton] Sign out completed');
       
-      // ✅ CLEAN: Supabase sign out with proper error handling
-      if (signOut) {
-        try {
-          await signOut();
-          console.log('[LogoutButton] Supabase sign out completed');
-        } catch (authError) {
-          // Non-blocking error - logout can proceed without Supabase
-          console.warn('[LogoutButton] Supabase sign out failed (non-critical):', authError);
-        }
-      }
-      
-      // ✅ CLEAN: Single timeout for UX animation duration
-      setTimeout(() => {
-        setLoggingOut(false);
-        console.log('[LogoutButton] Logout animation completed');
-      }, 1500); // Reduced to 1.5s for better UX
+      // ✅ Navigate to auth screen (route group syntax)
+      router.replace('/(auth)');
       
     } catch (error) {
       console.error('[LogoutButton] Logout error:', error);
-      // ✅ ROBUST: Always reset state on error
-      logout();
-      setLoggingOut(false);
     } finally {
       setIsLoading(false);
     }

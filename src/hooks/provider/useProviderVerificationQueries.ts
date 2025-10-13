@@ -211,7 +211,7 @@ export const useLoadVerificationData = (providerId?: string) => {
     updateBusinessData,
     updateBioData,
     updateTermsData,
-    completeStepSimple,
+    markStepCompleted, // ✅ USE markStepCompleted instead of completeStepSimple
   } = useProviderVerificationStore();
 
   return useQuery({
@@ -257,7 +257,7 @@ export const useLoadVerificationData = (providerId?: string) => {
             city: profile.city || '',
             postalCode: profile.postal_code || '',
           });
-          completeStepSimple(3, true);
+          markStepCompleted(3, true); // ✅ Mark completed WITHOUT advancing step
         }
 
         // Terms data (step 8)
@@ -268,7 +268,7 @@ export const useLoadVerificationData = (providerId?: string) => {
             cancellationPolicy: profile.cancellation_policy || '',
             termsAccepted: profile.terms_accepted || false,
           });
-          completeStepSimple(8, true);
+          markStepCompleted(8, true); // ✅ Mark completed WITHOUT advancing step
         }
 
         // Bio data (step 7) - if available
@@ -277,7 +277,7 @@ export const useLoadVerificationData = (providerId?: string) => {
             businessDescription: profile.business_description || '',
             yearsOfExperience: profile.years_of_experience || 0,
           });
-          completeStepSimple(7, true);
+          markStepCompleted(7, true); // ✅ Mark completed WITHOUT advancing step
         }
       }
 
@@ -287,7 +287,7 @@ export const useLoadVerificationData = (providerId?: string) => {
           documentUrl: profile.document_url,
           documentType: 'id_card', // Default to id_card
         });
-        completeStepSimple(1, true);
+        markStepCompleted(1, true); // ✅ Mark completed WITHOUT advancing step
       }
 
       // Load selfie data if available
@@ -295,7 +295,7 @@ export const useLoadVerificationData = (providerId?: string) => {
         updateSelfieData({
           selfieUrl: profile.selfie_verification_url,
         });
-        completeStepSimple(2, true);
+        markStepCompleted(2, true); // ✅ Mark completed WITHOUT advancing step
       }
 
       console.log('[LoadVerificationData] Verification data loaded and populated in store');

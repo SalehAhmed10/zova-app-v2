@@ -8,11 +8,9 @@ import { View, Pressable, Text, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { AsyncStorageDebugger } from '@/lib/storage/storage-debugger';
 import clearAllAppData from '@/utils/clear-app-data';
-import { useAppStore } from '@/stores/auth/app';
 import { useQueryClient } from '@tanstack/react-query';
 
 export function StorageDebugPanel() {
-  const { reset } = useAppStore();
   const queryClient = useQueryClient();
 
   const handlePrintAll = async () => {
@@ -48,16 +46,11 @@ export function StorageDebugPanel() {
           onPress: async () => {
             console.log('🧹 Clearing all app data...');
             await clearAllAppData(queryClient);
-            reset(); // Reset app store state
             
             // Force navigation to onboarding after clearing data
-            // This ensures proper navigation even if React Query doesn't auto-trigger
             setTimeout(() => {
-              const currentStore = useAppStore.getState();
-              if (!currentStore.isOnboardingComplete && !currentStore.isAuthenticated) {
-                console.log('[StorageDebugPanel] Force navigating to onboarding after data clear...');
-                router.replace('/onboarding' as any);
-              }
+              console.log('[StorageDebugPanel] Navigating to onboarding after data clear...');
+              router.replace('/(public)/onboarding' as any);
             }, 200);
             
             console.log('✅ All data cleared. Navigating to onboarding.');

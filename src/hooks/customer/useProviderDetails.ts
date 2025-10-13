@@ -29,11 +29,18 @@ export function useProviderDetails(providerId: string) {
     queryFn: async (): Promise<ProviderDetails | null> => {
       if (!providerId) return null;
 
+      console.log('[ProviderDetails] Fetching provider:', providerId);
+
       // Fetch provider profile with services
+      // Note: Using LEFT JOIN (default) instead of !inner to allow viewing providers
+      // even if they don't have onboarding progress yet
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select(`
           *,
+          provider_onboarding_progress (
+            verification_status
+          ),
           provider_services (
             id,
             title,
@@ -54,13 +61,24 @@ export function useProviderDetails(providerId: string) {
         `)
         .eq('id', providerId)
         .eq('role', 'provider')
-        .eq('verification_status', 'approved')
         .single();
 
       if (profileError) {
-        console.error('Error fetching provider details:', profileError);
+        console.error('[ProviderDetails] Error fetching provider:', {
+          providerId,
+          error: profileError,
+          code: profileError.code,
+          message: profileError.message
+        });
         throw profileError;
       }
+
+      console.log('[ProviderDetails] Provider found:', {
+        id: profile?.id,
+        name: `${profile?.first_name} ${profile?.last_name}`,
+        business: profile?.business_name,
+        verification: (profile as any).provider_onboarding_progress?.[0]?.verification_status
+      });
 
       // Fetch average rating and review count
       const { data: reviews, error: reviewsError } = await supabase

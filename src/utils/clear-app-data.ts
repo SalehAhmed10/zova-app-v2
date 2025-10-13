@@ -2,7 +2,6 @@
 // Used for debugging and testing - clears all app data
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAppStore } from '@/stores/auth/app';
 import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
 import { supabase } from '@/lib/supabase';
 import { QueryClient } from '@tanstack/react-query';
@@ -24,20 +23,16 @@ const clearAllAppData = async (queryClient?: QueryClient): Promise<void> => {
     console.log('[ClearAppData] Cleared AsyncStorage');
     
     // 3. Reset Zustand stores to initial state
-    useAppStore.getState().reset?.();
     useProviderVerificationStore.getState().resetVerification();
     console.log('[ClearAppData] Reset Zustand stores');
     
-    // 4. Wait a brief moment for Zustand state propagation
+    // 4. Wait a brief moment for state propagation
     await new Promise(resolve => setTimeout(resolve, 100));
     
-    // 5. Clear React Query cache and invalidate initialization
-    // This ensures app re-initializes and checks the new state
+    // 5. Clear React Query cache
     if (queryClient) {
       await queryClient.clear();
-      await queryClient.invalidateQueries({ queryKey: ['app-initialization'] });
-      await queryClient.invalidateQueries({ queryKey: ['navigation-decision'] });
-      // Force complete refresh by removing all cached queries
+      console.log('[ClearAppData] Cleared React Query cache');
       await queryClient.resetQueries();
       console.log('[ClearAppData] Cleared React Query cache and invalidated initialization');
     } else {

@@ -1,7 +1,7 @@
 import "~/global.css";
 
 import { Theme, ThemeProvider } from '@react-navigation/native';
-import { Slot, usePathname } from 'expo-router';
+import { Slot, Stack, usePathname } from 'expo-router';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as React from 'react';
@@ -77,18 +77,19 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { colorScheme } from 'nativewind';
-import { useAppStore, initializeApp } from '@/stores/auth/app';
 import { useThemeHydration } from '@/stores/ui/theme';
-import { useAuthListener } from '@/hooks/shared/useAuthListener';
 import { cssInterop } from 'nativewind';
 import * as Icons from '@expo/vector-icons';
 import { Text } from '@/components/ui/text';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { StripeProvider } from '@/app-providers/stripe-provider';
-import { useAuthStateNavigation, useAuthNavigation } from '@/hooks/shared/useAuthNavigation';
 
 import { ReviewModal } from '@/components/customer/review-modal';
 import { useReviewPrompt } from '@/hooks/customer/useReviewPrompt';
+
+// ✅ NEW: Import Zustand store and hydration hook (replacing SessionProvider)
+import { useAuthStore, useAuthHydration } from '@/stores/auth';
+import { SplashController } from './splash';
 
 // Apply cssInterop to all Expo Vector Icons globally
 Object.keys(Icons).forEach((iconKey) => {
@@ -131,11 +132,17 @@ const queryClient = new QueryClient({
 export default function RootLayout() {
   const { colorScheme: scheme, isDarkColorScheme } = useColorScheme();
   const isThemeHydrated = useThemeHydration();
+  const isAuthHydrated = useAuthHydration();
+  const initialize = useAuthStore((state) => state.initialize);
+  const isInitialized = useAuthStore((state) => state.isInitialized);
 
-  // ✅ Initialize app store on app start
+  // Initialize auth store once
   React.useEffect(() => {
-    initializeApp();
-  }, []);
+    if (isAuthHydrated && !isInitialized) {
+      console.log('[RootLayout] 🚀 Initializing auth store...');
+      initialize();
+    }
+  }, [isAuthHydrated, isInitialized, initialize]);
 
   // ✅ Set color scheme immediately when hydrated - no useEffect needed
   if (isThemeHydrated && colorScheme.get() !== scheme) {
@@ -143,10 +150,14 @@ export default function RootLayout() {
     colorScheme.set(scheme);
   }
 
-  // Wait for theme hydration before rendering
-  if (!isThemeHydrated) {
-    console.log('[RootLayout] Waiting for theme hydration...');
-    return null; // or a loading screen
+  // Wait for theme and auth hydration before rendering
+  if (!isThemeHydrated || !isAuthHydrated || !isInitialized) {
+    console.log('[RootLayout] Waiting for hydration...', { 
+      isThemeHydrated, 
+      isAuthHydrated,
+      isInitialized 
+    });
+    return null;
   }
 
   return (
@@ -155,6 +166,9 @@ export default function RootLayout() {
         <SafeAreaProvider>
           <StripeProvider>
             <QueryClientProvider client={queryClient}>
+              {/* ✅ NEW: SplashController manages splash screen */}
+              <SplashController />
+              
               <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
                 <StatusBar style={isDarkColorScheme ? 'light' : 'dark'} />
                 <BottomSheetModalProvider>
@@ -170,71 +184,22 @@ export default function RootLayout() {
   );
 }
 
+/**
+ * RootNavigator - Clean Stack-based routing with Zustand
+ * 
+ * Uses Expo Router's Slot for automatic routing based on folder structure.
+ * Protected routes are handled by route group _layout.tsx files.
+ */
 function RootNavigator() {
-  const { userRole, isAuthenticated, isLoggingOut, isOnboardingComplete, isLoading } = useAppStore();
+  // ✅ Call hooks for app-level features
   const { showPrompt, bookingId, providerName, serviceName, dismissPrompt, startReview, completeReview } = useReviewPrompt();
   const [showReviewModal, setShowReviewModal] = React.useState(false);
-  const pathname = usePathname();
-
-  // ✅ SYSTEM INTEGRATION: Set up Supabase auth listener
-  useAuthListener();
-
-  // ✅ Handle authentication redirects with React Query - no useEffect!
-  useAuthStateNavigation();
-
-  // ✅ Handle post-login navigation with React Query
-  const { navigationDecision, navigateToDestination, isReady } = useAuthNavigation();
-
-  // ✅ PURE COMPUTATION: Check if should redirect to onboarding (no useEffect needed!)
-  const shouldRedirectToOnboarding = React.useMemo(() => {
-    // Only redirect if app is initialized and user needs onboarding
-    if (isLoading) return false;
-    return !isAuthenticated && !isOnboardingComplete && !isLoggingOut;
-  }, [isAuthenticated, isOnboardingComplete, isLoggingOut, isLoading]);
-
-  // ✅ SYSTEM INTEGRATION: Handle post-login navigation (router requires useEffect for timing)
-  // This is a legitimate exception - router.replace() needs to be called outside render cycle
-  React.useEffect(() => {
-    if (isAuthenticated && isReady && navigationDecision?.shouldNavigate && !isLoggingOut && !isLoading) {
-      // ✅ Don't interfere with manual navigation within verification flow
-      const currentPath = pathname;
-      const isOnVerificationFlow = currentPath.startsWith('/provider-verification');
-      const isNavigatingToVerificationFlow = navigationDecision.destination.startsWith('/provider-verification');
-      
-      if (isOnVerificationFlow && isNavigatingToVerificationFlow) {
-        // User is already in verification flow, allow manual navigation
-        return;
-      }
-      
-      console.log(`[RootNavigator] User authenticated, navigating to: ${navigationDecision.destination} (${navigationDecision.reason})`);
-      // Use setTimeout to prevent navigation during render
-      setTimeout(() => {
-        navigateToDestination();
-      }, 100);
-    }
-  }, [isAuthenticated, isReady, navigationDecision, navigateToDestination, isLoggingOut, isLoading, pathname]);
-
-  // ✅ Wait for app initialization before rendering anything
-  if (isLoading) {
-    console.log('[RootNavigator] Waiting for app initialization...');
-    return null;
-  }
-
-  // ✅ DECLARATIVE REDIRECT: Onboarding redirect (pure computation, no useEffect!)
-  if (shouldRedirectToOnboarding) {
-    console.log('[RootNavigator] New user onboarding not complete, redirecting to onboarding');
-    router.replace('/onboarding');
-    return null;
-  }
 
   return (
     <>
       <Slot />
-      {/* ✅ App-level logout loading screen - persists during layout changes */}
-      <LogoutLoadingScreen visible={isLoggingOut} />
-      {/* ✅ Review prompt - shows for authenticated customers with reviewable bookings */}
- 
-      {/* ✅ Review modal - opens when user taps "Leave Review" */}
+
+      {/* ✅ App-level modals and overlays */}
       <ReviewModal
         visible={showReviewModal}
         onClose={() => setShowReviewModal(false)}

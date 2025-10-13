@@ -199,7 +199,7 @@ return (
         <View><CheckCircle /> Fast payouts to your bank</View>
         <View><CheckCircle /> Accept bookings from customers</View>
         
-        <Button onPress={() => router.push('/provider/setup-payment')}>
+        <Button router.push('/(provider)/setup-payment')}>
           Setup Payments Now
         </Button>
       </Card>
@@ -242,7 +242,7 @@ if (isDismissed || !canViewDashboard || isFullyActive || !needsPaymentSetup) {
 
 return (
   <Animated.View entering={SlideInDown.duration(400).springify()}>
-    <Pressable onPress={() => router.push('/provider/setup-payment')}>
+    <Pressable router.push('/(provider)/setup-payment')}>
       <CreditCard icon /> <Text>Setup Payments to Accept Bookings</Text>
     </Pressable>
     <Pressable onPress={handleDismiss}><X icon /></Pressable>

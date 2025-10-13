@@ -120,12 +120,12 @@ function ServiceSearchCard({ service }: { service: ServiceSearchResult }) {
   const heartScale = useSharedValue(isFavorited ? 1 : 0.8);
 
   const handlePress = () => {
-    router.push(`/customer/service/${service.service_id}`);
+    router.push(`/(customer)/service/${service.service_id}` as any);
   };
 
   const handleProviderPress = (e: any) => {
     e.stopPropagation();
-    router.push(`/customer/provider/${service.provider_id}`);
+    router.push(`/(customer)/provider/${service.provider_id}` as any);
   };
 
   const handleFavoritePress = (e: any) => {
@@ -133,7 +133,7 @@ function ServiceSearchCard({ service }: { service: ServiceSearchResult }) {
     
     if (!user?.id) {
       // Navigate to auth screen
-      router.push('/auth');
+      router.push('/(auth)');
       return;
     }
 

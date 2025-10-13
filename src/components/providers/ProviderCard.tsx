@@ -18,7 +18,7 @@ export const ProviderCard = React.memo(({
   compact?: boolean;
 }) => {
   const handlePress = useStableCallback(() => {
-    router.push(`/customer/provider/${provider.id}`);
+    router.push(`/(customer)/provider/${provider.id}` as any);
   }, [provider.id]);
 
   return (

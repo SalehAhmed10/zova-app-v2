@@ -121,7 +121,8 @@ export const PaymentSetupStatusCard: React.FC<PaymentSetupStatusProps> = ({ user
           onPress={async () => {
             // Track payment setup started from dashboard
             await PaymentAnalyticsService.trackPaymentSetupStarted(userId, 'dashboard');
-            router.push('/provider-verification/payment');
+            // Navigate to provider payment setup screen
+            router.push('/(provider)/setup-payment');
           }}
           className="w-full"
         >

@@ -75,7 +75,7 @@ import { Ionicons } from '@expo/vector-icons';
 onPress={() => router.push('/provider-verification/payment')}
 
 // ✅ NEW
-onPress={() => router.push('/provider/setup-payment')}
+router.push('/(provider)/setup-payment')}
 ```
 
 #### 3. payment.tsx - DELETE FILE ❌

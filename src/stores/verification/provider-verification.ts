@@ -186,6 +186,7 @@ interface ProviderVerificationActions {
   
   // Legacy Step completion (keeping for backward compatibility)
   completeStep: (stepNumber: number, data?: any) => void;
+  markStepCompleted: (stepNumber: number, data?: any) => void; // ✅ NEW: For loading existing data
   completeStepSimple: (stepNumber: number, data?: any) => void;
   markStepIncomplete: (stepNumber: number) => void;
   
@@ -729,7 +730,46 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
         }
       },
       
-      // ✅ SIMPLIFIED: Pure sequential step completion
+      // ✅ LOAD EXISTING DATA: Mark steps as complete WITHOUT advancing current step
+      // Used when loading data from database on app start
+      markStepCompleted: (stepNumber, data) => {
+        const { steps } = get();
+        console.log(`[Store] markStepCompleted called for step ${stepNumber} (no navigation)`);
+        
+        // Mark step as completed WITHOUT advancing current step
+        const updatedSteps = {
+          ...steps,
+          [stepNumber]: {
+            ...steps[stepNumber],
+            isCompleted: true,
+            data,
+          },
+        };
+        
+        set({ steps: updatedSteps });
+        
+        // ✅ UPDATE STEP DATA: Map step data to appropriate fields
+        if (stepNumber === 1 && data) {
+          get().updateDocumentData(data);
+        } else if (stepNumber === 2 && data) {
+          get().updateSelfieData(data);
+        } else if (stepNumber === 3 && data) {
+          get().updateBusinessData(data);
+        } else if (stepNumber === 4 && data) {
+          get().updateCategoryData(data);
+        } else if (stepNumber === 5 && data) {
+          get().updateServicesData(data);
+        } else if (stepNumber === 6 && data) {
+          get().updatePortfolioData(data);
+        } else if (stepNumber === 7 && data) {
+          get().updateBioData(data);
+        } else if (stepNumber === 8 && data) {
+          get().updateTermsData(data);
+        }
+      },
+      
+      // ✅ SIMPLIFIED: Pure sequential step completion (ADVANCES current step)
+      // Used when user completes a step and should navigate forward
       completeStepSimple: (stepNumber, data) => {
         const { steps, currentStep } = get();
         console.log(`[Store] completeStepSimple called for step ${stepNumber}`, data);

@@ -1,7 +1,8 @@
 export * from './onboarding';
 export * from './theme';
 export * from './profileModal';
-export * from './servicesModal';
+
 export * from './calendar';
 export { useCategorySearchStore, useCategorySearchResults } from './useCategorySearchStore';
+export { useServiceSelectionStore } from './useServiceSelectionStore';
 export { useImageHandlingStore } from './useImageHandlingStore';

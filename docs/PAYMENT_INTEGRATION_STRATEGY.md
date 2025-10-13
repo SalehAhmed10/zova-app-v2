@@ -389,7 +389,7 @@ export const PaymentSetupBanner = () => {
           </TouchableOpacity>
         </View>
         <Button 
-          onPress={() => router.push('/provider/setup-payment')}
+          router.push('/(provider)/setup-payment')}
           className="mt-3 bg-yellow-600 dark:bg-yellow-700"
         >
           <Text className="text-white font-semibold">Setup Payments (5 min)</Text>

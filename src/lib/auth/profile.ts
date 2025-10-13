@@ -8,6 +8,14 @@ export interface UserProfile {
   last_name: string;
   avatar_url?: string;
   created_at: string;
+  phone_number?: string;
+  bio?: string;
+  address?: string;
+  city?: string;
+  postal_code?: string;
+  country?: string;
+  country_code?: string;
+  coordinates?: any;
 }
 
 /**
@@ -21,7 +29,7 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
     
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, email, role, first_name, last_name, avatar_url, created_at')
+      .select('*')
       .eq('id', userId)
       .maybeSingle();
 

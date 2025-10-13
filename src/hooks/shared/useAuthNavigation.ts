@@ -7,7 +7,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useCallback } from 'react';
-import { useAppStore } from '@/stores/auth/app';
+import { useSession } from '@/app/ctx';
 import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
 import { useProfileStore, useProfileHydration } from '@/stores/verification/useProfileStore';
 import { supabase } from '@/lib/supabase';
@@ -28,19 +28,19 @@ interface NavigationDecision {
  * ✅ Automatically navigates on auth state changes (login/logout)
  */
 export const useAuthStateNavigation = () => {
-  const { isAuthenticated, isLoggingOut, isOnboardingComplete } = useAppStore();
+  const { session, isOnboardingComplete } = useSession();
+  const isAuthenticated = !!session;
 
   // ✅ React Query monitors auth state and handles navigation automatically
   const { data: shouldNavigateToAuth } = useQuery({
-    queryKey: ['auth-state-navigation', isAuthenticated, isLoggingOut, isOnboardingComplete],
+    queryKey: ['auth-state-navigation', isAuthenticated, isOnboardingComplete],
     queryFn: async () => {
       // Only navigate to auth if:
       // 1. Not authenticated
-      // 2. Not currently logging out
-      // 3. Onboarding is complete (don't navigate to auth if onboarding needed)
-      if (!isAuthenticated && !isLoggingOut && isOnboardingComplete) {
+      // 2. Onboarding is complete (don't navigate to auth if onboarding needed)
+      if (!isAuthenticated && isOnboardingComplete) {
         console.log('[AuthStateNavigation] User not authenticated and onboarding complete, navigating to auth');
-        router.replace('/auth');
+        router.replace('/(auth)');
         return true;
       }
       return false;
@@ -60,8 +60,8 @@ export const useAuthStateNavigation = () => {
  * ✅ No useEffect - pure React Query logic
  */
 export const useAuthNavigation = () => {
-  const appStore = useAppStore();
-  const { isOnboardingComplete, isAuthenticated, userRole } = appStore;
+  const { isOnboardingComplete, session, userRole } = useSession();
+  const isAuthenticated = !!session;
   
   // ✅ Get current user from auth hook
   const { user } = useAuthOptimized();
@@ -103,7 +103,7 @@ export const useAuthNavigation = () => {
       // Not completed onboarding
       if (!isOnboardingComplete) {
         return {
-          destination: '/onboarding',
+          destination: '/(public)/onboarding',
           shouldNavigate: true,
           reason: 'onboarding-incomplete'
         };
@@ -112,7 +112,7 @@ export const useAuthNavigation = () => {
       // Not authenticated
       if (!isAuthenticated) {
         return {
-          destination: '/auth',
+          destination: '/(auth)',
           shouldNavigate: true,
           reason: 'unauthenticated'
         };
@@ -121,7 +121,7 @@ export const useAuthNavigation = () => {
       // Customer flow
       if (userRole === 'customer') {
         return {
-          destination: '/customer',
+          destination: '/(customer)',
           shouldNavigate: true,
           reason: 'customer-authenticated'
         };
@@ -151,7 +151,7 @@ export const useAuthNavigation = () => {
           if (verificationStatus === 'approved') {
             console.log('[AuthNavigation] Provider verification approved - granting dashboard access');
             return {
-              destination: '/provider',
+              destination: '/(provider)',
               shouldNavigate: true,
               reason: 'provider-approved'
             };
@@ -159,7 +159,7 @@ export const useAuthNavigation = () => {
             // ✅ in_review means admin is actively reviewing - always show status screen
             console.log('[AuthNavigation] Provider verification in_review - redirecting to status screen');
             return {
-              destination: '/provider-verification/verification-status',
+              destination: '/(provider-verification)/verification-status',
               shouldNavigate: true,
               reason: 'provider-in_review-waiting-approval'
             };
@@ -191,7 +191,7 @@ export const useAuthNavigation = () => {
             // 'submitted' = new clear status, 'pending' = legacy support
             console.log('[AuthNavigation] Verification submitted/pending - awaiting admin review');
             return {
-              destination: '/provider-verification/verification-status',
+              destination: '/(provider-verification)/verification-status',
               shouldNavigate: true,
               reason: 'provider-submitted-waiting-approval'
             };
@@ -199,7 +199,7 @@ export const useAuthNavigation = () => {
             console.log('[AuthNavigation] Provider verification rejected - redirecting to status screen with restart option');
             // Show rejection screen with restart option instead of redirecting to first step
             return {
-              destination: '/provider-verification/verification-status',
+              destination: '/(provider-verification)/verification-status',
               shouldNavigate: true,
               reason: 'provider-rejected-show-feedback'
             };
@@ -212,7 +212,7 @@ export const useAuthNavigation = () => {
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) {
             return {
-              destination: '/auth',
+              destination: '/(auth)',
               shouldNavigate: true,
               reason: 'no-user-session'
             };
@@ -226,14 +226,14 @@ export const useAuthNavigation = () => {
 
           if (profile?.verification_status === 'approved') {
             return {
-              destination: '/provider',
+              destination: '/(provider)',
               shouldNavigate: true,
               reason: 'provider-verified'
             };
           } else if (profile?.verification_status === 'in_review') {
             // ✅ in_review means admin is actively reviewing - always show status screen
             return {
-              destination: '/provider-verification/verification-status',
+              destination: '/(provider-verification)/verification-status',
               shouldNavigate: true,
               reason: `provider-${profile.verification_status}-waiting-approval`
             };
@@ -264,7 +264,7 @@ export const useAuthNavigation = () => {
             // 'submitted' = new clear status, 'pending' = legacy support
             console.log('[AuthNavigation] Verification submitted/pending - awaiting admin review');
             return {
-              destination: '/provider-verification/verification-status',
+              destination: '/(provider-verification)/verification-status',
               shouldNavigate: true,
               reason: 'provider-submitted-waiting-approval'
             };
@@ -296,7 +296,7 @@ export const useAuthNavigation = () => {
         } catch (error) {
           console.error('[AuthNavigation] Error checking provider verification:', error);
           return {
-            destination: '/provider-verification',
+            destination: '/(provider-verification)',
             shouldNavigate: true,
             reason: 'provider-verification-error-start-fresh'
           };
@@ -305,7 +305,7 @@ export const useAuthNavigation = () => {
 
       // Fallback to auth
       return {
-        destination: '/auth',
+        destination: '/(auth)',
         shouldNavigate: true,
         reason: 'no-role-fallback'
       };
