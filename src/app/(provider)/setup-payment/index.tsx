@@ -217,28 +217,64 @@ export default function PaymentSetupScreen() {
       console.log('[PaymentSetup] Opening Stripe Connect URL...');
       
       try {
-        // Open Stripe Connect OAuth flow
-        const result = await WebBrowser.openAuthSessionAsync(
+        // ✅ FIX: Use openBrowserAsync instead of openAuthSessionAsync
+        // openAuthSessionAsync uses limited WebView that may not support:
+        // - Stripe's "Use test phone number" button
+        // - Phone pre-fill functionality
+        // - Full JavaScript features
+        // 
+        // openBrowserAsync opens full in-app browser with all features
+        const result = await WebBrowser.openBrowserAsync(
           data.url,
-          'zova://provider/setup-payment' // Proper deep link from app.json scheme
+          {
+            // Open in full browser for complete Stripe experience
+            presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+            // Enable toolbar for better UX
+            toolbarColor: colors.background,
+            // Control bar color
+            controlsColor: colors.primary,
+            // Enable bar collapsing on scroll
+            enableBarCollapsing: false,
+            // Show title
+            showTitle: true,
+            // Dismiss button style
+            dismissButtonStyle: 'close',
+          }
         );
 
         console.log('[PaymentSetup] WebBrowser result:', result);
 
-        if (result.type === 'success') {
-          console.log('[PaymentSetup] Stripe setup completed, checking status...');
+        // Note: openBrowserAsync returns when browser is dismissed
+        // Check if setup was completed
+        if (result.type === 'dismiss' || result.type === 'cancel') {
+          console.log('[PaymentSetup] Browser dismissed, checking if setup completed...');
           
-          // Wait a moment for Stripe to process
+          // Wait a moment for Stripe webhook to process
           await new Promise(resolve => setTimeout(resolve, 2000));
           
-          // Check status with success notification enabled
-          await checkStripeStatusMutation.mutateAsync({ showSuccessOnChange: true });
-        } else if (result.type === 'cancel') {
-          console.log('[PaymentSetup] User cancelled Stripe setup');
-          Alert.alert(
-            'Setup Cancelled',
-            'You can complete payment setup anytime from your dashboard.'
-          );
+          // Check status silently (no success notification yet)
+          const statusResult = await checkStripeStatusMutation.mutateAsync({ showSuccessOnChange: false });
+          
+          if (statusResult?.accountSetupComplete) {
+            // Setup was completed!
+            Alert.alert(
+              '✅ Success!',
+              'Your payment account is now active. You can start accepting bookings!',
+              [
+                {
+                  text: 'View Dashboard',
+                  onPress: () => router.replace('/(tabs)/provider' as any)
+                }
+              ]
+            );
+          } else {
+            // Setup not complete, show helpful message
+            Alert.alert(
+              'Setup In Progress',
+              'Complete your payment setup to start accepting bookings.',
+              [{ text: 'OK' }]
+            );
+          }
         }
       } catch (error) {
         console.error('[PaymentSetup] Error opening Stripe URL:', error);

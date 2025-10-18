@@ -125,11 +125,39 @@ export const createOrUpdateUserProfile = async (
         .single();
 
       if (error) {
-        console.error('[Profile] Error updating user profile:', error);
+        console.error('[Profile] Error creating user profile:', error);
         return null;
       }
 
-      console.log('[Profile] Profile updated successfully');
+      console.log('[Profile] Profile created successfully');
+      
+      // ✅ NEW: Create provider_onboarding_progress row for new providers
+      if (role === 'provider') {
+        console.log('[Profile] Creating provider onboarding progress row for:', userId);
+        try {
+          const { error: progressError } = await supabase
+            .from('provider_onboarding_progress')
+            .insert({
+              provider_id: userId,
+              verification_status: 'pending',
+              current_step: 1,
+              steps_completed: {},
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            });
+
+          if (progressError) {
+            console.error('[Profile] Error creating onboarding progress:', progressError);
+            // Don't fail the profile creation if progress creation fails
+          } else {
+            console.log('[Profile] ✅ Onboarding progress row created successfully');
+          }
+        } catch (progressError) {
+          console.error('[Profile] Unexpected error creating onboarding progress:', progressError);
+          // Don't fail the profile creation if progress creation fails
+        }
+      }
+      
       return data as UserProfile;
     } else {
       console.log('[Profile] Profile does not exist, creating new profile');

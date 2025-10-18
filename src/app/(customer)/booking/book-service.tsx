@@ -641,26 +641,20 @@ export default function BookServiceScreen() {
                 <Text className="font-medium">£{(parseFloat(servicePrice as string) * 0.1).toFixed(2)}</Text>
               </View>
               <View className="flex-row justify-between border-t border-border pt-2 mt-1">
-                <Text className="font-medium text-foreground">Total</Text>
-                <Text className="font-medium text-foreground">£{(parseFloat(servicePrice as string) * 1.1).toFixed(2)}</Text>
-              </View>
-              <View className="flex-row justify-between">
-                <Text className="text-muted-foreground">Booking deposit (20% of service)</Text>
-                <Text className="font-medium">£{(parseFloat(servicePrice as string) * 0.2).toFixed(2)}</Text>
-              </View>
-              <View className="flex-row justify-between text-sm">
-                <Text className="text-muted-foreground">Remaining (pay after service)</Text>
-                <Text className="font-medium text-muted-foreground">£{(parseFloat(servicePrice as string) * 0.9).toFixed(2)}</Text>
+                <Text className="font-bold text-foreground">Total Amount</Text>
+                <Text className="font-bold text-primary text-lg">£{(parseFloat(servicePrice as string) * 1.1).toFixed(2)}</Text>
               </View>
             </View>
 
             <View className="border-t border-border pt-3 mt-3 bg-primary/5 rounded-lg p-3 -mx-1">
-              <View className="flex-row justify-between items-center">
-                <Text className="font-bold text-lg text-foreground">Pay Today</Text>
-                <Text className="font-bold text-primary text-xl">£{(parseFloat(servicePrice as string) * 0.2).toFixed(2)}</Text>
+              <View className="flex-row items-center gap-2 mb-2">
+                <View className="w-5 h-5 rounded-full bg-primary/20 items-center justify-center">
+                  <Ionicons name="shield-checkmark" size={12} className="text-primary" />
+                </View>
+                <Text className="font-bold text-foreground">Secure Escrow Payment</Text>
               </View>
-              <Text className="text-xs text-muted-foreground mt-1">
-                This amount will appear on your bank statement immediately. Full amount temporarily held on card.
+              <Text className="text-xs text-muted-foreground leading-relaxed">
+                Full amount (£{(parseFloat(servicePrice as string) * 1.1).toFixed(2)}) charged immediately and held securely in escrow. Provider receives £{servicePrice} automatically when service is marked complete. Platform fee: £{(parseFloat(servicePrice as string) * 0.1).toFixed(2)}.
               </Text>
             </View>
           </View>
@@ -678,18 +672,18 @@ export default function BookServiceScreen() {
           <View className="flex-row items-center justify-center gap-3">
             <View className="w-8 h-8 rounded-full bg-primary-foreground/10 items-center justify-center">
               <Ionicons 
-                name={selectedTime ? "card-outline" : "time-outline"} 
+                name={selectedTime ? "shield-checkmark" : "time-outline"} 
                 size={18} 
                 className="text-primary-foreground" 
               />
             </View>
             <View className="items-center">
               <Text className="text-primary-foreground font-bold text-lg">
-                {selectedTime ? "Secure Your Booking" : "Select Time First"}
+                {selectedTime ? "Proceed to Secure Payment" : "Select Time First"}
               </Text>
               {selectedTime && (
                 <Text className="text-primary-foreground/80 text-sm">
-                  Pay £{(parseFloat(servicePrice as string) * 0.2).toFixed(2)} to confirm
+                  Pay £{(parseFloat(servicePrice as string) * 1.1).toFixed(2)} - Held in Escrow
                 </Text>
               )}
             </View>

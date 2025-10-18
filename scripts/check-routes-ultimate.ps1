@@ -69,7 +69,14 @@ $files = Get-ChildItem -Path "src" -Recurse -Include "*.ts","*.tsx","*.js","*.js
 
 foreach ($file in $files) {
     $totalFiles++
-    $lines = Get-Content $file.FullName
+    
+    # Use -LiteralPath to handle files with brackets [id].tsx
+    try {
+        $lines = Get-Content -LiteralPath $file.FullName -ErrorAction Stop
+    } catch {
+        Write-Host "  Skipping file with special characters: $($file.FullName)" -ForegroundColor DarkGray
+        continue
+    }
     
     foreach ($pattern in $patterns) {
         # Check each line for the pattern
@@ -170,18 +177,23 @@ Write-Host ""
 # Check 1: Hardcoded roles
 Write-Host "[Check 1] Hardcoded User Roles" -ForegroundColor Yellow
 $hardcodedRoles = Get-ChildItem -Path "src" -Recurse -Include "*.ts","*.tsx" |
-    Select-String -Pattern "role.*'customer'|role.*`"customer`"|role.*'provider'|role.*`"provider`"" |
-    Where-Object { ($_.Line -notmatch "//|/\*|interface|type\s") -and ($_.Line -match "=\s*") }
+    Select-String -Pattern "role\s*=\s*['\`"]customer['\`"]|role\s*=\s*['\`"]provider['\`"]" |
+    Where-Object { 
+        ($_.Line -notmatch "//|/\*|interface|type\s|function.*role.*=") -and 
+        ($_.Line -match "const\s|let\s|var\s") 
+    }
 
 if ($hardcodedRoles) {
     $roleCount = ($hardcodedRoles | Measure-Object).Count
-    Write-Host "  ⚠ Found $roleCount potential hardcoded role(s)" -ForegroundColor Red
+    Write-Host "  ⚠ Found $roleCount actual hardcoded role(s)" -ForegroundColor Red
     $hardcodedRoles | ForEach-Object {
         $relativePath = $_.Path.Replace((Get-Location).Path + "\", "")
         Write-Host "  📄 $relativePath : Line $($_.LineNumber)" -ForegroundColor White
+        Write-Host "     $($_.Line.Trim())" -ForegroundColor DarkGray
     }
 } else {
     Write-Host "  ✓ No hardcoded roles detected" -ForegroundColor Green
+    Write-Host "  💡 Type definitions are OK" -ForegroundColor DarkGray
 }
 Write-Host ""
 
@@ -206,18 +218,31 @@ if ($useEffectFetch) {
 }
 Write-Host ""
 
-# Check 3: Hardcoded colors
-Write-Host "[Check 3] Hardcoded Colors (bg-white, bg-black)" -ForegroundColor Yellow
-$hardcodedColors = Get-ChildItem -Path "src/app" -Recurse -Include "*.tsx" |
-    Select-String -Pattern 'className="[^"]*\b(bg-white|bg-black|text-white|text-black)\b' |
-    Where-Object { $_.Line -notmatch "//|/\*" }
+# Check 3: Hardcoded colors (excluding acceptable cases)
+Write-Host "[Check 3] Hardcoded Background Colors" -ForegroundColor Yellow
+$hardcodedColors = Get-ChildItem -Path "src/app" -Recurse -Include "*.tsx" -ErrorAction SilentlyContinue |
+    Select-String -Pattern "className=`"[^`"]*\b(bg-white|bg-black)\b" |
+    Where-Object { 
+        $_.Line -notmatch "//|/\*" -and
+        $_.Line -notmatch "text-white|text-black"  # Exclude text colors (usually for contrast)
+    }
 
 if ($hardcodedColors) {
     $colorCount = ($hardcodedColors | Measure-Object).Count
-    Write-Host "  ⚠ Found $colorCount hardcoded color(s) (use theme colors)" -ForegroundColor Red
-    Write-Host "  💡 Use: bg-card, bg-background, text-foreground instead" -ForegroundColor Cyan
+    Write-Host "  ⚠ Found $colorCount hardcoded background(s)" -ForegroundColor Red
+    Write-Host "  💡 Use: bg-card, bg-background instead of bg-white/bg-black" -ForegroundColor Cyan
+    
+    # Show first 3 examples
+    $hardcodedColors | Select-Object -First 3 | ForEach-Object {
+        $relativePath = $_.Path.Replace((Get-Location).Path + "\", "")
+        Write-Host "  📄 $relativePath : Line $($_.LineNumber)" -ForegroundColor White
+    }
+    if ($colorCount -gt 3) {
+        Write-Host "  ... and $($colorCount - 3) more" -ForegroundColor DarkGray
+    }
 } else {
     Write-Host "  ✓ Using theme colors properly" -ForegroundColor Green
+    Write-Host "  💡 text-white/text-black for contrast is OK" -ForegroundColor DarkGray
 }
 Write-Host ""
 

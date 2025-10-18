@@ -188,6 +188,40 @@ Deno.serve(async (req) => {
         const account = await stripe.accounts.retrieve(stripeAccountId)
         console.log('Existing account verified in Stripe')
         
+        // ✅ ENHANCEMENT: Update existing account with latest profile data
+        console.log('Updating existing account with latest profile data...')
+        const { data: profile, error: profileError } = await serviceClient
+          .from('profiles')
+          .select('email, first_name, last_name, business_name, phone_number, country_code')
+          .eq('id', targetUserId)
+          .single()
+        
+        if (!profileError && profile) {
+          // Format phone number for Stripe (E.164 format)
+          const phoneNumber = profile.country_code && profile.phone_number 
+            ? `${profile.country_code}${profile.phone_number}`.replace(/\s/g, '')
+            : null
+          
+          console.log('Updating account with:', {
+            email: profile.email,
+            business_name: profile.business_name,
+            phone: phoneNumber
+          })
+          
+          try {
+            await stripe.accounts.update(stripeAccountId, {
+              email: profile.email,
+              company: {
+                name: profile.business_name || 'ZOVA Provider',
+                phone: phoneNumber || undefined,
+              }
+            })
+            console.log('✅ Account updated with latest profile data')
+          } catch (updateError) {
+            console.warn('⚠️ Failed to update account (non-critical):', updateError.message)
+          }
+        }
+        
         // If account exists, create a new onboarding link
         // Handle both custom URLs (from mobile app) and default HTTPS URLs
         let finalRefreshUrl, finalReturnUrl
@@ -248,7 +282,7 @@ Deno.serve(async (req) => {
       console.log('Getting user profile...')
       const { data: profile, error: profileError } = await serviceClient
         .from('profiles')
-        .select('email, first_name, last_name, business_name')
+        .select('email, first_name, last_name, business_name, phone_number, country_code')
         .eq('id', targetUserId)
         .single()
 
@@ -268,15 +302,41 @@ Deno.serve(async (req) => {
       const firstName = profile?.first_name || 'Provider'
       const lastName = profile?.last_name || 'User'
       
+      // ✅ ENHANCEMENT: Format phone number for Stripe (E.164 format)
+      console.log('🔍 PHONE DEBUG - Raw profile data:', {
+        has_country_code: !!profile?.country_code,
+        country_code: profile?.country_code,
+        has_phone_number: !!profile?.phone_number,
+        phone_number: profile?.phone_number
+      })
+      
+      const phoneNumber = profile?.country_code && profile?.phone_number 
+        ? `${profile.country_code}${profile.phone_number}`.replace(/\s/g, '')
+        : null
+      
+      console.log('🔍 PHONE DEBUG - Formatted phone:', {
+        phoneNumber: phoneNumber,
+        isNull: phoneNumber === null,
+        willSetInStripe: phoneNumber !== null
+      })
+      
       console.log('Using profile info:', {
         email: finalUserEmail,
         businessName: businessName,
         firstName: firstName,
-        lastName: lastName
+        lastName: lastName,
+        phone: phoneNumber
       })
 
       // Create new Stripe Connect Express account for UK service provider
       console.log('Creating new Stripe Express account for UK service provider...')
+      console.log('🔍 PHONE DEBUG - Stripe create payload:', {
+        company: {
+          name: businessName,
+          phone: phoneNumber || undefined
+        }
+      })
+      
       const account = await stripe.accounts.create({
         type: 'express',
         country: 'GB', // UK marketplace
@@ -288,6 +348,7 @@ Deno.serve(async (req) => {
         business_type: 'company', // Use company for service providers
         company: {
           name: businessName,
+          phone: phoneNumber || undefined, // ✅ Pre-fill phone number
         },
         settings: {
           payouts: {
@@ -301,6 +362,8 @@ Deno.serve(async (req) => {
 
       stripeAccountId = account.id
       console.log('Created Stripe account:', stripeAccountId)
+      console.log('🔍 PHONE DEBUG - Account created with company.phone:', account.company?.phone)
+      console.log('🔍 PHONE DEBUG - Full account company data:', JSON.stringify(account.company))
 
       // Save the account ID to the database
       console.log('Saving account ID to database...')

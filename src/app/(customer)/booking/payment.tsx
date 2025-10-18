@@ -40,9 +40,17 @@ export default function PaymentScreen() {
 
   console.log('[Payment] Booking details from params:', bookingDetails);
 
-  const depositAmount = bookingDetails.servicePrice * 0.2; // 20% deposit
+  // Calculate amounts for ESCROW SYSTEM
   const platformFee = bookingDetails.servicePrice * 0.10; // 10% platform fee (as per requirements)
-  const totalCustomerPays = bookingDetails.servicePrice + platformFee;
+  const totalCustomerPays = bookingDetails.servicePrice + platformFee; // Full amount customer pays
+  const providerAmount = bookingDetails.servicePrice; // Provider receives full service price
+
+  console.log('[Payment] Escrow Calculations:', {
+    servicePrice: bookingDetails.servicePrice,
+    platformFee: platformFee,
+    totalCustomerPays: totalCustomerPays,
+    providerAmount: providerAmount,
+  });
 
   // Create booking mutation
   const createBookingMutation = useCreateBooking();
@@ -52,14 +60,15 @@ export default function PaymentScreen() {
     setIsProcessing(true);
 
     try {
-      // Step 1: Create payment intent with Authorization + Capture
-      console.log('[Payment] Creating payment intent with Authorization + Capture...');
-      console.log('[Payment] Authorization amount (full amount):', totalCustomerPays);
-      console.log('[Payment] Deposit amount to capture immediately:', depositAmount);
+      // ✨ ESCROW SYSTEM: Authorize and capture FULL amount immediately
+      // This implements true marketplace escrow - full payment held until service completion
+      console.log('[Payment] Creating payment intent for FULL AMOUNT (escrow)...');
+      console.log('[Payment] Total amount to authorize and capture:', totalCustomerPays);
+      
       const { data: paymentData, error: paymentError } = await supabase.functions.invoke('create-payment-intent', {
         body: {
-          amount: Math.round(totalCustomerPays * 100), // Authorize full amount (service + platform fee)
-          depositAmount: Math.round(depositAmount * 100), // Deposit to capture immediately  
+          amount: Math.round(totalCustomerPays * 100), // Full amount in pence
+          depositAmount: Math.round(totalCustomerPays * 100), // Capture full amount (not deposit)
           currency: 'gbp',
           serviceId: bookingDetails.serviceId,
           providerId: bookingDetails.providerId,
@@ -113,23 +122,25 @@ export default function PaymentScreen() {
 
       console.log('[Payment] Payment sheet completed successfully');
 
-      // Step 4: Capture deposit amount immediately after successful authorization
-      console.log('[Payment] Capturing deposit amount...');
+      // Step 4: Capture FULL amount for escrow
+      console.log('[Payment] Capturing full amount for escrow...');
       const { data: captureData, error: captureError } = await supabase.functions.invoke('capture-deposit', {
         body: {
           paymentIntentId: paymentIntentId,
-          depositAmount: Math.round(depositAmount * 100), // Amount in cents
+          totalAmount: Math.round(totalCustomerPays * 100), // Full amount in pence
+          providerAmount: Math.round(providerAmount * 100), // Provider's share in pence
+          platformFee: Math.round(platformFee * 100), // Platform commission in pence
         },
       });
 
       if (captureError) {
-        console.error('[Payment] Deposit capture failed:', captureError);
-        Alert.alert('Payment Error', 'Payment authorized but deposit capture failed. Please contact support.');
+        console.error('[Payment] Escrow capture failed:', captureError);
+        Alert.alert('Payment Error', 'Payment authorized but escrow capture failed. Please contact support.');
         setIsProcessing(false);
         return;
       }
 
-      console.log('[Payment] Deposit captured successfully:', captureData);
+      console.log('[Payment] Full amount captured and held in escrow:', captureData);
 
       // Step 5: Create booking after successful payment and deposit capture
       if (!user) {
@@ -145,8 +156,9 @@ export default function PaymentScreen() {
         startTime: bookingDetails.selectedTime,
         specialRequests: bookingDetails.specialRequests,
         address: bookingDetails.address,
-        depositAmount: depositAmount,
         totalAmount: bookingDetails.servicePrice,
+        platformFee: platformFee,
+        totalCustomerPays: totalCustomerPays,
         paymentIntentId: paymentIntentId,
       });
       
@@ -159,11 +171,11 @@ export default function PaymentScreen() {
           startTime: bookingDetails.selectedTime,
           specialRequests: bookingDetails.specialRequests,
           address: bookingDetails.address,
-          depositAmount: depositAmount,
+          depositAmount: totalCustomerPays, // Now represents full captured amount
           totalAmount: bookingDetails.servicePrice,
           paymentIntentId: paymentIntentId,
-          authorizationAmount: totalCustomerPays, // Full amount authorized
-          capturedDeposit: depositAmount, // Amount captured as deposit
+          authorizationAmount: totalCustomerPays, // Full amount captured in escrow
+          capturedDeposit: totalCustomerPays, // Full amount held in escrow (not partial)
         });
         console.log('[Payment] Booking response received:', bookingResponse);
       } catch (bookingError) {
@@ -198,7 +210,7 @@ export default function PaymentScreen() {
           providerName: bookingDetails.providerName,
           date: bookingDetails.selectedDate.toISOString(),
           time: bookingDetails.selectedTime,
-          amount: depositAmount.toString(),
+          amount: totalCustomerPays.toString(), // Full amount charged
         }
       });
 
@@ -289,19 +301,21 @@ export default function PaymentScreen() {
               </View>
               <View className="border-t border-border pt-2">
                 <View className="flex-row justify-between">
-                  <Text className="font-bold text-primary">Deposit Due Today (20%)</Text>
-                  <Text className="font-bold text-primary">£{depositAmount.toFixed(2)}</Text>
-                </View>
-                <Text className="text-xs text-muted-foreground mt-1 mb-2">
-                  This amount will appear on your bank statement immediately
-                </Text>
-                <View className="flex-row justify-between mt-1">
-                  <Text className="text-sm text-muted-foreground">Remaining on service day</Text>
-                  <Text className="text-sm text-muted-foreground">£{(totalCustomerPays - depositAmount).toFixed(2)}</Text>
+                  <Text className="font-bold text-primary">Amount Charged Today</Text>
+                  <Text className="font-bold text-primary">£{totalCustomerPays.toFixed(2)}</Text>
                 </View>
                 <Text className="text-xs text-muted-foreground mt-1">
-                  Temporarily held on card, charged when service completes
+                  Full amount charged immediately and held in escrow until service completion
                 </Text>
+                <View className="bg-primary/5 rounded-lg p-3 mt-2">
+                  <View className="flex-row items-center mb-1">
+                    <Ionicons name="shield-checkmark" size={16} className="text-primary" />
+                    <Text className="text-xs font-medium text-primary ml-1">Escrow Protection</Text>
+                  </View>
+                  <Text className="text-xs text-muted-foreground">
+                    Funds are held securely. Provider receives £{bookingDetails.servicePrice.toFixed(2)} automatically when service is marked complete.
+                  </Text>
+                </View>
               </View>
             </View>
           </CardContent>
@@ -312,14 +326,14 @@ export default function PaymentScreen() {
           <CardContent className="gap-3">
             <View className="flex-row items-center">
               <Ionicons name="information-circle" size={20} color={isDarkColorScheme ? THEME.dark.primary : THEME.light.primary} />
-              <Text className="font-medium text-foreground ml-2">Payment Details</Text>
+              <Text className="font-medium text-foreground ml-2">How Escrow Works</Text>
             </View>
             <Text className="text-sm text-muted-foreground">
-              • Full amount (£{totalCustomerPays.toFixed(2)}) temporarily held on your card to guarantee payment{'\n'}
-              • Only £{depositAmount.toFixed(2)} charged immediately - this appears on your statement today{'\n'}
-              • Remaining £{(totalCustomerPays - depositAmount).toFixed(2)} held until service completion{'\n'}
-              • Provider receives full service price (£{bookingDetails.servicePrice.toFixed(2)}){'\n'}
-              • Platform fee (£{platformFee.toFixed(2)}) supports secure payments & customer service
+              • Full amount (£{totalCustomerPays.toFixed(2)}) charged immediately to your card{'\n'}
+              • Funds held securely in escrow until service completion{'\n'}
+              • Provider receives £{bookingDetails.servicePrice.toFixed(2)} automatically when service is marked complete{'\n'}
+              • Platform fee (£{platformFee.toFixed(2)}) covers secure payment processing & customer support{'\n'}
+              • Your payment is protected throughout the service
             </Text>
           </CardContent>
         </Card>
@@ -329,9 +343,9 @@ export default function PaymentScreen() {
           <CardContent className="flex-row items-center">
             <Ionicons name="shield-checkmark" size={24} className="text-success" />
             <View className="ml-3 flex-1">
-              <Text className="font-medium text-foreground">Protected Payment</Text>
+              <Text className="font-medium text-foreground">Secure Escrow Payment</Text>
               <Text className="text-sm text-muted-foreground">
-                Your card will show a temporary hold for the full amount, but only the deposit is actually charged today.
+                Full amount charged and held securely. Provider receives payment automatically after service completion.
               </Text>
             </View>
           </CardContent>
@@ -346,7 +360,7 @@ export default function PaymentScreen() {
             disabled={isProcessing}
           >
             <Text className="text-primary-foreground font-bold text-lg">
-              {isProcessing ? 'Processing...' : `Pay £${depositAmount.toFixed(2)} Securely`}
+              {isProcessing ? 'Processing...' : `Pay £${totalCustomerPays.toFixed(2)} Securely`}
             </Text>
           </Button>
 

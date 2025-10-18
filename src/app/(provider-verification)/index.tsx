@@ -13,12 +13,12 @@ import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import { Icon } from '@/components/ui/icon';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { VerificationHeader } from '@/components/verification/VerificationHeader';
-import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/verification/provider-verification';
+import { useVerificationData, useUpdateStepCompletion, useVerificationRealtime } from '@/hooks/provider/useVerificationSingleSource';
 import { supabase } from '@/lib/supabase';
 import { createStorageService } from '@/lib/storage/organized-storage';
 import { normalizeImageUri } from '@/lib/utils';
 import { useStripeVerificationIntegration } from '@/lib/payment/stripe-verification-integration';
-import { useSaveVerificationStep } from '@/hooks/provider/useProviderVerificationQueries';
+import { useAuthStore } from '@/stores/auth';
 import { useVerificationNavigation } from '@/hooks/provider';
 import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';
 
@@ -193,31 +193,25 @@ export default function DocumentVerificationScreen() {
   const [imageLoadError, setImageLoadError] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
-  
+
+  // ✅ AUTH: Get current user/provider ID
+  const user = useAuthStore((state) => state.user);
+  const providerId = user?.id;
   const queryClient = useQueryClient();
-  
-  const { 
-    documentData, 
-    updateDocumentData, 
-    validateAndResetState,
-    completeStepSimple,
-    providerId,
-    currentStep
-  } = useProviderVerificationStore();
-
-  const isHydrated = useProviderVerificationHydration();
   const { handleProviderVerificationComplete } = useStripeVerificationIntegration();
-  const { completeCurrentStepAndNavigate } = useVerificationNavigation();
   
-  // ✅ REACT QUERY: Use centralized mutation for saving document data
-  const saveDocumentMutation = useSaveVerificationStep();
+  // ✅ SINGLE-SOURCE: Use new verification hooks
+  const { data: verificationData, isLoading: verificationLoading } = useVerificationData(providerId);
+  const updateStepMutation = useUpdateStepCompletion();
 
-  // ✅ VALIDATE STATE: Ensure consistency on component mount
-  useEffect(() => {
-    if (isHydrated) {
-      validateAndResetState();
-    }
-  }, [isHydrated, validateAndResetState]);
+  // ✅ REAL-TIME: Real-time updates
+  useVerificationRealtime(providerId);
+
+  // Get current step and document data from new structure
+  const currentStep = verificationData?.progress?.current_step || 1;
+  const documentData = verificationData?.documents?.[0] || {};
+
+  const { completeCurrentStepAndNavigate } = useVerificationNavigation();
 
   const {
     control,
@@ -232,17 +226,6 @@ export default function DocumentVerificationScreen() {
   });
 
   const documentType = watch('documentType');
-
-  // Don't render until hydrated
-  if (!isHydrated) {
-    return (
-      <ScreenWrapper>
-        <View className="flex-1 items-center justify-center">
-          <Text>Loading...</Text>
-        </View>
-      </ScreenWrapper>
-    );
-  }
 
   // ✅ REACT QUERY: Fetch existing verification documents
   const { data: existingDocument, isLoading: fetchingExisting, error: documentError } = useQuery({
@@ -295,26 +278,14 @@ export default function DocumentVerificationScreen() {
           document_url: signedUrl
         };
         
-        // Update store with existing data
-        updateDocumentData({
-          documentType: data.document_type as any,
-          documentUrl: signedUrl,
-          verificationStatus: data.verification_status as any,
-        });
-        
         console.log('[Documents] Found existing document with signed URL');
         return documentWithSignedUrl;
       } catch (signedUrlError) {
         console.error('[Documents] Failed to get signed URL for document:', signedUrlError);
-        updateDocumentData({
-          documentType: data.document_type as any,
-          documentUrl: data.document_url,
-          verificationStatus: data.verification_status as any,
-        });
         return data;
       }
     },
-    enabled: !!providerId && isHydrated,
+    enabled: !!providerId,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
@@ -399,17 +370,11 @@ export default function DocumentVerificationScreen() {
         throw error;
       }
 
-      updateDocumentData({
-        documentType: documentType as any,
-        documentUrl: actualStoragePath,
-        verificationStatus: 'pending',
-      });
-
       return { ...data, document_url: actualStoragePath };
     },
     onSuccess: (data) => {
       console.log('[DocumentUpload] Upload successful:', data);
-      queryClient.invalidateQueries({ queryKey: ['existingDocument', providerId] });
+      queryClient.invalidateQueries({ queryKey: ['verification-data', providerId] });
     },
     onError: (error) => {
       console.error('[DocumentUpload] Upload failed:', error);
@@ -443,12 +408,6 @@ export default function DocumentVerificationScreen() {
       // Note: Profile verification_status should NOT be set here
       // It should only be set by the verification flow manager when the entire process is complete
       // Document verification status is handled in the provider_verification_documents table
-
-      updateDocumentData({
-        documentType: documentType as any,
-        documentUrl: documentData.document_url,
-        verificationStatus: 'pending',
-      });
       
       return {
         document: documentData,
@@ -476,11 +435,12 @@ export default function DocumentVerificationScreen() {
         console.log('⚠️ [Stripe Integration] Exception during Stripe upload:', stripeError);
       }
       
-      // ✅ SAVE PROGRESS: Use centralized mutation to save progress
+      // ✅ SINGLE-SOURCE: Use new atomic step completion
       try {
-        await saveDocumentMutation.mutateAsync({
+        await updateStepMutation.mutateAsync({
           providerId,
-          step: 'document',
+          stepNumber: 1,
+          completed: true,
           data: {
             documentType: data.document.document_type,
             documentUrl: data.document.document_url,
@@ -499,22 +459,10 @@ export default function DocumentVerificationScreen() {
           {
             text: 'Continue',
             onPress: () => {
-              console.log('[DocumentSubmission] User acknowledged success, completing step with centralized navigation');
+              console.log('[DocumentSubmission] User acknowledged success, completing step');
               
-              // ✅ EXPLICIT: Always complete step 1 for document verification
-              const result = VerificationFlowManager.completeStepAndNavigate(
-                1, // Always step 1 for document verification
-                { 
-                  documentType: data.document.document_type, 
-                  documentUrl: data.document.document_url 
-                },
-                (step, data) => {
-                  // Update Zustand store
-                  completeStepSimple(step, data);
-                }
-              );
-              
-              console.log('[DocumentSubmission] Navigation result:', result);
+              // Navigate to next step
+              router.push('/(provider-verification)/selfie');
             },
           },
         ]
@@ -572,12 +520,7 @@ export default function DocumentVerificationScreen() {
     onSuccess: () => {
       console.log('[DocumentDelete] Delete successful');
       queryClient.invalidateQueries({ queryKey: ['existingDocument', providerId] });
-      
-      updateDocumentData({
-        documentType: undefined,
-        documentUrl: undefined,
-        verificationStatus: undefined,
-      });
+      queryClient.invalidateQueries({ queryKey: ['verification-data', providerId] });
     },
     onError: (error) => {
       console.error('[DocumentDelete] Delete failed:', error);
@@ -670,20 +613,28 @@ export default function DocumentVerificationScreen() {
             onPress: () => {
               console.log('[DocumentSubmission] User confirmed using existing document');
               
-              // ✅ EXPLICIT: Always complete step 1 for document verification
-              const result = VerificationFlowManager.completeStepAndNavigate(
-                1, // Always step 1 for document verification
-                { 
-                  documentType: existingDocument.document_type, 
-                  documentUrl: existingDocument.document_url 
-                },
-                (step, data) => {
-                  // Update Zustand store
-                  completeStepSimple(step, data);
-                }
-              );
+              // ✅ SINGLE-SOURCE: Use new atomic step completion
+              const stepData = { 
+                documentType: existingDocument.document_type, 
+                documentUrl: existingDocument.document_url 
+              };
               
-              console.log('[DocumentSubmission] Navigation result:', result);
+              // Save to database using the new mutation
+              updateStepMutation.mutate({
+                providerId: providerId!,
+                stepNumber: 1,
+                completed: true,
+                data: stepData,
+              }, {
+                onSuccess: () => {
+                  console.log('[DocumentSubmission] ✅ Document data saved to database');
+                  // Navigation will happen via the mutation's onSuccess handler
+                },
+                onError: (error) => {
+                  console.error('[DocumentSubmission] ❌ Failed to save document:', error);
+                  Alert.alert('Error', 'Failed to save document data. Please try again.');
+                },
+              });
             },
           },
         ]
@@ -893,13 +844,6 @@ export default function DocumentVerificationScreen() {
                                 };
                               }
                               return oldData;
-                            });
-                            
-                            // Also update the store
-                            updateDocumentData({
-                              documentType: existingDocument.document_type as any,
-                              documentUrl: freshSignedUrl,
-                              verificationStatus: existingDocument.verification_status as any,
                             });
                             
                             console.log('[ExistingDocument] Refreshed signed URL successfully');

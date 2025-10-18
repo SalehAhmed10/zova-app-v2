@@ -37,7 +37,7 @@ export function useAuthSync() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, email, role')
+        .select('id, email, role, phone_number, country_code')
         .eq('id', userId)
         .single();
 

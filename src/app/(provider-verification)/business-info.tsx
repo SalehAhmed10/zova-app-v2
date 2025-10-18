@@ -1,43 +1,68 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View } from 'react-native';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, useWatch } from 'react-hook-form';
 import { useQuery } from '@tanstack/react-query';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { router } from 'expo-router';
-import { Info, AlertCircle } from 'lucide-react-native';
+import { Info, AlertCircle, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react-native';
 
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import { Icon } from '@/components/ui/icon';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { SearchableCountrySelect } from '@/components/ui/searchable-country-select';
+import { SearchableCitySelect } from '@/components/ui/searchable-city-select';
+import { SearchableCountryCodeSelect } from '@/components/ui/searchable-country-code-select';
 import { VerificationHeader } from '@/components/verification/VerificationHeader';
-import { useProviderVerificationStore, useProviderVerificationSelectors } from '@/stores/verification/provider-verification';
-import { useAuthOptimized } from '@/hooks';
-import { useSaveVerificationStep } from '@/hooks/provider/useProviderVerificationQueries';
+import { useVerificationData, useUpdateStepCompletion, useVerificationRealtime } from '@/hooks/provider/useVerificationSingleSource';
+import { useAuthStore } from '@/stores/auth';
 import { useVerificationNavigation } from '@/hooks/provider';
+import { useGeocoding } from '@/hooks/shared/useGeocoding';
 import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';
+import { COUNTRIES, getCountryByCode } from '@/constants/countries';
 import { supabase } from '@/lib/supabase';
+import { cn } from '@/lib/utils';
 
 interface BusinessInfoForm {
   businessName: string;
-  phoneNumber: string;
+  businessBio: string;
+  phone_country_code?: {
+    name: string;
+    dial_code: string;
+    code: string;
+    flag: string;
+  };
+  phone_number: string;
   address: string;
   city: string;
   postalCode: string;
+  country_code: string;
 }
 
 export default function BusinessInfoScreen() {
-  // ✅ MIGRATED: Using optimized auth hook and React Query + Zustand
-  const { user } = useAuthOptimized();
+  // ✅ MIGRATED: Using new single-source verification hooks
+  const { user } = useAuthStore();
+  const { data: verificationData, isLoading: verificationLoading } = useVerificationData(user?.id);
+  const updateStepMutation = useUpdateStepCompletion();
+  const { navigateNext, navigateBack } = useVerificationNavigation();
+
+  // Real-time subscription for live updates
+  useVerificationRealtime(user?.id);
+
+  // ✅ GEOCODING: Address validation hook
+  const {
+    validateAddress: validateGeocoding,
+    isValidating: isGeocoding, 
+    validationError: geocodingError, 
+    validationWarning: geocodingWarning 
+  } = useGeocoding();
   
-  // ✅ ZUSTAND: Get business data from store
-  const { 
-    businessData, 
-    updateBusinessData, 
-    completeStepSimple,
-    currentStep,
-  } = useProviderVerificationStore();
+  // ✅ STATE: UI state management
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [addressValidated, setAddressValidated] = useState(false);
   
   // ✅ REACT QUERY: Fetch existing business info from database
   const { data: existingBusinessInfo, isLoading: isLoadingBusinessInfo } = useQuery({
@@ -49,7 +74,7 @@ export default function BusinessInfoScreen() {
       
       const { data, error } = await supabase
         .from('profiles')
-        .select('business_name, phone_number, country_code, address, city, postal_code')
+        .select('business_name, business_bio, phone_number, country_code, address, city, postal_code, latitude, longitude')
         .eq('id', user.id)
         .single();
 
@@ -60,8 +85,10 @@ export default function BusinessInfoScreen() {
 
       console.log('[Business Info] Existing data found:', {
         businessName: data?.business_name,
+        businessBio: data?.business_bio,
         phoneNumber: data?.phone_number,
-        hasAddress: !!data?.address
+        hasAddress: !!data?.address,
+        hasCoordinates: !!(data?.latitude && data?.longitude)
       });
 
       return data;
@@ -71,41 +98,69 @@ export default function BusinessInfoScreen() {
   });
   
   // ✅ REACT QUERY: Mutation for saving business info
-  const saveBusinessInfoMutation = useSaveVerificationStep();
-  
-  // ✅ CENTRALIZED NAVIGATION: Replace manual routing
-  const { navigateNext, navigateBack } = useVerificationNavigation();
+  const saveBusinessInfoMutation = useUpdateStepCompletion();
 
-  // ✅ PURE COMPUTATION: Merge database data with store data (NO useEffect!)
+  // ✅ PURE COMPUTATION: Merge database data with verification data (NO useEffect!)
   // Following copilot-rules.md: React Query + Zustand with NO side effects
   const formDefaultValues = useMemo(() => {
-    // Priority: Database data → Store data → Empty string
-    const values = {
-      businessName: existingBusinessInfo?.business_name || businessData.businessName || '',
-      phoneNumber: existingBusinessInfo?.phone_number || businessData.phoneNumber || '',
-      address: existingBusinessInfo?.address || businessData.address || '',
-      city: existingBusinessInfo?.city || businessData.city || '',
-      postalCode: existingBusinessInfo?.postal_code || businessData.postalCode || '',
-    };
+    // Get business info from verification data (stored in businessTerms)
+    const businessInfoData = verificationData?.businessTerms;
 
-    // ✅ SYNC TO STORE: Only if database has data but store is empty
-    // This is a pure side effect during render, not in useEffect
-    if (existingBusinessInfo?.business_name && !businessData.businessName) {
-      console.log('[Business Info] Syncing database data to store');
-      updateBusinessData({
-        businessName: existingBusinessInfo.business_name || '',
-        phoneNumber: existingBusinessInfo.phone_number || '',
-        countryCode: existingBusinessInfo.country_code || '+44',
-        address: existingBusinessInfo.address || '',
-        city: existingBusinessInfo.city || '',
-        postalCode: existingBusinessInfo.postal_code || '',
-      });
+    // Parse phone number to extract country code
+    let phoneCountryCode = undefined;
+    let phoneNumber = existingBusinessInfo?.phone_number || businessInfoData?.phoneNumber || '';
+
+    if (phoneNumber && (existingBusinessInfo?.country_code || businessInfoData?.countryCode)) {
+      // Use the user's country_code from profile to determine phone country code
+      const countryCode = existingBusinessInfo?.country_code || businessInfoData?.countryCode || '+44';
+      const userCountry = COUNTRIES.find(c => c.value === countryCode || `+${c.value}` === countryCode);
+
+      if (userCountry) {
+        const Country = require('country-state-city').Country;
+        const fullCountry = Country.getCountryByCode(userCountry.code);
+        const expectedDialCode = fullCountry?.phonecode ? `+${fullCountry.phonecode}` : countryCode;
+
+        // Try to extract the phone number without country code
+        const phoneCodeMatch = phoneNumber.match(/^(\+\d{1,4})\s*(.+)$/);
+        if (phoneCodeMatch) {
+          phoneNumber = phoneCodeMatch[2]; // Remove the dial code from phone number
+        }
+
+        // Set phone country code based on user's country
+        phoneCountryCode = {
+          name: userCountry.label,
+          dial_code: expectedDialCode,
+          code: userCountry.value,
+          flag: userCountry.flag || '🇬🇧',
+        };
+      }
     }
 
-    return values;
-  }, [existingBusinessInfo, businessData]);
+    // Priority: Database data → Verification data → Empty string
+    // ✅ SANITIZE country_code: If it starts with '+', it's a phone code, use default 'GB'
+    const dbCountryCode = existingBusinessInfo?.country_code;
+    const sanitizedCountryCode = dbCountryCode && dbCountryCode.startsWith('+')
+      ? 'GB' // Default to GB if we got a phone code instead of ISO code
+      : dbCountryCode || businessInfoData?.countryCode || 'GB';
 
-  // ✅ REACT HOOK FORM: Use computed default values (re-initializes when data changes)
+    console.log('[Business Info] Country code sanitization:', {
+      raw: dbCountryCode,
+      sanitized: sanitizedCountryCode
+    });
+
+    const values = {
+      businessName: existingBusinessInfo?.business_name || businessInfoData?.businessName || '',
+      businessBio: existingBusinessInfo?.business_bio || businessInfoData?.businessBio || '',
+      phone_country_code: phoneCountryCode,
+      phone_number: phoneNumber,
+      address: existingBusinessInfo?.address || businessInfoData?.address || '',
+      city: existingBusinessInfo?.city || businessInfoData?.city || '',
+      postalCode: existingBusinessInfo?.postal_code || businessInfoData?.postalCode || '',
+      country_code: sanitizedCountryCode,
+    };
+
+    return values;
+  }, [existingBusinessInfo, verificationData]);  // ✅ REACT HOOK FORM: Use computed default values (re-initializes when data changes)
   const {
     control,
     handleSubmit,
@@ -116,52 +171,98 @@ export default function BusinessInfoScreen() {
     values: formDefaultValues, // ✅ KEY FIX: Auto-updates form when data changes
   });
 
+  // Watch country_code to enable/disable city selection
+  const selectedCountryCode = useWatch({
+    control,
+    name: 'country_code',
+  });
+
   // ✅ REACT QUERY MUTATION: Handle form submission  
   const onSubmit = async (data: BusinessInfoForm) => {
     if (!user?.id) return;
     
+    setIsSubmitting(true);
     try {
       console.log('[Business Info] Starting submission with data:', data);
       
-      // ✅ ZUSTAND: Update verification store first
-      updateBusinessData({
-        businessName: data.businessName,
-        phoneNumber: data.phoneNumber,
-        address: data.address,
-        city: data.city,
-        postalCode: data.postalCode,
-        countryCode: '+44', // Default to UK
-      });
+      // ✅ VALIDATE ADDRESS: Use geocoding if any address fields provided
+      let coordinates = null;
+      if (data.address || data.city || data.country_code) {
+        const countryInfo = getCountryByCode(data.country_code);
+        const addressComponents = {
+          address: data.address,
+          city: data.city,
+          postal_code: data.postalCode,
+          country: countryInfo?.name || data.country_code,
+        };
 
-      // ✅ REACT QUERY: Use mutation to save data
+        console.log('[Business Info] 🔍 Starting address validation...');
+        console.log('[Business Info] 📍 Address components:', addressComponents);
+
+        const validationResult = await validateGeocoding(addressComponents);
+
+        console.log('[Business Info] ✅ Validation result:', {
+          isValid: validationResult.isValid,
+          hasCoordinates: !!validationResult.coordinates,
+          coordinates: validationResult.coordinates,
+          warning: validationResult.warning,
+          error: geocodingError
+        });
+
+        if (!validationResult.isValid) {
+          // Address validation failed, but we'll still allow saving (lenient validation)
+          console.warn('[Business Info] ⚠️ Address validation failed:', geocodingError);
+          console.log('[Business Info] 💾 Allowing save without coordinates due to lenient validation');
+        } else {
+          coordinates = validationResult.coordinates;
+          setAddressValidated(true);
+
+          if (coordinates) {
+            console.log('[Business Info] 📌 Coordinates found and will be saved:', coordinates);
+          } else {
+            console.log('[Business Info] 📭 No coordinates found, saving address without location data');
+          }
+
+          if (validationResult.warning) {
+            console.warn('[Business Info] ⚠️ Address saved with warning:', validationResult.warning);
+          } else {
+            console.log('[Business Info] ✅ Address validated successfully');
+          }
+        }
+      } else {
+        console.log('[Business Info] ⏭️ No address fields provided, skipping geocoding validation');
+      }
+      
+      // Combine phone country code + number
+      const fullPhoneNumber = data.phone_country_code && data.phone_number
+        ? `${data.phone_country_code.dial_code} ${data.phone_number}`.trim()
+        : data.phone_number;
+
+      // ✅ REACT QUERY: Use mutation to save data with coordinates
       await saveBusinessInfoMutation.mutateAsync({
         providerId: user.id,
-        step: 'business-info',
+        stepNumber: 3,
+        completed: true,
         data: {
           businessName: data.businessName,
-          phoneNumber: data.phoneNumber,
+          businessBio: data.businessBio,
+          phoneNumber: fullPhoneNumber,
           address: data.address,
           city: data.city,
           postalCode: data.postalCode,
-          countryCode: '+44',
+          countryCode: data.country_code,
+          coordinates, // Include coordinates if validation succeeded
         },
       });
 
-      // ✅ EXPLICIT: Complete step 3 and navigate using flow manager
-      const result = VerificationFlowManager.completeStepAndNavigate(
-        3, // Always step 3 for business info
-        data,
-        (step, stepData) => {
-          // Update Zustand store
-          completeStepSimple(step, stepData);
-        }
-      );
-      
-      console.log('[Business Info] Navigation result:', result);
+      // ✅ EXPLICIT: Navigate to next step using centralized navigation
+      navigateNext();
+
       console.log('[Business Info] Submission completed successfully');
     } catch (error) {
       console.error('[Business Info] Error saving business info:', error);
-      // TODO: Show error toast instead of setSubmitError
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -173,11 +274,11 @@ export default function BusinessInfoScreen() {
         title="Business Information"
       />
 
-      <ScreenWrapper contentContainerClassName="px-6 py-4" className="flex-1">
+      <ScreenWrapper contentContainerClassName="px-4 py-4" className="flex-1">
         {/* Header */}
         <Animated.View 
           entering={FadeIn.delay(200).springify()}
-          className="items-center mb-8"
+          className="items-center mb-6"
         >
           <View className="w-16 h-16 bg-primary rounded-2xl justify-center items-center mb-4">
             <Text className="text-2xl">🏢</Text>
@@ -193,185 +294,312 @@ export default function BusinessInfoScreen() {
       {/* Form */}
       <Animated.View entering={SlideInDown.delay(400).springify()} className="gap-4">
         
-        {/* Business Name */}
-        <View>
-          <Text className="text-sm font-medium text-foreground mb-3">
-            Business Name
-          </Text>
-          <Controller
-            control={control}
-            name="businessName"
-            rules={{
-              required: 'Business name is required',
-              minLength: {
-                value: 2,
-                message: 'Business name must be at least 2 characters',
-              },
-            }}
-            render={({ field: { onChange, onBlur, value } }) => (
-              <Input
-                placeholder="Enter your business name"
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                autoCapitalize="words"
-                className={errors.businessName ? 'border-destructive' : ''}
-              />
-            )}
-          />
-          {errors.businessName && (
-            <Text className="text-sm text-destructive mt-1">
-              {errors.businessName.message}
-            </Text>
-          )}
-          <Text className="text-xs text-muted-foreground mt-1">
-            This is how your business will appear to customers
-          </Text>
-        </View>
-
-        {/* Phone Number */}
-        <View>
-          <Text className="text-sm font-medium text-foreground mb-3">
-            Phone Number
-          </Text>
-          <View className="flex-row gap-3">
-            <View className="w-20">
-              <Input
-                value="+44"
-                editable={false}
-                className="bg-muted text-center"
-              />
-            </View>
-            <View className="flex-1">
+        {/* Basic Information Card */}
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="text-foreground">Basic Information</CardTitle>
+          </CardHeader>
+          <CardContent className="gap-4">
+            {/* Business Name */}
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">
+                Business Name *
+              </Text>
               <Controller
                 control={control}
-                name="phoneNumber"
+                name="businessName"
                 rules={{
-                  required: 'Phone number is required',
-                  pattern: {
-                    value: /^[0-9]{10,11}$/,
-                    message: 'Please enter a valid phone number',
+                  required: 'Business name is required',
+                  minLength: {
+                    value: 2,
+                    message: 'Business name must be at least 2 characters',
                   },
                 }}
                 render={({ field: { onChange, onBlur, value } }) => (
                   <Input
-                    placeholder="1234567890"
+                    placeholder="e.g. Nails by Joe B"
                     value={value}
                     onChangeText={onChange}
                     onBlur={onBlur}
-                    keyboardType="phone-pad"
-                    className={errors.phoneNumber ? 'border-destructive' : ''}
+                    autoCapitalize="words"
+                    className={errors.businessName ? 'border-destructive' : ''}
                   />
                 )}
               />
+              {errors.businessName && (
+                <Text className="text-sm text-destructive mt-1">
+                  {errors.businessName.message}
+                </Text>
+              )}
+              <Text className="text-xs text-muted-foreground mt-1">
+                This is how your business will appear to customers
+              </Text>
             </View>
-          </View>
-          {errors.phoneNumber && (
-            <Text className="text-sm text-destructive mt-1">
-              {errors.phoneNumber.message}
-            </Text>
-          )}
-        </View>
 
-        {/* Address */}
-        <View>
-          <Text className="text-sm font-medium text-foreground mb-3">
-            Business Address
-          </Text>
-          <Controller
-            control={control}
-            name="address"
-            rules={{
-              required: 'Business address is required',
-              minLength: {
-                value: 5,
-                message: 'Address must be at least 5 characters',
-              },
-            }}
-            render={({ field: { onChange, onBlur, value } }) => (
-              <Input
-                placeholder="Enter your business address"
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                autoCapitalize="words"
-                className={errors.address ? 'border-destructive' : ''}
+            {/* Business Bio */}
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">
+                Business Bio * (Max 150 characters)
+              </Text>
+              <Controller
+                control={control}
+                name="businessBio"
+                rules={{
+                  required: 'Business bio is required',
+                  maxLength: {
+                    value: 150,
+                    message: 'Bio must not exceed 150 characters',
+                  },
+                }}
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <>
+                    <Textarea
+                      placeholder="e.g. Hybrid lash and nail specialist. 5 years experience, helping clients look their best."
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      numberOfLines={3}
+                      maxLength={150}
+                      className={errors.businessBio ? 'border-destructive' : ''}
+                    />
+                    <Text className="text-xs text-muted-foreground mt-1 text-right">
+                      {value?.length || 0}/150
+                    </Text>
+                  </>
+                )}
               />
-            )}
-          />
-          {errors.address && (
-            <Text className="text-sm text-destructive mt-1">
-              {errors.address.message}
-            </Text>
-          )}
-        </View>
-
-        {/* City and Postal Code */}
-        <View className="flex-row gap-3">
-          <View className="flex-1">
-            <Text className="text-sm font-medium text-foreground mb-3">
-              City
-            </Text>
-            <Controller
-              control={control}
-              name="city"
-              rules={{
-                required: 'City is required',
-                minLength: {
-                  value: 2,
-                  message: 'City must be at least 2 characters',
-                },
-              }}
-              render={({ field: { onChange, onBlur, value } }) => (
-                <Input
-                  placeholder="London"
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  autoCapitalize="words"
-                  className={errors.city ? 'border-destructive' : ''}
-                />
+              {errors.businessBio && (
+                <Text className="text-sm text-destructive mt-1">
+                  {errors.businessBio.message}
+                </Text>
               )}
-            />
-            {errors.city && (
-              <Text className="text-sm text-destructive mt-1">
-                {errors.city.message}
+              <Text className="text-xs text-muted-foreground mt-1">
+                Professional language only. No vulgar content.
               </Text>
-            )}
-          </View>
+            </View>
 
-          <View className="flex-1">
-            <Text className="text-sm font-medium text-foreground mb-3">
-              Postal Code
-            </Text>
-            <Controller
-              control={control}
-              name="postalCode"
-              rules={{
-                required: 'Postal code is required',
-                pattern: {
-                  value: /^[A-Za-z0-9\s]{5,10}$/,
-                  message: 'Please enter a valid postal code',
-                },
-              }}
-              render={({ field: { onChange, onBlur, value } }) => (
-                <Input
-                  placeholder="SW1A 1AA"
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  autoCapitalize="characters"
-                  className={errors.postalCode ? 'border-destructive' : ''}
-                />
-              )}
-            />
-            {errors.postalCode && (
-              <Text className="text-sm text-destructive mt-1">
-                {errors.postalCode.message}
+            {/* Phone Number with Country Code */}
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">
+                Phone Number *
               </Text>
+              <View className="flex-row gap-3">
+                <View className="w-28">
+                  <Controller
+                    control={control}
+                    name="phone_country_code"
+                    rules={{ required: 'Country code required' }}
+                    render={({ field: { onChange, value } }) => (
+                      <SearchableCountryCodeSelect
+                        value={value}
+                        onValueChange={onChange}
+                        placeholder="Code"
+                      />
+                    )}
+                  />
+                </View>
+                <View className="flex-1">
+                  <Controller
+                    control={control}
+                    name="phone_number"
+                    rules={{
+                      required: 'Phone number is required',
+                      pattern: {
+                        value: /^[0-9]{10,11}$/,
+                        message: 'Please enter a valid phone number',
+                      },
+                    }}
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <Input
+                        placeholder="1234567890"
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        keyboardType="phone-pad"
+                        className={errors.phone_number ? 'border-destructive' : ''}
+                      />
+                    )}
+                  />
+                </View>
+              </View>
+              {(errors.phone_country_code || errors.phone_number) && (
+                <Text className="text-sm text-destructive mt-1">
+                  {errors.phone_country_code?.message || errors.phone_number?.message}
+                </Text>
+              )}
+            </View>
+          </CardContent>
+        </Card>
+
+        {/* Business Address Card */}
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="text-foreground">Business Address</CardTitle>
+          </CardHeader>
+          <CardContent className="gap-4">
+            {/* Country Selection */}
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">
+                Country *
+              </Text>
+              <Controller
+                control={control}
+                name="country_code"
+                rules={{ required: 'Please select your country' }}
+                render={({ field: { onChange, value } }) => {
+                  // Find the country object from the string code
+                  const countryObject = value ? COUNTRIES.find(c => c.value === value) : undefined;
+                  
+                  return (
+                    <SearchableCountrySelect
+                      value={countryObject as any}
+                      onValueChange={(country) => {
+                        // Extract just the ISO code string from the country object
+                        onChange(country?.value);
+                        console.log('[Business Info] Country selected:', country?.value);
+                      }}
+                      placeholder="Select country"
+                      countries={COUNTRIES}
+                    />
+                  );
+                }}
+              />
+              {errors.country_code && (
+                <Text className="text-sm text-destructive mt-1">
+                  {errors.country_code.message}
+                </Text>
+              )}
+            </View>
+
+            {/* City Selection */}
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">
+                City *
+              </Text>
+              <Controller
+                control={control}
+                name="city"
+                rules={{ required: 'City is required' }}
+                render={({ field: { onChange, value } }) => (
+                  <SearchableCitySelect
+                    countryCode={selectedCountryCode}
+                    value={value}
+                    onValueChange={onChange}
+                    placeholder={selectedCountryCode ? "Select city" : "Select country first"}
+                    disabled={!selectedCountryCode}
+                  />
+                )}
+              />
+              {errors.city && (
+                <Text className="text-sm text-destructive mt-1">
+                  {errors.city.message}
+                </Text>
+              )}
+            </View>
+
+            {/* Address */}
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">
+                Street Address *
+              </Text>
+              <Controller
+                control={control}
+                name="address"
+                rules={{
+                  required: 'Business address is required',
+                  minLength: {
+                    value: 5,
+                    message: 'Address must be at least 5 characters',
+                  },
+                }}
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <Input
+                    placeholder="Enter your business address"
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    autoCapitalize="words"
+                    className={errors.address ? 'border-destructive' : ''}
+                  />
+                )}
+              />
+              {errors.address && (
+                <Text className="text-sm text-destructive mt-1">
+                  {errors.address.message}
+                </Text>
+              )}
+            </View>
+
+            {/* Postal Code */}
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">
+                Postal Code *
+              </Text>
+              <Controller
+                control={control}
+                name="postalCode"
+                rules={{
+                  required: 'Postal code is required',
+                  pattern: {
+                    value: /^[A-Za-z0-9\s]{3,10}$/,
+                    message: 'Please enter a valid postal code',
+                  },
+                }}
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <Input
+                    placeholder="SW1A 1AA"
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    autoCapitalize="characters"
+                    className={errors.postalCode ? 'border-destructive' : ''}
+                  />
+                )}
+              />
+              {errors.postalCode && (
+                <Text className="text-sm text-destructive mt-1">
+                  {errors.postalCode.message}
+                </Text>
+              )}
+            </View>
+
+            {/* Address Validation Status */}
+            {(isGeocoding || geocodingError || geocodingWarning || addressValidated) && (
+              <View className={cn(
+                "flex-row items-center gap-2 p-3 rounded-lg",
+                isGeocoding && "bg-muted",
+                geocodingError && "bg-destructive/10",
+                geocodingWarning && "bg-yellow-500/10",
+                addressValidated && "bg-green-500/10"
+              )}>
+                {isGeocoding && (
+                  <>
+                    <Icon as={Loader2} className="text-muted-foreground animate-spin" size={16} />
+                    <Text className="text-sm text-muted-foreground flex-1">Validating address...</Text>
+                  </>
+                )}
+                {geocodingError && !isGeocoding && (
+                  <>
+                    <Icon as={AlertCircle} className="text-destructive" size={16} />
+                    <Text className="text-sm text-destructive flex-1">{geocodingError}</Text>
+                  </>
+                )}
+                {geocodingWarning && !geocodingError && !isGeocoding && (
+                  <>
+                    <Icon as={AlertTriangle} className="text-yellow-500" size={16} />
+                    <Text className="text-sm text-yellow-700 dark:text-yellow-300 flex-1">{geocodingWarning}</Text>
+                  </>
+                )}
+                {addressValidated && !geocodingError && !geocodingWarning && !isGeocoding && (
+                  <>
+                    <Icon as={CheckCircle} className="text-green-500" size={16} />
+                    <Text className="text-sm text-green-700 dark:text-green-300 flex-1">Address verified ✓</Text>
+                  </>
+                )}
+              </View>
             )}
-          </View>
-        </View>
+          </CardContent>
+        </Card>
 
         {/* Info Note */}
         <View className="flex-row p-4 bg-primary/5 rounded-lg border border-primary/20">
@@ -380,11 +608,10 @@ export default function BusinessInfoScreen() {
           </View>
           <View className="flex-1">
             <Text className="font-semibold text-foreground mb-2">
-              Business Information
+              Important Information
             </Text>
             <Text className="text-muted-foreground text-sm">
-              This information will be used to set up your business profile and 
-              help customers find and contact you. You can update these details later.
+              Your business information will be visible to customers. We'll validate your address to help customers find you. You can update these details later from your profile.
             </Text>
           </View>
         </View>
@@ -397,10 +624,10 @@ export default function BusinessInfoScreen() {
             </View>
             <View className="flex-1">
               <Text className="font-semibold text-destructive mb-2">
-                Error
+                Error Saving Information
               </Text>
               <Text className="text-destructive/90 text-sm">
-                {saveBusinessInfoMutation.error.message}
+                {saveBusinessInfoMutation.error.message || 'Failed to save business information. Please try again.'}
               </Text>
             </View>
           </View>
@@ -410,12 +637,21 @@ export default function BusinessInfoScreen() {
         <Button
           size="lg"
           onPress={handleSubmit(onSubmit)}
-          disabled={!isValid || saveBusinessInfoMutation.isPending}
-          className="w-full mt-6"
+          disabled={!isValid || isSubmitting || isGeocoding}
+          className="w-full mt-4"
         >
-          <Text className="font-semibold text-primary-foreground">
-            {saveBusinessInfoMutation.isPending ? 'Saving...' : 'Continue to Category Selection'}
-          </Text>
+          {(isSubmitting || isGeocoding) ? (
+            <View className="flex-row items-center gap-2">
+              <Icon as={Loader2} className="text-primary-foreground animate-spin" size={20} />
+              <Text className="font-semibold text-primary-foreground">
+                {isGeocoding ? 'Validating Address...' : 'Saving...'}
+              </Text>
+            </View>
+          ) : (
+            <Text className="font-semibold text-primary-foreground">
+              Continue to Category Selection
+            </Text>
+          )}
         </Button>
 
         {/* Back Button */}
@@ -423,6 +659,7 @@ export default function BusinessInfoScreen() {
           variant="outline"
           size="lg"
           onPress={navigateBack}
+          disabled={isSubmitting}
           className="w-full"
         >
           <Text>Back to Identity Verification</Text>

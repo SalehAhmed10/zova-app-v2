@@ -18,6 +18,10 @@ import { router } from 'expo-router';
 
 /**
  * Verification step definitions - SINGLE SOURCE OF TRUTH
+ * 
+ * IMPORTANT: Services step (previously step 5) has been removed due to no services being
+ * populated in the database. The flow now goes directly from Category (step 4) to 
+ * Portfolio (now step 5).
  */
 export const VERIFICATION_STEPS = {
   1: {
@@ -50,31 +54,31 @@ export const VERIFICATION_STEPS = {
   },
   5: {
     id: 5,
-    title: 'Service Details',
-    route: '/(provider-verification)/services',
-    required: true,
-    description: 'Define your specific services'
-  },
-  6: {
-    id: 6,
     title: 'Portfolio',
     route: '/(provider-verification)/portfolio',
     required: true,
     description: 'Showcase your work examples'
   },
-  7: {
-    id: 7,
+  6: {
+    id: 6,
     title: 'Business Bio',
     route: '/(provider-verification)/bio',
     required: true,
     description: 'Describe your business'
   },
-  8: {
-    id: 8,
+  7: {
+    id: 7,
     title: 'Terms & Policies',
     route: '/(provider-verification)/terms',
     required: true,
     description: 'Set booking terms and policies'
+  },
+  8: {
+    id: 8,
+    title: 'Verification Complete',
+    route: '/(provider-verification)/complete',
+    required: true,
+    description: 'Verification submitted for review'
   }
 } as const;
 
@@ -129,9 +133,18 @@ export class VerificationFlowManager {
 
   /**
    * Get step ID from route
+   * Handles both full paths and relative paths within route groups
    */
   static getStepFromRoute(route: string): VerificationStepId {
-    const step = Object.entries(VERIFICATION_STEPS).find(([_, def]) => def.route === route);
+    // First try exact match
+    let step = Object.entries(VERIFICATION_STEPS).find(([_, def]) => def.route === route);
+
+    // If no exact match and route doesn't start with group prefix, try with group prefix
+    if (!step && !route.startsWith('/(provider-verification)')) {
+      const fullRoute = route === '/' ? '/(provider-verification)' : `/(provider-verification)${route}`;
+      step = Object.entries(VERIFICATION_STEPS).find(([_, def]) => def.route === fullRoute);
+    }
+
     return step ? (parseInt(step[0]) as VerificationStepId) : 1;
   }
 
@@ -206,16 +219,7 @@ export class VerificationFlowManager {
           canProceed: !!hasCategory
         };
 
-      case 5: // Services (required)
-        const hasServices = stepData?.selectedServices?.length > 0;
-        return {
-          isComplete: !!hasServices,
-          hasRequiredData: !!hasServices,
-          missingFields: hasServices ? [] : ['selectedServices'],
-          canProceed: !!hasServices
-        };
-
-      case 6: // Portfolio
+      case 5: // Portfolio (services step removed)
         const hasPortfolio = stepData?.images?.length > 0;
         return {
           isComplete: !!hasPortfolio,
@@ -224,7 +228,7 @@ export class VerificationFlowManager {
           canProceed: !!hasPortfolio
         };
 
-      case 7: // Bio
+      case 6: // Bio
         const hasBio = stepData?.businessDescription && stepData?.yearsOfExperience;
         return {
           isComplete: !!hasBio,
@@ -233,7 +237,7 @@ export class VerificationFlowManager {
           canProceed: !!hasBio
         };
 
-      case 8: // Terms
+      case 7: // Terms
         const hasTerms = stepData?.termsAccepted;
         return {
           isComplete: !!hasTerms,
@@ -242,7 +246,16 @@ export class VerificationFlowManager {
           canProceed: !!hasTerms
         };
       
-      // Step 9 (payment) removed - now handled in dashboard
+      case 8: // Verification Complete (all steps 1-7 done)
+        // Step 8 is the completion screen - it's automatically complete once all 1-7 are done
+        return {
+          isComplete: true,
+          hasRequiredData: true,
+          missingFields: [],
+          canProceed: true
+        };
+      
+      // Services step removed (was previously step 5)
 
       default:
         return {
@@ -262,11 +275,12 @@ export class VerificationFlowManager {
     // Temporarily disabled verbose logging to reduce console noise during form input
     // console.log('[VerificationFlowManager] Finding first incomplete step with data:', verificationData);
     
-    // Check each step sequentially using actual data validation (steps 1-8 only)
-    for (let stepId = 1; stepId <= 8; stepId++) {
+    // Check each step sequentially using actual data validation (steps 1-7 only)
+    // ✅ NOTE: Services step removed - now goes: Document → Selfie → Business → Category → Portfolio → Bio → Terms
+    for (let stepId = 1; stepId <= 7; stepId++) {
       let stepData: any = null;
       
-      // Map step to data
+      // Map step to data (sequential: 1→7, no services)
       switch (stepId) {
         case 1:
           stepData = verificationData.documentData;
@@ -281,18 +295,15 @@ export class VerificationFlowManager {
           stepData = verificationData.categoryData;
           break;
         case 5:
-          stepData = verificationData.servicesData;
-          break;
-        case 6:
           stepData = verificationData.portfolioData;
           break;
-        case 7:
+        case 6:
           stepData = verificationData.bioData;
           break;
-        case 8:
+        case 7:
           stepData = verificationData.termsData;
           break;
-        // Step 9 (payment) removed - now handled in dashboard
+        // Step 8+ handled separately for completion
       }
       
       const validation = this.validateStepCompletion(stepId as VerificationStepId, stepData);
@@ -301,12 +312,15 @@ export class VerificationFlowManager {
       
       if (!validation.isComplete) {
         // console.log(`[VerificationFlowManager] First incomplete step: ${stepId}`);
-        return stepId;
+        return stepId;  // ✅ FIX: Return first incomplete step (1-7)
       }
     }
     
-    // All steps (1-8) complete - ready for submission
-    return 8; // Return final step
+    // ✅ FIX: If we get here, all steps ARE complete (1-7)
+    // User has completed all required verification steps
+    // Return 8 to indicate ready for submission/completion
+    console.log('[VerificationFlowManager] ✅ All verification steps complete (1-7) - ready for submission');
+    return 8; // Return completion step
   }
 
   /**

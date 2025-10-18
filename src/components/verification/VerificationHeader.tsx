@@ -12,7 +12,7 @@ interface VerificationHeaderProps {
 export const VerificationHeader: React.FC<VerificationHeaderProps> = ({ 
   step, 
   title, 
-  totalSteps = 9 
+  totalSteps = 8  // ✅ FIXED: 8 steps (payment removed)
 }) => {
   // Special handling for completion step
   const isComplete = step > totalSteps;

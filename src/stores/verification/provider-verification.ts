@@ -108,6 +108,7 @@ interface ProviderVerificationState {
   
   businessData: {
     businessName: string;
+    businessBio: string;
     phoneNumber: string;
     countryCode: string;
     address: string;
@@ -322,6 +323,7 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
       
       businessData: {
         businessName: '',
+        businessBio: '',
         phoneNumber: '',
         countryCode: '+44',
         address: '',
@@ -843,6 +845,7 @@ export const useProviderVerificationStore = create<ProviderVerificationStore>()(
           },
           businessData: {
             businessName: '',
+            businessBio: '',
             phoneNumber: '',
             countryCode: '+44',
             address: '',

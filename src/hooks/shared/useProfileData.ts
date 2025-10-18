@@ -19,6 +19,7 @@ export interface ProfileData {
   country: string;
   phone_number?: string;
   country_code?: string;
+  business_name?: string;
   verification_status?: 'in_progress' | 'submitted' | 'pending' | 'in_review' | 'approved' | 'rejected';
   // Stripe payment fields
   stripe_account_id?: string;

@@ -4,48 +4,44 @@ import { router } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import * as ImagePicker from 'expo-image-picker';
-import { Upload, Loader2 } from 'lucide-react-native';
+import { Upload, Loader2, Images } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import { Icon } from '@/components/ui/icon';
+import { Skeleton } from '@/components/ui/skeleton';
 import { VerificationHeader } from '@/components/verification/VerificationHeader';
-import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/verification/provider-verification';
+import { useVerificationData, useUpdateStepCompletion, useVerificationRealtime } from '@/hooks/provider/useVerificationSingleSource';
 import { supabase } from '@/lib/supabase';
 import { createStorageService } from '@/lib/storage/organized-storage';
 import { useVerificationNavigation } from '@/hooks/provider';
-import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';
+import { useAuthStore } from '@/stores/auth';
 
 export default function PortfolioUploadScreen() {
+  const insets = useSafeAreaInsets();
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [deletingImageIndex, setDeletingImageIndex] = useState<number | null>(null);
   const queryClient = useQueryClient();
-  
-  const {
-    portfolioData,
-    updatePortfolioData,
-    completeStep,
-    completeStepSimple,
-    previousStep,
-    providerId
-  } = useProviderVerificationStore();  const isHydrated = useProviderVerificationHydration();
+  const { user } = useAuthStore();
+  const providerId = user?.id;
 
-  // ✅ CENTRALIZED NAVIGATION: Replace manual routing
-  const { navigateBack } = useVerificationNavigation();
+  // ✅ SINGLE-SOURCE: Use new verification hooks
+  const { data: verificationData, isLoading: verificationLoading } = useVerificationData(providerId);
+  const updateStepMutation = useUpdateStepCompletion();
+  const { navigateNext, navigateBack } = useVerificationNavigation();
 
-  // Don't render until hydrated
-  if (!isHydrated) {
-    return (
-      <ScreenWrapper>
-        <View className="flex-1 items-center justify-center">
-          <Text>Loading...</Text>
-        </View>
-      </ScreenWrapper>
-    );
-  }
+  // Real-time subscription for live updates
+  useVerificationRealtime(providerId);
+
+  // Portfolio configuration
+  const portfolioConfig = {
+    maxImages: 10, // Maximum portfolio images allowed
+  };
 
   // ✅ REACT QUERY: Fetch existing portfolio images
-  const { data: existingImages = [], isLoading: fetchingExisting } = useQuery({
+  const { data: existingImages = [], isLoading: fetchingExisting, isFetching: refetchingImages } = useQuery({
     queryKey: ['portfolioImages', providerId],
     queryFn: async () => {
       if (!providerId) throw new Error('Provider ID required');
@@ -91,45 +87,34 @@ export default function PortfolioUploadScreen() {
         })
         .filter(img => img !== null);
 
-      // Update store with existing images
-      const portfolioImages = imagesWithSignedUrls.map(img => ({
-        id: img.id.toString(),
-        url: img.image_url,
-        altText: img.alt_text,
-        sortOrder: img.sort_order,
-      }));
-      
-      updatePortfolioData({ images: portfolioImages });
-      
       return imagesWithSignedUrls;
     },
-    enabled: !!providerId && isHydrated,
+    enabled: !!providerId,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  // ✅ REACT QUERY MUTATION: Upload portfolio images
+  // ✅ REACT QUERY MUTATION: Upload portfolio images (APPEND mode)
   const uploadPortfolioMutation = useMutation({
     mutationFn: async (images: string[]) => {
       if (!providerId) throw new Error('Provider ID required');
 
-      console.log('[Portfolio] Starting upload process for', images.length, 'images');
-
-      // Delete existing images if we're replacing them
-      if (existingImages.length === 0) {
-        await supabase
-          .from('provider_portfolio_images')
-          .delete()
-          .eq('provider_id', providerId);
-      }
+      console.log('[Portfolio] Starting upload process for', images.length, 'new images (append mode)');
 
       // Create organized storage service for this provider
       const storageService = createStorageService(providerId);
+
+      // Calculate next sort order based on existing images
+      // Use max sort_order + 1, not just the count (in case of deletions or duplicates)
+      const maxSortOrder = existingImages.length > 0 
+        ? Math.max(...existingImages.map(img => img.sort_order || 0))
+        : -1;
+      const nextSortOrder = maxSortOrder + 1;
 
       // Upload new images to Supabase storage using organized paths
       const uploadPromises = images.map(async (imageUri, index) => {
         const result = await storageService.uploadPortfolioImage(
           imageUri, 
-          existingImages.length + index,
+          nextSortOrder + index,
           Date.now()
         );
         
@@ -138,9 +123,9 @@ export default function PortfolioUploadScreen() {
         }
         
         return {
-          fileName: result.fileName || result.filePath || `portfolio_${index}`,
+          fileName: result.fileName || result.filePath || `portfolio_${nextSortOrder + index}`,
           filePath: result.filePath || result.url || '',
-          sortOrder: existingImages.length + index
+          sortOrder: nextSortOrder + index
         };
       });
 
@@ -153,14 +138,195 @@ export default function PortfolioUploadScreen() {
         sortOrder: result.sortOrder,
       }));
 
-      // Save new portfolio images to database with file paths
+      // Save new portfolio images to database with file paths (APPEND, don't replace)
       const portfolioImageRecords = newPortfolioImages.map(image => ({
         provider_id: providerId,
         image_url: image.url,
         alt_text: `Portfolio image ${image.sortOrder + 1}`,
         sort_order: image.sortOrder,
         verification_status: 'pending',
-        is_featured: image.sortOrder === 0 && existingImages.length === 0,
+        is_featured: false, // Never set featured for appended images
+      }));
+
+      // ✅ IMPORTANT: Check if these images already exist to avoid duplicates
+      // Query database directly to avoid stale cache issues
+      const { data: existingDbImages, error: fetchError } = await supabase
+        .from('provider_portfolio_images')
+        .select('image_url')
+        .eq('provider_id', providerId);
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('[Portfolio] Error checking existing images:', fetchError);
+        // Continue anyway - don't fail on dedup check
+      }
+
+      const existingPaths = (existingDbImages || []).map(img => img.image_url);
+      const uniqueRecords = portfolioImageRecords.filter(
+        record => !existingPaths.includes(record.image_url)
+      );
+
+      if (uniqueRecords.length === 0) {
+        console.log('[Portfolio] All images already exist in database, skipping insert');
+        return newPortfolioImages;
+      }
+
+      const { error: dbError } = await supabase
+        .from('provider_portfolio_images')
+        .insert(uniqueRecords);
+
+      if (dbError) throw dbError;
+
+      console.log('[Portfolio] New images appended successfully:', uniqueRecords.length, 'new records');
+      
+      return newPortfolioImages;
+    },
+    onSuccess: (newPortfolioImages) => {
+      console.log('[Portfolio] Upload successful, completing step');
+      
+      // ✅ SINGLE-SOURCE: Use centralized mutation to update step completion
+      // NOTE: Don't pass images data - portfolio images are already inserted in the upload mutation
+      updateStepMutation.mutate(
+        {
+          providerId,
+          stepNumber: 5, // Portfolio is now step 5 (services removed)
+          completed: true,
+          // No data needed - portfolio images already inserted above
+        },
+        {
+          onSuccess: () => {
+            console.log('[Portfolio] Step completion confirmed, refetching images');
+            setSelectedImages([]); // Clear selected images after successful upload
+            // Force refetch to show newly uploaded images
+            queryClient.invalidateQueries({ queryKey: ['portfolioImages', providerId] });
+          },
+          onError: (error) => {
+            console.error('[Portfolio] Step completion failed:', error);
+            Alert.alert('Error', 'Failed to complete portfolio upload. Please try again.');
+          }
+        }
+      );
+    },
+    onError: (error: any) => {
+      console.error('[Portfolio] Upload failed:', error);
+      Alert.alert('Save Failed', 'Failed to upload portfolio images. Please try again.');
+    }
+  });
+
+  // ✅ REACT QUERY MUTATION: Replace all portfolio images (delete old from storage + DB)
+  const replacePortfolioMutation = useMutation({
+    mutationFn: async (images: string[]) => {
+      if (!providerId) throw new Error('Provider ID required');
+
+      console.log('[Portfolio] Starting replace all process for', images.length, 'images');
+
+      // ✅ Step 1: Fetch existing images to get storage paths
+      const { data: existingImagesToDelete, error: fetchError } = await supabase
+        .from('provider_portfolio_images')
+        .select('*')
+        .eq('provider_id', providerId);
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('[Portfolio] Error fetching images for deletion:', fetchError);
+        throw fetchError;
+      }
+
+      // ✅ Step 2: Delete old files from storage
+      if (existingImagesToDelete && existingImagesToDelete.length > 0) {
+        const storagePathsToDelete = existingImagesToDelete
+          .map(img => {
+            let storagePath = img.image_url;
+            
+            // If it's a signed URL, extract the path between /sign/ and ?
+            if (img.image_url.includes('http')) {
+              const signedUrlMatch = img.image_url.match(/\/sign\/([^?]+)/);
+              if (signedUrlMatch) {
+                storagePath = signedUrlMatch[1]; // Full path including bucket prefix
+              }
+            }
+            
+            // Remove bucket name prefix if present
+            if (storagePath.startsWith('verification-images/')) {
+              storagePath = storagePath.replace('verification-images/', '');
+            }
+            
+            return storagePath;
+          })
+          .filter((path): path is string => path !== null && path.length > 0);
+
+        if (storagePathsToDelete.length > 0) {
+          console.log('[Portfolio] Deleting', storagePathsToDelete.length, 'old files from storage');
+          console.log('[Portfolio] Storage paths to delete:', storagePathsToDelete);
+          
+          try {
+            const { error: storageError } = await supabase.storage
+              .from('verification-images')
+              .remove(storagePathsToDelete);
+
+            if (storageError) {
+              console.error('[Portfolio] Storage deletion error:', storageError);
+              console.warn('[Portfolio] Continuing with DB deletion despite storage error');
+            } else {
+              console.log('[Portfolio] Old files deleted from storage successfully');
+            }
+          } catch (error) {
+            console.error('[Portfolio] Storage deletion exception:', error);
+            console.warn('[Portfolio] Continuing with DB deletion despite storage exception');
+          }
+        }
+      }
+
+      // ✅ Step 3: Delete all from database
+      const { error: deleteError } = await supabase
+        .from('provider_portfolio_images')
+        .delete()
+        .eq('provider_id', providerId);
+
+      if (deleteError && deleteError.code !== 'PGRST116') {
+        console.error('[Portfolio] Error clearing existing images:', deleteError);
+        throw deleteError;
+      }
+
+      console.log('[Portfolio] Cleared existing images from database, uploading new portfolio');
+
+      // Create organized storage service for this provider
+      const storageService = createStorageService(providerId);
+
+      // Upload new images with fresh sort order (0-based)
+      const uploadPromises = images.map(async (imageUri, index) => {
+        const result = await storageService.uploadPortfolioImage(
+          imageUri, 
+          index,
+          Date.now()
+        );
+        
+        if (!result.success) {
+          throw new Error(result.error || `Failed to upload image ${index}`);
+        }
+        
+        return {
+          fileName: result.fileName || result.filePath || `portfolio_${index}`,
+          filePath: result.filePath || result.url || '',
+          sortOrder: index
+        };
+      });
+
+      const uploadResults = await Promise.all(uploadPromises);
+
+      // Create portfolio images array with file paths
+      const newPortfolioImages = uploadResults.map((result) => ({
+        id: result.fileName,
+        url: result.filePath,
+        sortOrder: result.sortOrder,
+      }));
+
+      // Save new portfolio images to database
+      const portfolioImageRecords = newPortfolioImages.map(image => ({
+        provider_id: providerId,
+        image_url: image.url,
+        alt_text: `Portfolio image ${image.sortOrder + 1}`,
+        sort_order: image.sortOrder,
+        verification_status: 'pending',
+        is_featured: image.sortOrder === 0,
       }));
 
       const { error: dbError } = await supabase
@@ -169,98 +335,207 @@ export default function PortfolioUploadScreen() {
 
       if (dbError) throw dbError;
 
-      // ✅ SAVE PROGRESS: Update provider_onboarding_progress table
-      const { error: progressError } = await supabase
-        .from('provider_onboarding_progress')
-        .upsert({
-          provider_id: providerId,
-          current_step: 6, // Portfolio is step 6
-          updated_at: new Date().toISOString(),
-        }, {
-          onConflict: 'provider_id'
-        });
-
-      if (progressError) {
-        console.error('[Portfolio] Error saving progress:', progressError);
-        // Don't throw here - progress saving failure shouldn't block the main operation
-      }
+      console.log('[Portfolio] Portfolio replaced successfully');
       
-      const allPortfolioImages = [...existingImages.map(img => ({
-        id: img.id.toString(),
-        url: img.image_url, 
-        altText: img.alt_text,
-        sortOrder: img.sort_order,
-      })), ...newPortfolioImages];
-
-      return allPortfolioImages;
+      return newPortfolioImages;
     },
-    onSuccess: (portfolioImages) => {
-      console.log('[Portfolio] Upload successful, updating store');
-      updatePortfolioData({ images: portfolioImages });
+    onSuccess: (newPortfolioImages) => {
+      console.log('[Portfolio] Replace successful, completing step');
       
-      // ✅ EXPLICIT: Complete step 6 and navigate using flow manager
-      const result = VerificationFlowManager.completeStepAndNavigate(
-        6, // Always step 6 for portfolio
-        { images: portfolioImages },
-        (step, stepData) => {
-          // Update Zustand store
-          completeStepSimple(step, stepData);
+      updateStepMutation.mutate(
+        {
+          providerId,
+          stepNumber: 5,
+          completed: true,
+          // No data needed - portfolio images already inserted above
+        },
+        {
+          onSuccess: () => {
+            console.log('[Portfolio] Step completion confirmed after replace, refetching images');
+            setSelectedImages([]);
+            // Force refetch to show replaced images
+            queryClient.invalidateQueries({ queryKey: ['portfolioImages', providerId] });
+          },
+          onError: (error) => {
+            console.error('[Portfolio] Step completion failed after replace:', error);
+            Alert.alert('Error', 'Failed to complete portfolio replacement. Please try again.');
+          }
         }
       );
-      
-      console.log('[Portfolio] Navigation result:', result);
-      queryClient.invalidateQueries({ queryKey: ['portfolioImages', providerId] });
-      setSelectedImages([]); // Clear selected images after successful upload
     },
     onError: (error: any) => {
-      console.error('[Portfolio] Upload failed:', error);
-      Alert.alert('Save Failed', 'Failed to upload portfolio images. Please try again.');
+      console.error('[Portfolio] Replace failed:', error);
+      Alert.alert('Save Failed', 'Failed to replace portfolio images. Please try again.');
     }
   });
 
-  // ✅ REACT QUERY MUTATION: Delete portfolio image
+  // ✅ REACT QUERY MUTATION: Delete portfolio image (from DB and Storage)
   const deletePortfolioImageMutation = useMutation({
     mutationFn: async (imageIndex: number) => {
       const imageToDelete = existingImages[imageIndex];
       if (!imageToDelete) throw new Error('Image not found');
 
-      console.log('[Portfolio] Deleting image:', imageToDelete.id);
+      console.log('[Portfolio] Deleting image from DB and Storage:', imageToDelete.id);
+      console.log('[Portfolio] Image URL for deletion:', imageToDelete.image_url);
 
-      const { error } = await supabase
+      // ✅ Step 1: Delete from Supabase Storage
+      let storagePath = '';
+      
+      // Extract path from signed URL or use raw path from DB
+      if (imageToDelete.image_url.includes('http')) {
+        // It's a signed URL - extract the path part between /sign/ and ?
+        const signedUrlMatch = imageToDelete.image_url.match(/\/sign\/([^?]+)/);
+        if (signedUrlMatch) {
+          storagePath = signedUrlMatch[1]; // Full path: "verification-images/providers/..."
+        }
+      } else if (imageToDelete.image_url.includes('providers/')) {
+        // It's a raw path from DB - needs bucket prefix
+        storagePath = `verification-images/${imageToDelete.image_url}`;
+      } else {
+        storagePath = imageToDelete.image_url;
+      }
+      
+      console.log('[Portfolio] Raw image_url from DB:', imageToDelete.image_url);
+      console.log('[Portfolio] Extracted storage path for deletion:', storagePath);
+      
+      if (storagePath) {
+        try {
+          // Supabase .remove() expects the full path within the bucket (without bucket name prefix in JS SDK v2)
+          // Actually, we need to pass just the path WITHOUT the bucket name
+          let pathForRemoval = storagePath;
+          if (pathForRemoval.startsWith('verification-images/')) {
+            pathForRemoval = pathForRemoval.replace('verification-images/', '');
+          }
+          
+          console.log('[Portfolio] Path being sent to .remove():', pathForRemoval);
+          
+          const { error: storageError } = await supabase.storage
+            .from('verification-images')
+            .remove([pathForRemoval]);
+
+          if (storageError) {
+            console.error('[Portfolio] Storage deletion error:', storageError);
+            console.error('[Portfolio] Failed path:', pathForRemoval);
+            console.warn('[Portfolio] Continuing with DB deletion despite storage error');
+          } else {
+            console.log('[Portfolio] Image deleted from storage successfully');
+          }
+        } catch (error) {
+          console.error('[Portfolio] Storage deletion exception:', error);
+          console.error('[Portfolio] Attempted path:', storagePath);
+          console.warn('[Portfolio] Continuing with DB deletion despite storage exception');
+        }
+      }
+
+      // ✅ Step 2: Delete from Database (always execute)
+      const { error: dbError } = await supabase
         .from('provider_portfolio_images')
         .delete()
         .eq('id', imageToDelete.id);
 
-      if (error) throw error;
+      if (dbError) {
+        console.error('[Portfolio] Database deletion error:', dbError);
+        throw dbError;
+      }
 
+      console.log('[Portfolio] Image deleted from database successfully');
       return imageIndex;
     },
     onSuccess: (deletedIndex) => {
-      console.log('[Portfolio] Image deleted successfully');
+      console.log('[Portfolio] Image deleted completely (DB + Storage)');
+      setDeletingImageIndex(null);
       queryClient.invalidateQueries({ queryKey: ['portfolioImages', providerId] });
     },
     onError: (error: any) => {
       console.error('[Portfolio] Delete failed:', error);
+      setDeletingImageIndex(null);
       Alert.alert('Delete Failed', 'Failed to delete image. Please try again.');
     }
   });
 
-  // ✅ REACT QUERY MUTATION: Clear all portfolio images
+  // ✅ REACT QUERY MUTATION: Clear all portfolio images (from DB and Storage)
   const clearPortfolioMutation = useMutation({
     mutationFn: async () => {
       if (!providerId) throw new Error('Provider ID required');
 
-      console.log('[Portfolio] Clearing all portfolio images');
+      console.log('[Portfolio] Clearing all portfolio images and storage files');
 
-      const { error } = await supabase
+      // ✅ Step 1: Fetch all existing images to get storage paths
+      const { data: imagesToDelete, error: fetchError } = await supabase
+        .from('provider_portfolio_images')
+        .select('*')
+        .eq('provider_id', providerId);
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('[Portfolio] Error fetching images for deletion:', fetchError);
+        throw fetchError;
+      }
+
+      if (imagesToDelete && imagesToDelete.length > 0) {
+        // ✅ Step 2: Delete all files from storage
+        const storagePathsToDelete = imagesToDelete
+          .map(img => {
+            let storagePath = '';
+            
+            if (img.image_url.includes('http')) {
+              // It's a signed URL - extract the path part between /sign/ and ?
+              const signedUrlMatch = img.image_url.match(/\/sign\/([^?]+)/);
+              if (signedUrlMatch) {
+                storagePath = signedUrlMatch[1]; // Full path: "verification-images/providers/..."
+              }
+            } else if (img.image_url.includes('providers/')) {
+              // It's a raw path from DB - needs bucket prefix
+              storagePath = `verification-images/${img.image_url}`;
+            } else {
+              storagePath = img.image_url;
+            }
+            
+            // Remove bucket prefix for .remove() API
+            if (storagePath.startsWith('verification-images/')) {
+              storagePath = storagePath.replace('verification-images/', '');
+            }
+            
+            return storagePath;
+          })
+          .filter((path): path is string => path !== null && path.length > 0);
+
+        if (storagePathsToDelete.length > 0) {
+          console.log('[Portfolio] Deleting', storagePathsToDelete.length, 'files from storage');
+          console.log('[Portfolio] Storage paths to delete:', storagePathsToDelete);
+          
+          try {
+            const { error: storageError } = await supabase.storage
+              .from('verification-images')
+              .remove(storagePathsToDelete);
+
+            if (storageError) {
+              console.error('[Portfolio] Storage deletion error:', storageError);
+              console.warn('[Portfolio] Continuing with DB deletion despite storage error');
+            } else {
+              console.log('[Portfolio] All files deleted from storage successfully');
+            }
+          } catch (error) {
+            console.error('[Portfolio] Storage deletion exception:', error);
+            console.warn('[Portfolio] Continuing with DB deletion despite storage exception');
+          }
+        }
+      }
+
+      // ✅ Step 3: Delete all from Database
+      const { error: dbError } = await supabase
         .from('provider_portfolio_images')
         .delete()
         .eq('provider_id', providerId);
 
-      if (error) throw error;
+      if (dbError) {
+        console.error('[Portfolio] Database deletion error:', dbError);
+        throw dbError;
+      }
+
+      console.log('[Portfolio] All images cleared from database successfully');
     },
     onSuccess: () => {
-      console.log('[Portfolio] All images cleared successfully');
+      console.log('[Portfolio] All images cleared completely (DB + Storage)');
       queryClient.invalidateQueries({ queryKey: ['portfolioImages', providerId] });
     },
     onError: (error: any) => {
@@ -288,8 +563,8 @@ export default function PortfolioUploadScreen() {
         const newImages = result.assets.map(asset => asset.uri);
         const totalImages = selectedImages.length + newImages.length + existingImages.length;
         
-        if (totalImages > portfolioData.maxImages) {
-          Alert.alert('Too many images', `You can only upload up to ${portfolioData.maxImages} images total.`);
+        if (totalImages > portfolioConfig.maxImages) {
+          Alert.alert('Too many images', `You can only upload up to ${portfolioConfig.maxImages} images total.`);
           return;
         }
         
@@ -316,17 +591,16 @@ export default function PortfolioUploadScreen() {
         altText: img.alt_text,
         sortOrder: img.sort_order,
       }));
-      // ✅ EXPLICIT: Complete step 6 and navigate using flow manager
-      const result = VerificationFlowManager.completeStepAndNavigate(
-        6, // Always step 6 for portfolio
-        { images: portfolioImages },
-        (step, stepData) => {
-          // Update Zustand store
-          completeStepSimple(step, stepData);
-        }
-      );
       
-      console.log('[Portfolio] Navigation result:', result);
+      // ✅ SINGLE-SOURCE: Use centralized mutation to update step completion
+      await updateStepMutation.mutateAsync({
+        providerId,
+        stepNumber: 5, // Portfolio is now step 5 (services removed)
+        completed: true,
+        data: { images: portfolioImages },
+      });
+
+      navigateNext();
       return;
     }
     
@@ -337,199 +611,300 @@ export default function PortfolioUploadScreen() {
 
     // Upload new images using React Query mutation
     if (selectedImages.length > 0) {
+      // ✅ APPEND mode: Add images to existing portfolio
       uploadPortfolioMutation.mutate(selectedImages);
+    }
+  };
+
+  // ✅ Handle Replace All action
+  const handleReplaceAll = async () => {
+    const result = await new Promise<boolean>((resolve) => {
+      Alert.alert(
+        'Replace Portfolio',
+        'Are you sure you want to replace all existing images?',
+        [
+          { text: 'Cancel', onPress: () => resolve(false), style: 'cancel' },
+          { text: 'Replace', onPress: () => resolve(true), style: 'destructive' },
+        ]
+      );
+    });
+
+    if (result && selectedImages.length > 0) {
+      replacePortfolioMutation.mutate(selectedImages);
     }
   };
 
   return (
     <View className="flex-1 bg-background">
       <VerificationHeader 
-        step={6} 
+        step={5} 
         title="Upload Portfolio" 
       />
-      <ScreenWrapper scrollable={true} contentContainerClassName="px-6 py-4">
+      <ScreenWrapper scrollable contentContainerClassName="px-4 py-6 pb-32">
 
       {/* Upload Area */}
-      {/* Existing Images Section */}
-      {existingImages.length > 0 && selectedImages.length === 0 && (
-        <Animated.View entering={SlideInDown.delay(400).springify()} className="mb-6">
-          <View className="flex-row p-4 bg-success/10 rounded-lg border border-success/20 mb-4">
-            <View className="mr-3 mt-0.5">
-              <Icon as={Upload} size={20} className="text-success" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-success font-semibold mb-1">
-                Existing Portfolio Found
-              </Text>
-              <Text className="text-success/90 text-sm">
-                You have {existingImages.length} portfolio image{existingImages.length > 1 ? 's' : ''} already uploaded
-              </Text>
-            </View>
-          </View>
-
-          <View className="flex-row flex-wrap gap-3 mb-4">
-            {existingImages.map((img, index) => (
-              <View key={img.id} className="relative">
-                <Image 
-                  source={{ uri: img.image_url }} 
-                  className="w-24 h-24 rounded-lg bg-muted"
-                  resizeMode="cover"
-                  onError={(error) => {
-                    console.error('Existing portfolio image load error:', error);
-                    console.error('Failed URL:', img.image_url);
-                  }}
-                  onLoad={() => {
-                    console.log('Existing portfolio image loaded successfully:', img.image_url);
-                  }}
-                />
-                <Pressable
-                  onPress={() => deletePortfolioImageMutation.mutate(index)}
-                  disabled={deletePortfolioImageMutation.isPending}
-                  className="absolute -top-2 -right-2 w-6 h-6 bg-destructive rounded-full items-center justify-center"
-                >
-                  <Text className="text-white text-xs font-bold">×</Text>
-                </Pressable>
+      {/* Existing Images Section with Skeleton Loading */}
+      {(existingImages.length > 0 || refetchingImages) && selectedImages.length === 0 && (
+        <Animated.View entering={SlideInDown.delay(200).springify()} className="mb-8">
+          {/* Success Banner */}
+          <View className="bg-success/5 border border-success/30 rounded-xl p-4 mb-6">
+            <View className="flex-row items-start">
+              <View className="w-10 h-10 bg-success/20 rounded-full items-center justify-center mr-3 mt-1">
+                <Icon as={Upload} size={20} className="text-success" />
               </View>
-            ))}
+              <View className="flex-1">
+                <Text className="text-success font-bold text-base mb-1">
+                  {refetchingImages ? 'Updating Portfolio...' : 'Portfolio Ready'}
+                </Text>
+                <Text className="text-success/80 text-sm leading-4">
+                  {refetchingImages 
+                    ? 'Syncing your images with storage...'
+                    : `${existingImages.length} image${existingImages.length > 1 ? 's' : ''} uploaded • Ready to continue`
+                  }
+                </Text>
+              </View>
+            </View>
           </View>
 
-          <View className="flex-row gap-2 mb-4">
+          {/* Images Grid */}
+          {refetchingImages && existingImages.length === 0 ? (
+            <View className="mb-6">
+              <Text className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                Portfolio Gallery
+              </Text>
+              <View className="flex-row flex-wrap gap-3">
+                {[0, 1, 2, 3].map((index) => (
+                  <Skeleton 
+                    key={index}
+                    className="w-[calc(50%-6px)] h-32 rounded-lg"
+                  />
+                ))}
+              </View>
+            </View>
+          ) : (
+            <View className="mb-6">
+              <Text className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                Portfolio Gallery ({existingImages.length})
+              </Text>
+              <View className="flex-row flex-wrap gap-3">
+                {existingImages.map((img, index) => (
+                  <View 
+                    key={img.id} 
+                    className="relative"
+                    style={{ width: '48%', aspectRatio: 1 }}
+                  >
+                    <Image 
+                      source={{ uri: img.image_url }} 
+                      style={{ 
+                        width: '100%', 
+                        height: '100%',
+                        borderRadius: 8,
+                        backgroundColor: '#f5f5f5'
+                      }}
+                      resizeMode="cover"
+                      onError={(error) => {
+                        console.error('Existing portfolio image load error:', error);
+                        console.error('Failed URL:', img.image_url);
+                      }}
+                      onLoad={() => {
+                        console.log('Existing portfolio image loaded successfully:', img.image_url);
+                      }}
+                    />
+                    <Pressable
+                      onPress={() => {
+                        setDeletingImageIndex(index);
+                        deletePortfolioImageMutation.mutate(index);
+                      }}
+                      disabled={deletingImageIndex === index || refetchingImages}
+                      className="absolute z-50 w-8 h-8 bg-destructive rounded-full items-center justify-center shadow-lg"
+                      style={{ top: -6, right: -6 }}
+                    >
+                      {deletingImageIndex === index ? (
+                        <ActivityIndicator size="small" color="white" />
+                      ) : (
+                        <Text className="text-white text-lg font-bold leading-none">×</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Action Buttons */}
+          <View className="flex-row gap-3">
             <Button
               variant="outline"
               size="sm"
               onPress={() => {
-                clearPortfolioMutation.mutate();
                 setSelectedImages([]);
+                clearPortfolioMutation.mutate();
               }}
-              disabled={clearPortfolioMutation.isPending}
+              disabled={clearPortfolioMutation.isPending || refetchingImages}
               className="flex-1"
             >
-              <Text>Replace All</Text>
+              <Text className="text-xs font-semibold">
+                {clearPortfolioMutation.isPending ? 'Clearing...' : 'Clear All'}
+              </Text>
             </Button>
             
             <Button
-              variant="outline"
               size="sm"
               onPress={pickImages}
-              disabled={existingImages.length + selectedImages.length >= portfolioData.maxImages}
+              disabled={existingImages.length + selectedImages.length >= portfolioConfig.maxImages || refetchingImages}
               className="flex-1"
             >
-              <Text>Add More</Text>
+              <Text className="text-xs font-semibold text-primary-foreground">Add More</Text>
             </Button>
           </View>
         </Animated.View>
       )}
 
       {/* Image Selection */}
-      {(existingImages.length === 0 || selectedImages.length > 0) && (
-        <Animated.View entering={SlideInDown.delay(400).springify()} className="mb-6">
-          <View className="flex-row items-center justify-between mb-3">
-            <Text className="text-sm font-medium text-foreground">
-              Portfolio Images ({existingImages.length + selectedImages.length}/{portfolioData.maxImages})
-            </Text>
+      {(existingImages.length === 0 || selectedImages.length > 0) && !refetchingImages && (
+        <Animated.View entering={SlideInDown.delay(200).springify()} className="mb-10">
+          {selectedImages.length > 0 && (
+            <View className="mb-6">
+              <Text className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                Selected Images ({selectedImages.length})
+              </Text>
+              <View className="flex-row flex-wrap gap-3">
+                {selectedImages.map((uri, index) => (
+                  <View 
+                    key={index} 
+                    className="relative"
+                    style={{ width: '48%', aspectRatio: 1 }}
+                  >
+                    <Image 
+                      source={{ uri }} 
+                      style={{ 
+                        width: '100%', 
+                        height: '100%',
+                        borderRadius: 8,
+                        backgroundColor: '#f5f5f5'
+                      }}
+                      resizeMode="cover"
+                      onLoad={() => console.log('[Portfolio] Selected image loaded:', index)}
+                      onError={(error) => console.error('[Portfolio] Selected image failed to load:', index, error)}
+                    />
+                    <Pressable
+                      onPress={() => removeImage(index)}
+                      className="absolute z-50 w-8 h-8 bg-destructive rounded-full items-center justify-center shadow-lg"
+                      style={{ top: -6, right: -6 }}
+                    >
+                      <Text className="text-white text-lg font-bold leading-none">×</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {existingImages.length === 0 && selectedImages.length === 0 && (
+            <Animated.View entering={FadeIn.delay(300)} className="bg-card border border-border rounded-2xl p-8 items-center mb-10 shadow-sm overflow-hidden">
+              {/* Content */}
+              <View className="items-center w-full">
+                {/* Large Icon */}
+                <View className="w-20 h-20 bg-primary/15 rounded-full items-center justify-center mb-6 border-2 border-primary/20">
+                  <Icon as={Images} size={40} className="text-primary" />
+                </View>
+                
+                {/* Main Heading */}
+                <Text className="text-foreground font-bold text-2xl mb-2 text-center">
+                  Build Your Portfolio
+                </Text>
+                
+                {/* Subtitle */}
+                <Text className="text-muted-foreground text-center text-sm mb-4 leading-5">
+                  Upload images that showcase your best work and services
+                </Text>
+                
+                {/* Benefit Bullets */}
+                <View className="bg-primary/5 border border-primary/10 rounded-xl px-4 py-3 mb-6 w-full">
+                  <View className="flex-row items-start mb-3">
+                    <Text className="text-primary font-bold mr-2.5 text-base">✓</Text>
+                    <Text className="text-muted-foreground text-xs flex-1 leading-4">
+                      <Text className="font-semibold text-foreground">Professional first impression</Text> with quality images
+                    </Text>
+                  </View>
+                  <View className="flex-row items-start mb-3">
+                    <Text className="text-primary font-bold mr-2.5 text-base">✓</Text>
+                    <Text className="text-muted-foreground text-xs flex-1 leading-4">
+                      <Text className="font-semibold text-foreground">Build customer trust</Text> with recent work samples
+                    </Text>
+                  </View>
+                  <View className="flex-row items-start">
+                    <Text className="text-primary font-bold mr-2.5 text-base">✓</Text>
+                    <Text className="text-muted-foreground text-xs flex-1 leading-4">
+                      <Text className="font-semibold text-foreground">Increase bookings</Text> with visual proof of expertise
+                    </Text>
+                  </View>
+                </View>
+                
+                {/* CTA Button */}
+                <Button onPress={pickImages} size="lg" className="w-full">
+                  <Icon as={Images} size={18} className="text-primary-foreground mr-2" />
+                  <Text className="text-primary-foreground font-bold">Select Images to Upload</Text>
+                </Button>
+              </View>
+            </Animated.View>
+          )}
+
+          {selectedImages.length > 0 && (
             <Button
               variant="outline"
               size="sm"
               onPress={pickImages}
-              disabled={selectedImages.length >= portfolioData.maxImages}
+              disabled={existingImages.length + selectedImages.length >= portfolioConfig.maxImages}
+              className="w-full mb-8"
             >
-              <Text>Add Images</Text>
+              <Text className="text-xs font-semibold">Add More ({existingImages.length + selectedImages.length}/{portfolioConfig.maxImages})</Text>
             </Button>
-          </View>
-
-          {selectedImages.length > 0 ? (
-            <View className="flex-row flex-wrap gap-3">
-              {selectedImages.map((uri, index) => (
-                <View key={index} className="relative">
-                  <Image 
-                    source={{ uri }} 
-                    className="w-24 h-24 rounded-lg bg-muted"
-                    resizeMode="cover"
-                  />
-                  <Pressable
-                    onPress={() => removeImage(index)}
-                    className="absolute -top-2 -right-2 w-6 h-6 bg-destructive rounded-full items-center justify-center"
-                  >
-                    <Text className="text-white text-xs font-bold">×</Text>
-                  </Pressable>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <View className="border-2 border-dashed border-border rounded-lg p-8 items-center bg-muted/20">
-              <Text className="text-4xl mb-2">📷</Text>
-              <Text className="text-foreground font-medium mb-2">
-                Add Portfolio Images
-              </Text>
-              <Text className="text-muted-foreground text-center mb-4">
-                Show customers your best work
-              </Text>
-              <Button onPress={pickImages}>
-                <Text className="text-primary-foreground">Select Images</Text>
-              </Button>
-            </View>
           )}
         </Animated.View>
       )}
+    </ScreenWrapper>
 
-      {/* Guidelines */}
-      <Animated.View entering={SlideInDown.delay(600).springify()} className="mb-6">
-        <View className="p-4 bg-primary/5 rounded-lg border border-primary/20">
-          <View className="flex-row items-center mb-3">
-            <Icon as={Upload} size={20} className="text-primary mr-2" />
-            <Text className="font-semibold text-foreground">
-              Portfolio Guidelines
-            </Text>
-          </View>
-          <View className="gap-1.5">
-            <Text className="text-muted-foreground text-sm">
-              • Upload high-quality, well-lit images
-            </Text>
-            <Text className="text-muted-foreground text-sm">
-              • Show your best and most recent work
-            </Text>
-            <Text className="text-muted-foreground text-sm">
-              • No offensive or inappropriate content
-            </Text>
-            <Text className="text-muted-foreground text-sm">
-              • Images will be reviewed before approval
-            </Text>
-          </View>
-        </View>
-      </Animated.View>
-
-      {/* Continue Button */}
-      <Animated.View entering={SlideInDown.delay(800).springify()} className="mb-4">
+    {/* Fixed Bottom Action Buttons */}
+    <View
+      className="px-4 bg-background border-t border-border"
+      style={{
+        paddingBottom: Math.max(insets.bottom + 20, 32),
+        paddingTop: 16,
+      }}
+    >
+      <Animated.View entering={SlideInDown.delay(300).springify()} className="mb-3">
         <Button
           size="lg"
           onPress={handleSubmit}
-          disabled={(selectedImages.length === 0 && existingImages.length === 0) || uploadPortfolioMutation.isPending || fetchingExisting}
+          disabled={(selectedImages.length === 0 && existingImages.length === 0) || uploadPortfolioMutation.isPending || replacePortfolioMutation.isPending || fetchingExisting || refetchingImages}
           className="w-full"
         >
-          <Text className="font-semibold text-primary-foreground">
-            {uploadPortfolioMutation.isPending ? 'Saving...' : 
+          <Text className="font-bold text-primary-foreground">
+            {uploadPortfolioMutation.isPending || replacePortfolioMutation.isPending ? 'Uploading...' : 
              fetchingExisting ? 'Loading...' :
-             (existingImages.length > 0 && selectedImages.length === 0) ? 'Use Existing Portfolio' : 
-             'Continue to Business Bio'}
+             refetchingImages ? 'Syncing...' :
+             (existingImages.length > 0 && selectedImages.length === 0) ? 'Continue to Next Step' : 
+             'Upload & Continue'}
           </Text>
         </Button>
       </Animated.View>
 
-      {/* Back Button */}
-      <Animated.View entering={SlideInDown.delay(1000).springify()}>
+      <Animated.View entering={SlideInDown.delay(400).springify()}>
         <Button
           variant="outline"
           size="lg"
           onPress={navigateBack}
+          disabled={uploadPortfolioMutation.isPending || replacePortfolioMutation.isPending}
           className="w-full"
         >
-          <Text>Back to Services</Text>
+          <Text className="font-semibold text-foreground">Go Back</Text>
         </Button>
       </Animated.View>
-    </ScreenWrapper>
+    </View>
 
     {/* Upload Loading Overlay */}
-    {uploadPortfolioMutation.isPending && (
+    {(uploadPortfolioMutation.isPending || replacePortfolioMutation.isPending) && (
       <View className="absolute inset-0 bg-background/95 items-center justify-center z-50">
         <View className="bg-card border border-border rounded-2xl p-8 items-center shadow-sm">
           <View className="w-16 h-16 bg-primary/10 rounded-full items-center justify-center mb-4">

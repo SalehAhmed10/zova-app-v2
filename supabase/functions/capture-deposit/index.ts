@@ -3,7 +3,9 @@ import { corsHeaders } from '../_shared/cors.ts';
 
 interface CaptureDepositRequest {
   paymentIntentId: string;
-  depositAmount: number; // in pence
+  totalAmount: number; // Full amount in pence (service + fee)
+  providerAmount: number; // Provider's share in pence
+  platformFee: number; // Platform commission in pence
   bookingId?: string;
 }
 
@@ -30,12 +32,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { paymentIntentId, depositAmount, bookingId }: CaptureDepositRequest = await req.json();
+    const { paymentIntentId, totalAmount, providerAmount, platformFee, bookingId }: CaptureDepositRequest = await req.json();
 
     // Validate required fields
-    if (!paymentIntentId || !depositAmount) {
+    if (!paymentIntentId || !totalAmount || !providerAmount || !platformFee) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields: paymentIntentId, depositAmount' }),
+        JSON.stringify({ 
+          error: 'Missing required fields: paymentIntentId, totalAmount, providerAmount, platformFee' 
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -48,12 +52,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log('💰 Capturing deposit:', { paymentIntentId, depositAmount, bookingId });
-
-    // Capture deposit amount using Stripe API
-    const captureParams = new URLSearchParams({
-      amount_to_capture: depositAmount.toString(),
+    console.log('💰 Capturing FULL AMOUNT for escrow:', { 
+      paymentIntentId, 
+      totalAmount, 
+      providerAmount, 
+      platformFee, 
+      bookingId 
     });
+
+    // ✨ ESCROW SYSTEM: Capture FULL amount immediately (not just deposit)
+    // This holds the entire payment in the platform account until service completion
+    const captureParams = new URLSearchParams();
+    // Empty params = capture full authorized amount (totalAmount)
+    // This implements true escrow - full payment held until provider transfer
 
     const captureResponse = await fetch(`https://api.stripe.com/v1/payment_intents/${paymentIntentId}/capture`, {
       method: 'POST',
@@ -69,7 +80,7 @@ Deno.serve(async (req) => {
       console.error('❌ Stripe capture error:', errorData);
       return new Response(
         JSON.stringify({ 
-          error: 'Failed to capture deposit', 
+          error: 'Failed to capture payment for escrow', 
           details: errorData.error?.message 
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -77,17 +88,30 @@ Deno.serve(async (req) => {
     }
 
     const captureData = await captureResponse.json();
-    console.log('✅ Deposit captured successfully:', captureData.id);
+    console.log('✅ Full amount captured and held in escrow:', {
+      captureId: captureData.id,
+      amountCaptured: captureData.amount_received,
+      status: captureData.status
+    });
 
-    // Update booking record if bookingId provided
+    // Update booking record with escrow tracking
     if (bookingId) {
+      const capturedAmountDecimal = (captureData.amount_received / 100).toFixed(2);
+      const providerAmountDecimal = (providerAmount / 100).toFixed(2);
+      const platformFeeDecimal = (platformFee / 100).toFixed(2);
+
       const { error: dbError } = await supabaseClient
         .from('bookings')
         .update({
           payment_intent_id: paymentIntentId,
-          captured_deposit: depositAmount,
+          payment_status: 'funds_held_in_escrow', // New status indicating escrow
+          captured_amount: capturedAmountDecimal, // Total captured (£99.00)
+          amount_held_for_provider: providerAmountDecimal, // Provider's share (£90.00)
+          platform_fee_held: platformFeeDecimal, // Platform commission (£9.00)
+          funds_held_at: new Date().toISOString(),
+          // Keep legacy fields for backwards compatibility
+          captured_deposit: captureData.amount_received,
           deposit_captured_at: new Date().toISOString(),
-          payment_status: 'deposit_captured'
         })
         .eq('id', bookingId);
 
@@ -95,7 +119,12 @@ Deno.serve(async (req) => {
         console.error('⚠️ Failed to update booking record:', dbError);
         // Don't fail the request - capture was successful
       } else {
-        console.log('📝 Booking record updated with capture details');
+        console.log('📝 Booking record updated with escrow tracking:', {
+          capturedAmount: capturedAmountDecimal,
+          providerAmount: providerAmountDecimal,
+          platformFee: platformFeeDecimal,
+          status: 'funds_held_in_escrow'
+        });
       }
     }
 
@@ -103,9 +132,13 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         captureId: captureData.id,
-        amountCaptured: captureData.amount_received,
+        amountCaptured: captureData.amount_received, // Full amount in pence
+        providerAmount: providerAmount, // Amount for provider
+        platformFee: platformFee, // Platform commission
         status: captureData.status,
-        paymentIntentId: paymentIntentId
+        paymentStatus: 'funds_held_in_escrow',
+        paymentIntentId: paymentIntentId,
+        message: 'Full payment captured and held in escrow until service completion'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -119,10 +152,29 @@ Deno.serve(async (req) => {
     
     return new Response(
       JSON.stringify({
-        error: 'Internal server error during deposit capture',
+        error: 'Internal server error during escrow capture',
         details: errorMessage
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
+
+// 🎯 ESCROW SYSTEM IMPLEMENTATION
+// ================================
+// This function implements a proper marketplace escrow system:
+//
+// 1. Captures FULL payment amount immediately (service price + platform fee)
+// 2. Holds entire amount in platform Stripe account (escrow)
+// 3. Tracks provider's share and platform commission separately
+// 4. Updates booking status to 'funds_held_in_escrow'
+// 5. Funds remain in escrow until service completion
+// 6. At completion, provider receives their share via Stripe Connect transfer
+// 7. Platform keeps commission automatically
+//
+// Benefits:
+// - Single charge to customer (better UX)
+// - Payment guaranteed for provider (no risk of failed second charge)
+// - True escrow protection (funds held until service delivered)
+// - Automatic commission collection
+// - Compliant with marketplace requirements

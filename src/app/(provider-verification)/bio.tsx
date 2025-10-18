@@ -1,156 +1,71 @@
-import React from 'react';
+/**
+ * Business Bio Screen for Provider Verification
+ *
+ * ✅ FULLY MIGRATED TO SINGLE-SOURCE ARCHITECTURE
+ * - React Query for server state (bio data from database)
+ * - Zustand for global state management (UI transient state only)
+ * - Database as single source of truth
+ *
+ * Architecture Changes:
+ * - Removed: useProviderVerificationStore, manual mutations, complex sync logic
+ * - Added: Single-source verification hooks, centralized mutations, real-time subscriptions
+ * - Improved: Local state management, atomic updates, error handling
+ */
+
 import { View, Alert } from 'react-native';
 import { router } from 'expo-router';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { VerificationHeader } from '@/components/verification/VerificationHeader';
-import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
-import { supabase } from '@/lib/supabase';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// ✅ SINGLE-SOURCE: Use new verification hooks
+import { useVerificationData, useUpdateStepCompletion, useVerificationRealtime } from '@/hooks/provider/useVerificationSingleSource';
 import { useVerificationNavigation } from '@/hooks/provider';
-import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';
+import { useAuthStore } from '@/stores/auth';
+import { useCallback, useEffect, useState } from 'react';
+
+import { Button, Input, ScreenWrapper, Textarea } from '@/components';
+import { VerificationHeader } from '@/components/verification/VerificationHeader';
+import { Text } from 'react-native';
+
+// UI Components
+
+
 
 export default function BusinessBioScreen() {
-  const queryClient = useQueryClient();
-  
-  const { 
-    bioData,
-    updateBioData,
-    completeStep,
-    completeStepSimple,
-    previousStep,
-    providerId 
-  } = useProviderVerificationStore();
+  const { user } = useAuthStore();
+  const providerId = user?.id;
 
-  // ✅ CENTRALIZED NAVIGATION: Replace manual routing
-  const { navigateBack } = useVerificationNavigation();
+  // ✅ SINGLE-SOURCE: Use new verification hooks
+  const { data: verificationData, isLoading: verificationLoading } = useVerificationData(providerId);
+  const updateStepMutation = useUpdateStepCompletion();
+  const { navigateNext, navigateBack } = useVerificationNavigation();
 
-  // ✅ REACT QUERY: Fetch existing bio data from database
-  const { data: existingBioData } = useQuery({
-    queryKey: ['providerBio', providerId],
-    queryFn: async () => {
-      if (!providerId) return null;
-      
-      console.log('[Bio] Fetching existing bio data from database...');
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('business_description, years_of_experience')
-        .eq('id', providerId)
-        .maybeSingle();
-      
-      if (error && error.code !== 'PGRST116') {
-        console.error('[Bio] Error fetching bio data:', error);
-        return null;
-      }
-      
-      console.log('[Bio] Existing bio from database:', {
-        description: data?.business_description?.substring(0, 50),
-        experience: data?.years_of_experience
-      });
-      return data;
-    },
-    enabled: !!providerId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
+  // Real-time subscription for live updates
+  useVerificationRealtime(providerId);
 
-  // ✅ NO useEffect! Pure computation with useMemo for data sync: Database → Store
-  React.useMemo(() => {
-    // Sync database → store (pure side effect during render, NOT in useEffect!)
-    if (existingBioData?.business_description && !bioData.businessDescription) {
-      console.log('[Bio] Syncing from database to store');
-      updateBioData({
-        businessDescription: existingBioData.business_description,
-        yearsOfExperience: existingBioData.years_of_experience,
-      });
+  // Safe area insets with fallback
+  let insets = { top: 0, bottom: 0, left: 0, right: 0 };
+  try {
+    insets = useSafeAreaInsets();
+  } catch (error) {
+    console.warn('useSafeAreaInsets not available:', error);
+  }
+
+  // ✅ LOCAL STATE: Form data (transient, not persisted to store)
+  const [businessDescription, setBusinessDescription] = useState('');
+  const [yearsOfExperience, setYearsOfExperience] = useState('');
+
+  // ✅ SYNC: Initialize form with existing data from verification data
+  useEffect(() => {
+    if (verificationData?.profile) {
+      console.log('[Bio] Syncing existing bio data to form');
+      setBusinessDescription(verificationData.profile.business_description || '');
+      setYearsOfExperience(verificationData.profile.years_of_experience?.toString() || '');
     }
-  }, [existingBioData, bioData.businessDescription, updateBioData]);
+  }, [verificationData?.profile]);
 
-  // ✅ REACT QUERY: Bio submission mutation
-  const submitBioMutation = useMutation({
-    mutationFn: async (data: { businessDescription: string; yearsOfExperience: number }) => {
-      console.log('[Bio] Starting bio submission for provider:', providerId);
-      
-      if (!providerId) {
-        throw new Error('Provider ID is required');
-      }
-
-      // Save to database
-      const { error: dbError } = await supabase
-        .from('profiles')
-        .update({
-          business_description: data.businessDescription,
-          years_of_experience: data.yearsOfExperience,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', providerId);
-
-      if (dbError) {
-        console.error('[Bio] Database error:', dbError);
-        throw new Error('Failed to save to database');
-      }
-
-      // ✅ SAVE PROGRESS: Update provider_onboarding_progress table
-      const { error: progressError } = await supabase
-        .from('provider_onboarding_progress')
-        .upsert({
-          provider_id: providerId,
-          current_step: 7, // Bio is step 7
-          updated_at: new Date().toISOString(),
-        }, {
-          onConflict: 'provider_id'
-        });
-
-      if (progressError) {
-        console.error('[Bio] Error saving progress:', progressError);
-        // Don't throw here - progress saving failure shouldn't block the main operation
-      }
-
-      console.log('[Bio] Bio saved successfully');
-      return data;
-    },
-    onSuccess: (data) => {
-      console.log('[Bio] Submission successful:', data);
-      // Update store
-      updateBioData(data);
-      // ✅ EXPLICIT: Complete step 7 and navigate using flow manager
-      const result = VerificationFlowManager.completeStepAndNavigate(
-        7, // Always step 7 for bio
-        data,
-        (step, stepData) => {
-          // Update Zustand store
-          completeStepSimple(step, stepData);
-        }
-      );
-      
-      console.log('[Bio] Navigation result:', result);
-      // Invalidate queries
-      queryClient.invalidateQueries({ queryKey: ['providerProfile', providerId] });
-    },
-    onError: (error) => {
-      console.error('[Bio] Submission failed:', error);
-      Alert.alert('Save Failed', 'Failed to save your information. Please try again.');
-    },
-  });
-
-  // ✅ REACT QUERY: Form state managed by Zustand store (no local useState needed)
-  const businessDescription = bioData?.businessDescription || '';
-  const yearsOfExperience = bioData?.yearsOfExperience !== null ? bioData?.yearsOfExperience?.toString() || '' : '';
-
-  // ✅ Store update handlers (replacing local setState)
-  const handleBusinessDescriptionChange = (text: string) => {
-    updateBioData({ businessDescription: text });
-  };
-
-  const handleYearsOfExperienceChange = (text: string) => {
-    const years = parseInt(text) || null;
-    updateBioData({ yearsOfExperience: years });
-  };
-
-  const validateForm = () => {
+  // ✅ FORM VALIDATION
+  const validateForm = useCallback(() => {
     if (!businessDescription.trim()) {
       Alert.alert('Description Required', 'Please write a brief description about your business.');
       return false;
@@ -159,8 +74,8 @@ export default function BusinessBioScreen() {
       Alert.alert('Description Too Short', 'Your business description should be at least 50 characters long.');
       return false;
     }
-    if (businessDescription.length > (bioData?.maxDescriptionLength || 500)) {
-      Alert.alert('Description Too Long', `Your description should be no more than ${bioData?.maxDescriptionLength || 500} characters.`);
+    if (businessDescription.length > 500) {
+      Alert.alert('Description Too Long', 'Your description should be no more than 500 characters.');
       return false;
     }
     if (!yearsOfExperience.trim()) {
@@ -173,21 +88,42 @@ export default function BusinessBioScreen() {
       return false;
     }
     return true;
-  };
+  }, [businessDescription, yearsOfExperience]);
 
-  const handleSubmit = () => {
+  // ✅ FORM SUBMISSION: Use single-source mutation
+  const handleSubmit = useCallback(async () => {
     if (!validateForm()) return;
 
-    submitBioMutation.mutate({
-      businessDescription: businessDescription.trim(),
-      yearsOfExperience: parseInt(yearsOfExperience),
-    });
-  };
+    if (!providerId) {
+      Alert.alert('Error', 'Provider ID not found. Please try logging in again.');
+      return;
+    }
+
+    try {
+      console.log('[Bio] Submitting bio data:', { businessDescription: businessDescription.substring(0, 50), yearsOfExperience });
+
+      // ✅ SINGLE-SOURCE: Use centralized mutation to update step completion
+      await updateStepMutation.mutateAsync({
+        providerId,
+        stepNumber: 6, // Bio is now step 6 (services removed)
+        completed: true,
+        data: {
+          businessDescription: businessDescription.trim(),
+          yearsOfExperience: parseInt(yearsOfExperience),
+        },
+      });
+
+      navigateNext();
+    } catch (error) {
+      console.error('[Bio] Submit error:', error);
+      Alert.alert('Save Failed', 'Failed to save your information. Please try again.');
+    }
+  }, [validateForm, providerId, businessDescription, yearsOfExperience, updateStepMutation, navigateNext]);
 
   return (
     <View className="flex-1 bg-background">
       <VerificationHeader 
-        step={7} 
+        step={6} 
         title="Business Bio" 
       />
       <ScreenWrapper scrollable={true} contentContainerClassName="px-6 py-4">
@@ -196,18 +132,18 @@ export default function BusinessBioScreen() {
         {/* Business Description */}
         <View className="mb-6">
           <Text className="text-sm font-medium text-foreground mb-2">
-            Business Description *
+            Business Description 
           </Text>
           <Textarea
             placeholder="Tell customers about your business, your approach to service, and what makes you unique..."
             value={businessDescription}
-            onChangeText={handleBusinessDescriptionChange}
+            onChangeText={setBusinessDescription}
             numberOfLines={6}
-            maxLength={bioData?.maxDescriptionLength || 500}
+            maxLength={500}
             className="min-h-[120px] placeholder:text-muted-foreground"
           />
           <Text className="text-xs text-muted-foreground mt-1">
-            {businessDescription.length}/{bioData?.maxDescriptionLength || 500} characters (minimum 50)
+            {businessDescription.length}/500 characters (minimum 50)
           </Text>
         </View>
 
@@ -222,7 +158,7 @@ export default function BusinessBioScreen() {
             onChangeText={(text) => {
               // Only allow numbers
               const numericText = text.replace(/[^0-9]/g, '');
-              handleYearsOfExperienceChange(numericText);
+              setYearsOfExperience(numericText);
             }}
             keyboardType="numeric"
             maxLength={2}
@@ -262,11 +198,11 @@ export default function BusinessBioScreen() {
         <Button
           size="lg"
           onPress={handleSubmit}
-          disabled={submitBioMutation.isPending || !businessDescription.trim() || !yearsOfExperience.trim()}
+          disabled={updateStepMutation.isPending || !businessDescription.trim() || !yearsOfExperience.trim()}
           className="w-full"
         >
           <Text className="font-semibold text-primary-foreground">
-            {submitBioMutation.isPending ? 'Saving...' : 'Continue to Terms'}
+            {updateStepMutation.isPending ? 'Saving...' : 'Continue to Terms'}
           </Text>
         </Button>
       </Animated.View>
@@ -279,7 +215,7 @@ export default function BusinessBioScreen() {
           onPress={navigateBack}
           className="w-full"
         >
-          <Text>Back to Portfolio</Text>
+            <Text className='text-foreground'>Back to Portfolio</Text>
         </Button>
       </Animated.View>
     </ScreenWrapper>

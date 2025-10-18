@@ -77,9 +77,12 @@ export default function BookingConfirmationScreen() {
             </View>
             <View className="border-t border-border pt-3 mt-3">
               <View className="flex-row justify-between">
-                <Text className="font-bold">Deposit Paid</Text>
+                <Text className="font-bold">Amount Paid</Text>
                 <Text className="font-bold text-primary">£{confirmationDetails.amount.toFixed(2)}</Text>
               </View>
+              <Text className="text-xs text-muted-foreground mt-2">
+                Full amount charged and held securely in escrow until service completion
+              </Text>
             </View>
           </CardContent>
         </Card>
@@ -117,9 +120,9 @@ export default function BookingConfirmationScreen() {
                 <Text className="text-primary-foreground font-bold text-xs">3</Text>
               </View>
               <View className="flex-1">
-                <Text className="font-medium">Payment Completion</Text>
+                <Text className="font-medium">Service Completion</Text>
                 <Text className="text-sm text-muted-foreground">
-                  Pay the remaining balance on the day of service
+                  Provider receives payment automatically when service is marked complete
                 </Text>
               </View>
             </View>

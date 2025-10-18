@@ -98,17 +98,28 @@ export const useSaveVerificationStep = () => {
       
       console.log('[VerificationMutation] Saving step:', step, 'for provider:', providerId);
       
+      // ✅ DOCUMENT STEP: Save document verification status
+      if (step === 'document' || step === 'document-verification' || step === 1) {
+        console.log('[VerificationMutation] Saving document verification data:', data);
+        
+        // Document data is already saved in provider_verification_documents table
+        // We just need to track progress here
+      }
+      
       // Update profile with verification data based on step
       if (step === 'business-info' || step === 3) {
         const { error } = await supabase
           .from('profiles')
           .update({
             business_name: data.businessName,
+            business_bio: data.businessBio,
             phone_number: data.phoneNumber,
             country_code: data.countryCode,
             address: data.address,
             city: data.city,
             postal_code: data.postalCode,
+            latitude: data.coordinates?.latitude,
+            longitude: data.coordinates?.longitude,
             updated_at: new Date().toISOString(),
           })
           .eq('id', providerId);
@@ -117,6 +128,100 @@ export const useSaveVerificationStep = () => {
           console.error('[VerificationMutation] Error saving business info:', error);
           throw error;
         }
+      }
+      
+      // ✅ SELFIE STEP: Save selfie URL to profiles table
+      if (step === 'selfie' || step === 2) {
+        console.log('[VerificationMutation] Saving selfie URL to database:', data.selfieUrl);
+        
+        const { error } = await supabase
+          .from('profiles')
+          .update({
+            selfie_verification_url: data.selfieUrl,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', providerId);
+
+        if (error) {
+          console.error('[VerificationMutation] Error saving selfie URL:', error);
+          throw error;
+        }
+        
+        console.log('[VerificationMutation] Selfie URL saved successfully');
+      }
+      
+      // ✅ CATEGORY STEP: Save category selection to provider_selected_categories table
+      if (step === 'category' || step === 4) {
+        console.log('[VerificationMutation] Saving category selection:', data.categoryId);
+        
+        const { error } = await supabase
+          .from('provider_selected_categories')
+          .upsert({
+            provider_id: providerId,
+            category_id: data.categoryId,
+            is_primary: true,
+          }, {
+            onConflict: 'provider_id,category_id'
+          });
+
+        if (error) {
+          console.error('[VerificationMutation] Error saving category:', error);
+          throw error;
+        }
+        
+        console.log('[VerificationMutation] Category saved successfully');
+      }
+      
+      // ✅ SERVICES STEP: Save service selections to provider_services table
+      if (step === 'services' || step === 5) {
+        console.log('[VerificationMutation] Saving service selections:', data.selectedServices);
+        
+        // Delete existing services first
+        await supabase
+          .from('provider_services')
+          .delete()
+          .eq('provider_id', providerId);
+        
+        // Insert new services
+        for (const serviceId of data.selectedServices) {
+          const { error } = await supabase
+            .from('provider_services')
+            .insert({
+              provider_id: providerId,
+              subcategory_id: serviceId,
+              title: 'Service Title', // Will be updated by provider later
+              base_price: 15.00, // Minimum price
+              is_active: true,
+            });
+
+          if (error) {
+            console.error('[VerificationMutation] Error saving service:', error);
+            throw error;
+          }
+        }
+        
+        console.log('[VerificationMutation] Services saved successfully');
+      }
+      
+      // ✅ BIO STEP: Save bio data to profiles table
+      if (step === 'bio' || step === 7) {
+        console.log('[VerificationMutation] Saving bio data:', data);
+        
+        const { error } = await supabase
+          .from('profiles')
+          .update({
+            business_description: data.businessDescription,
+            years_of_experience: data.yearsOfExperience,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', providerId);
+
+        if (error) {
+          console.error('[VerificationMutation] Error saving bio:', error);
+          throw error;
+        }
+        
+        console.log('[VerificationMutation] Bio saved successfully');
       }
       
       // ✅ TERMS STEP: Save terms data to provider_business_terms table
@@ -146,11 +251,34 @@ export const useSaveVerificationStep = () => {
       // ✅ SAVE PROGRESS: Update provider_onboarding_progress table
       const stepNumber = typeof step === 'number' ? step : STEP_MAPPING[step] || parseInt(step.toString()) || 1;
       
+      // First, get current progress to update steps_completed
+      const { data: currentProgress } = await supabase
+        .from('provider_onboarding_progress')
+        .select('steps_completed')
+        .eq('provider_id', providerId)
+        .single();
+      
+      // Update steps_completed JSON
+      const stepsCompleted = currentProgress?.steps_completed || {
+        "1": false, "2": false, "3": false, "4": false, "5": false,
+        "6": false, "7": false, "8": false, "9": false
+      };
+      
+      // Mark current step as completed
+      stepsCompleted[stepNumber.toString()] = true;
+      
+      console.log('[VerificationMutation] Updating progress:', {
+        stepNumber,
+        stepsCompleted,
+        nextStep: stepNumber + 1
+      });
+      
       const { error: progressError } = await supabase
         .from('provider_onboarding_progress')
         .upsert({
           provider_id: providerId,
-          current_step: stepNumber,
+          current_step: stepNumber + 1, // Move to next step
+          steps_completed: stepsCompleted, // Update completed steps
           updated_at: new Date().toISOString(),
         }, {
           onConflict: 'provider_id'
@@ -159,6 +287,8 @@ export const useSaveVerificationStep = () => {
       if (progressError) {
         console.error('[VerificationMutation] Error saving progress:', progressError);
         // Don't throw here - progress saving failure shouldn't block the main operation
+      } else {
+        console.log('[VerificationMutation] Progress saved successfully');
       }
       
       console.log('[VerificationMutation] Step saved successfully');

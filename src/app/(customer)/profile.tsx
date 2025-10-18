@@ -88,6 +88,7 @@ function ProfileError({ error, refetch }: { error: Error; refetch?: () => void }
             <Text>Retry</Text>
           </Button>
         )}
+        
       </View>
     </SafeAreaView>
   );
@@ -267,12 +268,12 @@ function ProfileContent() {
             <View className="flex-row gap-2 mt-3">
               <View className="bg-warning/10 px-3 py-1 rounded-full border border-warning/20">
                 <Text className="text-warning font-medium text-xs">
-                  ⭐ {statsLoading ? '-' : (statsData?.avg_rating || 4.9).toFixed(1)} Rating
+                  ⭐ {statsLoading ? '-' : (statsData?.avg_rating || 0).toFixed(1)} Rating
                 </Text>
               </View>
               <View className="bg-info/10 px-3 py-1 rounded-full border border-info/20">
                 <Text className="text-info font-medium text-xs">
-                  Since {profileData?.created_at ? new Date(profileData.created_at).getFullYear() : '2024'}
+                  Since {profileData?.created_at ? new Date(profileData.created_at).getFullYear() : '-'}
                 </Text>
               </View>
             </View>

@@ -5,6 +5,7 @@ import { Text } from '@/components/ui/text';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Icon } from '@/components/ui/icon';
 import { COUNTRIES } from '@/constants/countries';
 import { Search, X, ChevronDown } from 'lucide-react-native';
 import { cn } from '@/lib/utils';
@@ -109,10 +110,10 @@ export function SearchableCountryCodeSelect({
         <View className="flex-row items-center gap-1">
           {value && (
             <TouchableOpacity onPress={handleClear} className="p-1">
-              <X size={16} className="text-muted-foreground" />
+              <Icon as={X} size={16} className="text-muted-foreground" />
             </TouchableOpacity>
           )}
-          <ChevronDown size={16} className="text-muted-foreground" />
+          <Icon as={ChevronDown} size={16} className="text-muted-foreground" />
         </View>
       </TouchableOpacity>
 
@@ -127,14 +128,14 @@ export function SearchableCountryCodeSelect({
           <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
             <Text variant="h3">Select Country Code</Text>
             <TouchableOpacity onPress={() => setIsVisible(false)}>
-              <X size={24} className="text-muted-foreground" />
+              <Icon as={X} size={24} className="text-muted-foreground" />
             </TouchableOpacity>
           </View>
 
           {/* Search */}
           <View className="p-4 border-b border-border">
             <View className="flex-row items-center gap-3">
-              <Search size={20} className="text-muted-foreground" />
+              <Icon as={Search} size={20} className="text-muted-foreground" />
               <Input
                 value={searchQuery}
                 onChangeText={setSearchQuery}

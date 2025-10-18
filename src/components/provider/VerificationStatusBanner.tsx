@@ -25,8 +25,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { Text } from '@/components/ui/text';
 import { useColorScheme } from '@/lib/core/useColorScheme';
+import { THEME } from '@/lib/theme';
 import { cn } from '@/lib/utils';
-import { useVerificationStatusSelector } from '@/hooks/provider';
+import { useVerificationStatusPure } from '@/hooks/provider';
+import { useAuthOptimized } from '@/hooks';
 
 // AsyncStorage key for dismissal
 const BANNER_DISMISSED_KEY = 'verification-status-banner-dismissed';
@@ -43,10 +45,9 @@ const getBannerConfig = (status: string) => {
         title: 'Verification in progress',
         subtitle: 'We\'re reviewing your application',
         time: '24-48h',
-        gradient: 'from-amber-500/10 to-orange-500/10',
-        iconBg: 'bg-amber-500/10',
-        iconColor: 'text-amber-600 dark:text-amber-400',
-        accentColor: 'border-l-amber-500',
+        iconBg: 'bg-[hsl(var(--warning)_/_0.1)]',
+        iconColor: 'text-[hsl(var(--warning))]',
+        accentColor: 'bg-[hsl(var(--warning))]',
       };
     case 'in_review':
       return {
@@ -54,10 +55,9 @@ const getBannerConfig = (status: string) => {
         title: 'Under active review',
         subtitle: 'Your application is being processed',
         time: '12-24h',
-        gradient: 'from-blue-500/10 to-cyan-500/10',
-        iconBg: 'bg-blue-500/10',
-        iconColor: 'text-blue-600 dark:text-blue-400',
-        accentColor: 'border-l-blue-500',
+        iconBg: 'bg-[hsl(var(--info)_/_0.1)]',
+        iconColor: 'text-[hsl(var(--info))]',
+        accentColor: 'bg-[hsl(var(--info))]',
       };
     default:
       return null;
@@ -95,12 +95,16 @@ export const isVerificationBannerDismissed = async (): Promise<boolean> => {
 };
 
 export function VerificationStatusBanner() {
-  const { isDarkColorScheme } = useColorScheme();
+  const { isDarkColorScheme, colorScheme } = useColorScheme();
+  const colors = THEME[colorScheme];
   const [isDismissed, setIsDismissed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // ✅ REACT QUERY + ZUSTAND: Get verification status from store
-  const { status: verificationStatus } = useVerificationStatusSelector();
+  // ✅ FIX: Use React Query directly instead of Zustand store
+  // This prevents stale cache issues - database is source of truth
+  const { user } = useAuthOptimized();
+  const { data: verificationData, isLoading: isQueryLoading } = useVerificationStatusPure(user?.id);
+  const verificationStatus = verificationData?.status || 'pending';
 
   // Check dismissal state on mount
   useEffect(() => {
@@ -134,19 +138,38 @@ export function VerificationStatusBanner() {
     }
   };
 
-  // Handle banner tap (navigate to verification status screen)
+  // ✅ FIX: Navigate within provider route group (not outside to provider-verification)
+  // This prevents breaking app routing structure
   const handlePress = () => {
-    router.push('/(provider-verification)/verification-status');
+    // Since this banner only shows for pending/in_review (not approved/rejected),
+    // we just show a local status view or do nothing
+    // The verification-status screen should only be accessible during onboarding
+    console.log('[VerificationBanner] Status check - Current:', verificationStatus);
+    
+    // Don't navigate - this banner is informational only
+    // User should access full details from profile settings if needed
   };
 
   // Don't show banner if loading, dismissed, or status doesn't match
   const config = getBannerConfig(verificationStatus);
   
-  if (isLoading || isDismissed || !config) {
+  // 🚨 CRITICAL FIX: Never show banner for approved status
+  // This prevents stale Zustand cache from showing incorrect banner
+  // Database is source of truth - if approved, banner should never appear
+  // Now using React Query directly instead of Zustand store
+  if (isLoading || isQueryLoading || isDismissed || !config || verificationStatus === 'approved') {
+    console.log('[VerificationBanner] Hidden -', {
+      isLoading,
+      isQueryLoading,
+      isDismissed,
+      hasConfig: !!config,
+      verificationStatus,
+      source: 'React Query (database)',
+    });
     return null;
   }
 
-  const { Icon, title, subtitle, time, gradient, iconBg, iconColor, accentColor } = config;
+  const { Icon, title, subtitle, time, iconBg, iconColor, accentColor } = config;
 
   return (
     <Animated.View 
@@ -178,7 +201,7 @@ export function VerificationStatusBanner() {
         <View className="flex-row items-center pl-4 pr-2 py-3.5">
           {/* Icon with Background Circle */}
           <View className={cn('w-10 h-10 rounded-full items-center justify-center mr-3', iconBg)}>
-            <Icon size={20} className={iconColor} />
+            <Icon size={20} color={verificationStatus === 'pending' ? colors.warning : colors.info} />
           </View>
 
           {/* Text Content */}
@@ -199,7 +222,7 @@ export function VerificationStatusBanner() {
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               className="active:opacity-50"
             >
-              <ChevronRight size={20} className="text-muted-foreground" />
+              <ChevronRight size={20} color={colors.mutedForeground} />
             </Pressable>
 
             {/* Dismiss Button */}
@@ -208,7 +231,7 @@ export function VerificationStatusBanner() {
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               className="active:opacity-50 ml-1"
             >
-              <X size={18} className="text-muted-foreground" />
+              <X size={18} color={colors.mutedForeground} />
             </Pressable>
           </View>
         </View>

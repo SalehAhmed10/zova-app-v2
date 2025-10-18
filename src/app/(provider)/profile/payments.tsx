@@ -15,6 +15,8 @@ import Animated, { FadeIn, SlideInDown, SlideInUp } from 'react-native-reanimate
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { usePaymentSetupStore } from '@/stores/verification/usePaymentSetupStore';
 import { useDeepLinkHandler } from '@/hooks/shared/useDeepLinkHandler';
+import * as WebBrowser from 'expo-web-browser';
+import { useProfile } from '@/hooks/auth/useProfile';
 
 interface StripeAccountStatus {
   hasStripeAccount: boolean;
@@ -30,6 +32,16 @@ export default function PaymentsScreen() {
   const colors = THEME[colorScheme];
   const queryClient = useQueryClient();
 
+  // ✅ REACT QUERY: Fetch user profile for phone info
+  const { data: profile } = useProfile();
+
+  console.log('[PaymentsScreen] Profile data:', {
+    hasProfile: !!profile,
+    hasPhone: !!profile?.phone_number,
+    phone: profile?.phone_number,
+    countryCode: profile?.country_code
+  });
+
   // ✅ PURE ZUSTAND: Payment state management (replaces useState)
   const {
     stripeAccountId,
@@ -37,6 +49,22 @@ export default function PaymentsScreen() {
     setStripeAccountId,
     setAccountSetupComplete
   } = usePaymentSetupStore();
+
+  // ✅ WEBBROWSER SETUP: One-time initialization
+  React.useEffect(() => {
+    const setupWebBrowser = async () => {
+      try {
+        await WebBrowser.warmUpAsync();
+      } catch (error) {
+        console.log('[PaymentsScreen] WebBrowser warmUp not available');
+      }
+    };
+    setupWebBrowser();
+
+    return () => {
+      WebBrowser.coolDownAsync();
+    };
+  }, []);
 
   // ✅ REACT QUERY: Stripe status fetching (replaces useState + useEffect)
   const {
@@ -88,15 +116,69 @@ export default function PaymentsScreen() {
 
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       console.log('✅ Stripe account created successfully!', data);
       queryClient.invalidateQueries({ queryKey: ['stripe-status'] });
 
-      if (data.onboardingUrl) {
-        console.log('🔗 Opening Stripe onboarding URL:', data.onboardingUrl);
-        Linking.openURL(data.onboardingUrl).catch(() => {
-          Alert.alert('Error', 'Failed to open Stripe onboarding. Please try again.');
-        });
+      // ✅ FIX: Edge function returns 'url', not 'onboardingUrl'
+      const onboardingUrl = data.url || data.onboardingUrl;
+      
+      if (onboardingUrl) {
+        console.log('🔗 Opening Stripe onboarding URL:', onboardingUrl);
+        
+        try {
+          // ✅ FIX: Use openBrowserAsync instead of Linking.openURL
+          // This opens full in-app browser with all Stripe features enabled
+          const result = await WebBrowser.openBrowserAsync(onboardingUrl, {
+            // Full browser experience for Stripe onboarding
+            presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+            toolbarColor: colors.background,
+            controlsColor: colors.primary,
+            showTitle: true,
+            dismissButtonStyle: 'close',
+            enableBarCollapsing: false,
+          });
+
+          console.log('[PaymentsScreen] WebBrowser result:', result);
+
+          // Check if setup was completed after browser closes
+          if (result.type === 'dismiss' || result.type === 'cancel') {
+            console.log('[PaymentsScreen] Browser dismissed, checking status...');
+            
+            // Wait for Stripe webhook to process
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Refetch status to see if setup completed
+            await refetch();
+            
+            // Check if setup is now complete
+            if (accountStatus?.accountSetupComplete) {
+              Alert.alert(
+                '✅ Success!',
+                'Your payment account is now active. You can start accepting bookings!',
+                [{ text: 'OK' }]
+              );
+            } else {
+              Alert.alert(
+                'Setup In Progress',
+                'Complete your payment setup to start accepting bookings.',
+                [{ text: 'OK' }]
+              );
+            }
+          }
+        } catch (error) {
+          console.error('[PaymentsScreen] Failed to open browser:', error);
+          Alert.alert(
+            'Unable to Open',
+            'Could not open payment setup. Please try again or contact support.'
+          );
+        }
+      } else {
+        console.warn('⚠️ No onboarding URL in response');
+        Alert.alert(
+          'Setup URL Missing',
+          'The Stripe account was created but no setup URL was provided. Please try again or contact support.'
+        );
       }
     },
     onError: (error) => {
@@ -105,28 +187,12 @@ export default function PaymentsScreen() {
     },
   });
 
-  // ✅ REACT QUERY MUTATION: Stripe account deletion (replaces manual state management)
-  const deleteAccountMutation = useMutation({
-    mutationFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const { data, error } = await supabase.functions.invoke('delete-stripe-account');
-      if (error) throw error;
-
-      return data;
-    },
-    onSuccess: () => {
-      console.log('✅ Stripe account deleted successfully!');
-      queryClient.invalidateQueries({ queryKey: ['stripe-status'] });
-      setStripeAccountId(null);
-      setAccountSetupComplete(false);
-    },
-    onError: (error) => {
-      console.error('❌ Failed to delete Stripe account:', error);
-      Alert.alert('Error', 'Failed to delete Stripe account. Please try again.');
-    },
-  });
+  // ❌ REMOVED: Disconnect functionality - users must contact support
+  // Disconnecting Stripe accounts requires admin oversight due to:
+  // - Pending payouts that would be orphaned
+  // - Financial reconciliation requirements
+  // - Stripe Terms of Service compliance
+  // Users should contact support@zova.com for account disconnection
 
   // Handle deep links for Stripe onboarding completion
   useDeepLinkHandler({
@@ -144,16 +210,7 @@ export default function PaymentsScreen() {
     createAccountMutation.mutate();
   };
 
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete Stripe Account',
-      'Are you sure you want to delete your Stripe account? This will disable payment processing for your business.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => deleteAccountMutation.mutate() },
-      ]
-    );
-  };
+  // ❌ REMOVED: handleDeleteAccount - users must contact support for disconnection
 
   const handleRefresh = () => {
     refetch();
@@ -234,6 +291,35 @@ export default function PaymentsScreen() {
           {/* Setup Required Card */}
           {!accountStatus?.hasStripeAccount && (
             <Animated.View entering={FadeIn}>
+              {/* Phone Verification Info Card */}
+              <Card className="mb-4 border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
+                <CardContent className="p-4">
+                  <View className="flex-row items-start gap-3">
+                    <View className="w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-full items-center justify-center">
+                      <Ionicons name="information-circle" size={20} color={colors.primary} />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="font-semibold text-foreground mb-1">
+                        Phone Verification Required
+                      </Text>
+                      <Text variant="small" className="text-muted-foreground mb-2">
+                        Stripe will ask you to verify your phone number during setup for security and compliance.
+                      </Text>
+                      {profile?.phone_number && (
+                        <View className="mt-2 p-2 bg-background/80 rounded-md">
+                          <Text variant="small" className="text-muted-foreground">
+                            Your registered phone:
+                          </Text>
+                          <Text variant="small" className="font-mono font-semibold text-foreground">
+                            {profile.country_code} {profile.phone_number}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </CardContent>
+              </Card>
+
               <Card className="mb-4">
                 <CardHeader>
                   <CardTitle style={{ color: colors.warning }}>
@@ -261,6 +347,32 @@ export default function PaymentsScreen() {
           {/* Account Setup Card */}
           {accountStatus?.hasStripeAccount && !accountStatus.accountSetupComplete && (
             <Animated.View entering={SlideInDown}>
+              {/* Phone Verification Info Card */}
+              <Card className="mb-4 border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
+                <CardContent className="p-4">
+                  <View className="flex-row items-start gap-3">
+                    <View className="w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-full items-center justify-center">
+                      <Ionicons name="shield-checkmark" size={20} color={colors.primary} />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="font-semibold text-foreground mb-1">
+                        Verification Required
+                      </Text>
+                      <Text variant="small" className="text-muted-foreground">
+                        Stripe requires phone verification and identity documents for security compliance.
+                      </Text>
+                      {profile?.phone_number && (
+                        <View className="mt-2 p-2 bg-background/80 rounded-md">
+                          <Text variant="small" className="text-muted-foreground">
+                            Have ready: {profile.country_code} {profile.phone_number}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </CardContent>
+              </Card>
+
               <Card className="mb-4">
                 <CardHeader>
                   <CardTitle className="text-blue-600 dark:text-blue-400">
@@ -338,18 +450,20 @@ export default function PaymentsScreen() {
                       </Badge>
                     </View>
 
-                    <View className="pt-4 border-t border-border">
-                      <Button
-                        variant="outline"
-                        onPress={handleDeleteAccount}
-                        disabled={deleteAccountMutation.isPending}
-                        className="h-10"
-                        style={{ borderColor: colors.destructive + '40' }}
-                      >
-                        <Text className="font-medium" style={{ color: colors.destructive }}>
-                          {deleteAccountMutation.isPending ? 'Disconnecting...' : 'Disconnect Account'}
-                        </Text>
-                      </Button>
+                    {/* Support Contact for Disconnection */}
+                    <View className="pt-4 border-t border-border bg-muted/30 rounded-lg p-4">
+                      <View className="flex-row items-start">
+                        <Ionicons name="information-circle-outline" size={20} color={colors.muted} />
+                        <View className="flex-1 ml-3">
+                          <Text className="text-foreground font-medium mb-1">
+                            Need to Disconnect?
+                          </Text>
+                          <Text className="text-muted-foreground text-sm">
+                            For account disconnection, please contact our support team at support@zova.com. 
+                            This ensures your pending earnings are properly handled.
+                          </Text>
+                        </View>
+                      </View>
                     </View>
                   </View>
                 </CardContent>

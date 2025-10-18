@@ -37,8 +37,7 @@ import {
   useUserBookings
 } from '@/hooks/shared/useProfileData';
 import { useBusinessAvailability, useUpdateBusinessAvailability, useNextUpcomingBooking, useRecentActivity } from '@/hooks/provider';
-import { VerificationStatusBanner } from '@/components/provider/VerificationStatusBanner';
-import { PaymentSetupBanner } from '@/components/provider/PaymentSetupBanner';
+import { ProviderBannerManager } from '@/components/provider/ProviderBannerManager';
 import { cn, formatCurrency } from '@/lib/utils';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { 
@@ -288,11 +287,8 @@ export default function ProviderDashboard() {
           </TouchableOpacity>
         </View>
 
-        {/* ✅ Verification & Payment Banners - Modern placement like Airbnb */}
-        <View className="pt-3">
-          <VerificationStatusBanner />
-          <PaymentSetupBanner />
-        </View>
+        {/* ✅ Provider Banners - Managed to show only one at a time */}
+        <ProviderBannerManager />
 
         {/* Today's Overview */}
         <View className="px-4 -mt-4 mb-6">

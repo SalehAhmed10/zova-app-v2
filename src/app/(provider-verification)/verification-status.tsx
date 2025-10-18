@@ -1,39 +1,12 @@
-/**
- * ✅ VERIFICATION STATUS SCREEN - Following copilot-rules.md
- * 
- * ARCHITECTURE MIGRATION:
- * ❌ ELIMINATED: 6+ useState hooks, 5+ useEffect patterns, complex subscription management
- * ✅ IMPLEMENTED: Pure React Query + Zustand architecture
- * 
- * ANTI-PATTERNS REMOVED:
- * - useState for refreshing, complex subscription refs
- * - useEffect for subscription lifecycle, manual debouncing
- * - Direct supabase subscription management in component
- * - Global maps for debouncing
- * 
- * CLEAN PATTERNS ADDED:
- * - Zustand store for verification state persistence
- * - React Query for server state management
- * - Real-time subscriptions managed in store
- * - Pure computed properties and selectors
- * 
- * DESIGN PRINCIPLES:
- * - Uses theme colors exclusively (no hardcoded colors)
- * - Lucide icons for consistency
- * - Proper contrast and accessibility
- * - No gradients or shadows (NativeWind compatibility)
- * - Professional spacing and typography
- */
-
 import React from 'react';
 import { View, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { 
-  Clock, 
-  Eye, 
-  CheckCircle, 
-  XCircle, 
-  AlertCircle 
+import {
+  Clock,
+  Eye,
+  CheckCircle,
+  XCircle,
+  AlertCircle
 } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -47,21 +20,13 @@ import { Icon } from '@/components/ui/icon';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { cn } from '@/lib/utils';
 
-// ✅ REACT QUERY + ZUSTAND: Following copilot-rules.md
 import { useAuthOptimized } from '@/hooks';
-import {
-  useVerificationStatusPure,
-  useVerificationStatusSelector,
-  useVerificationNavigationPure,
-  VerificationNavigationHandler
-} from '@/hooks/provider';
-import { SessionRecoveryBanner } from '@/components/verification/SessionRecoveryBanner';
+import { useVerificationData, useVerificationRealtime } from '@/hooks/provider/useVerificationSingleSource';
 import { useSession } from '@/app/ctx';
 import { LogoutButton } from '@/components/ui/logout-button';
 import { supabase } from '@/lib/supabase';
-import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
 
-type VerificationStatus = 'pending' | 'in_review' | 'approved' | 'rejected';
+type VerificationStatus = 'pending' | 'in_review' | 'approved' | 'rejected' | 'submitted';
 
 interface TimelineItem {
   iconType: 'clock' | 'eye' | 'check' | 'x-circle';
@@ -84,7 +49,6 @@ interface StatusConfig {
   showRetryButton: boolean;
 }
 
-// Helper to get Lucide icon component based on type
 const getIconComponent = (iconType: 'clock' | 'eye' | 'check' | 'check-circle' | 'x-circle') => {
   switch (iconType) {
     case 'clock': return Clock;
@@ -243,18 +207,51 @@ const statusConfigs: Record<VerificationStatus, StatusConfig> = {
     showContactSupport: true,
     showRetryButton: true,
   },
+  submitted: {
+    iconType: 'clock',
+    bgColorClass: 'bg-warning/10',
+    title: 'Verification Submitted',
+    subtitle: 'Your verification application has been submitted and is currently under review by our team.',
+    badgeText: 'Submitted',
+    badgeBgClass: 'bg-warning/10',
+    badgeTextClass: 'text-warning',
+    timeline: [
+      {
+        iconType: 'check',
+        title: 'Application Submitted',
+        description: 'Your verification documents have been received',
+        completed: true,
+      },
+      {
+        iconType: 'eye',
+        title: 'Under Review',
+        description: 'Our team is reviewing your application',
+        completed: false,
+      },
+      {
+        iconType: 'check',
+        title: 'Verification Complete',
+        description: 'You can start accepting bookings',
+        completed: false,
+      },
+    ],
+    nextSteps: [
+      'Our verification team will review your documents within 24-48 hours',
+      'You will receive an email notification once the review is complete',
+      'If additional information is needed, we will contact you directly',
+    ],
+    showContactSupport: true,
+    showRetryButton: false,
+  },
 };
 
 export default function VerificationStatusScreen() {
   const { isDarkColorScheme, colorScheme } = useColorScheme();
   const { signOut } = useSession();
-  
-  // ✅ REACT QUERY + ZUSTAND: Following copilot-rules.md  
+
   const { user, isAuthenticated } = useAuthOptimized();
   const { session } = useSession();
-  
-  // 🚨 CRITICAL: If user is not authenticated, they shouldn't be on this screen
-  // This prevents the loading state after logout
+
   if (!isAuthenticated || !user) {
     console.log('[VerificationStatus] Auth check failed, showing redirect screen');
     return (
@@ -268,76 +265,78 @@ export default function VerificationStatusScreen() {
     );
   }
 
-  // ✅ CONDITIONAL HOOKS: Only call React Query hooks when authenticated
-  // This prevents API calls during logout that cause loading states
   const {
     data: verificationData,
     isLoading,
     error,
     isFetching,
     refetch
-  } = useVerificationStatusPure(user.id);
+  } = useVerificationData(user.id);
 
-  // ✅ ZUSTAND SELECTORS: Global state access (replaces useState)
-  const { status: storeStatus, lastUpdated, isSubscribed } = useVerificationStatusSelector();
-
-  // ✅ RESTART VERIFICATION MUTATION: Updates database status and resets local state
   const queryClient = useQueryClient();
-  const { resetVerification } = useProviderVerificationStore();
-  
+
   const restartVerificationMutation = useMutation({
     mutationFn: async () => {
       if (!user.id) throw new Error('User ID required');
-      
+
       console.log('[RestartVerification] Starting restart process for user:', user.id);
-      
-      // Update database status back to 'pending'
+
       const { error } = await supabase
         .from('provider_onboarding_progress')
         .update({ verification_status: 'pending' })
         .eq('provider_id', user.id);
-        
+
       if (error) throw error;
-      
+
       console.log('[RestartVerification] Database status updated to pending');
-      
-     
-      resetVerification();
-      
-      console.log('[RestartVerification] Local store reset completed');
-      
+
+      // Note: No more Zustand store reset needed - database is single source of truth
+
       return { success: true };
     },
     onSuccess: () => {
       console.log('[RestartVerification] Restart completed successfully');
-      
-      // Invalidate verification status query to refetch
+
       queryClient.invalidateQueries({
-        queryKey: ['verification-status', user.id],
+        queryKey: ['verification-data', user.id],
       });
-      
-      // Navigate to provider verification flow
+
       router.replace('/(provider-verification)');
     },
     onError: (error) => {
       console.error('[RestartVerification] Failed to restart verification:', error);
-      // Could add toast notification here
     },
   });
 
-  // ✅ COMPUTED PROPERTIES: Pure derivation (replaces useState)
-  const rawStatus = verificationData?.status || storeStatus || 'pending';
-  const currentStatus = (['pending', 'in_review', 'approved', 'rejected'].includes(rawStatus) ? rawStatus : 'pending') as VerificationStatus;
+  const rawStatus = verificationData?.progress?.verification_status || 'pending';
+  const normalizedStatus = rawStatus;
+  const currentStatus = (['pending', 'in_progress', 'in_review', 'approved', 'rejected'].includes(normalizedStatus) ? normalizedStatus : 'pending') as VerificationStatus;
   const config = statusConfigs[currentStatus] || statusConfigs.pending;
   const isRefreshing = isFetching && !isLoading;
 
-  // ✅ PURE NAVIGATION: No useEffect in component - navigation logic is pure computation
-  const { shouldNavigateToProvider, shouldRedirectToAuth } = useVerificationNavigationPure(currentStatus, isLoading);
-
-  // ✅ DEBUG: Log config to help debug text rendering issues
   console.log('[VerificationStatus] Config for status', currentStatus, ':', config);
 
-  // ✅ REACT QUERY LOADING: Handle loading states properly
+  // 🎯 AUTO-REDIRECT: If status is approved, redirect to dashboard immediately
+  React.useEffect(() => {
+    if (currentStatus === 'approved' && !isLoading) {
+      console.log('[VerificationStatus] 🎯 Status is approved - redirecting to dashboard');
+      router.replace('/(provider)');
+    }
+  }, [currentStatus, isLoading]);
+
+  // Show loading state while redirecting
+  if (currentStatus === 'approved' && !isLoading) {
+    return (
+      <SafeAreaView className="flex-1 bg-background">
+        <ScreenWrapper>
+          <View className="flex-1 justify-center items-center">
+            <Text className="text-muted-foreground">🎉 Verification approved! Redirecting to dashboard...</Text>
+          </View>
+        </ScreenWrapper>
+      </SafeAreaView>
+    );
+  }
+
   if (isLoading && !currentStatus) {
     return (
       <SafeAreaView className="flex-1 bg-background">
@@ -375,12 +374,7 @@ export default function VerificationStatusScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <VerificationNavigationHandler
-        shouldNavigateToProvider={shouldNavigateToProvider}
-        shouldRedirectToAuth={shouldRedirectToAuth}
-      />
-      
-      <ScrollView 
+      <ScrollView
         className="flex-1"
         refreshControl={
           <RefreshControl
@@ -390,62 +384,32 @@ export default function VerificationStatusScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero Status Section */}
         <View className="px-6 pt-8 pb-6">
-         
           <View className="items-center mb-6">
-            <View className={cn(
-              "w-24 h-24 rounded-full items-center justify-center mb-4",
-              config?.bgColorClass || 'bg-warning/10'
-            )}>
-              <Icon 
-                as={getIconComponent(config.iconType)} 
-                size={48} 
-                className={
-                  config.iconType === 'clock' ? 'text-warning' :
-                  config.iconType === 'eye' ? 'text-primary' :
-                  config.iconType === 'check-circle' ? 'text-success' :
-                  'text-destructive'
-                }
+            <View className="w-24 h-24 rounded-full items-center justify-center mb-4 bg-primary/10">
+              <Icon
+                as={getIconComponent(config?.iconType || 'clock')}
+                size={48}
+                className="text-primary"
               />
             </View>
 
-            {/* Status Badge */}
-            <Badge 
-              variant="outline" 
-              className={cn(
-                "px-4 py-1.5 rounded-full",
-                config?.badgeBgClass || 'bg-warning/10',
-                'border-0'
-              )}
+            <Badge
+              variant="outline"
+              className="px-4 py-1.5 rounded-full border-0 bg-primary/10"
             >
-              <Text className={cn(
-                "font-semibold text-sm",
-                config?.badgeTextClass || 'text-warning'
-              )}>
+              <Text className="font-semibold text-sm text-primary">
                 {config?.badgeText || 'Loading...'}
               </Text>
             </Badge>
 
-            {/* Debug Info */}
-            {__DEV__ && lastUpdated && typeof lastUpdated === 'number' && lastUpdated > 0 && (
-              <Badge variant="outline" className="mt-3 bg-muted/50 border-0">
-                <Text className="text-muted-foreground text-xs">
-                  Last updated: <Text>{new Date(lastUpdated).toLocaleTimeString()}</Text>
-                </Text>
-              </Badge>
-            )}
-
-            {/* Live Indicator */}
-            {typeof isSubscribed === 'boolean' && isSubscribed && (
-              <View className="flex-row items-center mt-3 bg-success/10 px-3 py-1 rounded-full">
-                <View className="w-2 h-2 bg-success rounded-full mr-2" />
-                <Text className="text-success text-xs font-medium">Live Updates Active</Text>
-              </View>
-            )}
+            {/* Real-time updates are now automatic with Supabase subscriptions */}
+            <View className="flex-row items-center mt-3 bg-success/10 px-3 py-1 rounded-full">
+              <View className="w-2 h-2 bg-success rounded-full mr-2" />
+              <Text className="text-success text-xs font-medium">Live Updates Active</Text>
+            </View>
           </View>
 
-          {/* Title & Description */}
           <View className="items-center mb-2">
             <Text className="text-foreground text-2xl font-bold text-center mb-3">
               {config?.title || 'Verification Status'}
@@ -457,10 +421,8 @@ export default function VerificationStatusScreen() {
         </View>
 
         <View className="px-6">
-          {/* Session Recovery Banner */}
-          <SessionRecoveryBanner className="mb-6" />
+          {/* <SessionRecoveryBanner className="mb-6" /> */}
 
-          {/* Timeline Card */}
           <Card className="mb-6 overflow-hidden">
             <CardHeader className="pb-4">
               <View className="flex-row items-center">
@@ -480,7 +442,6 @@ export default function VerificationStatusScreen() {
 
                 return (
                   <View key={`timeline-${index}`} className="flex-row items-start mb-6 last:mb-0">
-                    {/* Timeline Line & Icon */}
                     <View className="items-center mr-4">
                       <View className={cn(
                         "w-10 h-10 rounded-full items-center justify-center",
@@ -500,12 +461,8 @@ export default function VerificationStatusScreen() {
                       )}
                     </View>
 
-                    {/* Step Content */}
                     <View className="flex-1 pt-1">
-                      <Text className={cn(
-                        "font-semibold mb-1 text-base",
-                        isCompleted ? 'text-foreground' : 'text-muted-foreground'
-                      )}>
+                      <Text className="font-semibold mb-1 text-base text-foreground">
                         {step?.title || 'Step'}
                       </Text>
                       <Text className="text-muted-foreground text-sm leading-5">
@@ -518,7 +475,6 @@ export default function VerificationStatusScreen() {
             </CardContent>
           </Card>
 
-          {/* Next Steps Card */}
           <Card className="mb-6">
             <CardHeader className="pb-4">
               <View className="flex-row items-center">
@@ -546,9 +502,7 @@ export default function VerificationStatusScreen() {
             </CardContent>
           </Card>
 
-          {/* Action Buttons */}
           <View className="gap-3 pb-8">
-            {/* Primary Actions */}
             {currentStatus === 'approved' && (
               <Button
                 onPress={() => router.replace('/(provider)')}
@@ -564,7 +518,7 @@ export default function VerificationStatusScreen() {
               </Button>
             )}
 
-            {typeof config?.showRetryButton === 'boolean' && config?.showRetryButton && (
+            {config?.showRetryButton && (
               <Button
                 onPress={() => restartVerificationMutation.mutate()}
                 disabled={restartVerificationMutation.isPending}
@@ -573,7 +527,7 @@ export default function VerificationStatusScreen() {
               >
                 <View className="flex-row items-center">
                   {restartVerificationMutation.isPending ? (
-                    <Icon as={Clock} size={20} className="text-primary-foreground mr-2 animate-spin" />
+                    <Icon as={Clock} size={20} className="text-primary-foreground mr-2" />
                   ) : (
                     <Icon as={XCircle} size={20} className="text-primary-foreground mr-2" />
                   )}
@@ -584,8 +538,7 @@ export default function VerificationStatusScreen() {
               </Button>
             )}
 
-            {/* Secondary Actions */}
-            {typeof config?.showContactSupport === 'boolean' && config?.showContactSupport && (
+            {config?.showContactSupport && (
               <Button
                 variant="outline"
                 onPress={() => {
@@ -602,7 +555,6 @@ export default function VerificationStatusScreen() {
               </Button>
             )}
 
-            {/* Dev Tools */}
             {__DEV__ && (
               <Button
                 variant="outline"
@@ -611,12 +563,11 @@ export default function VerificationStatusScreen() {
                 className="w-full h-12 rounded-xl border-dashed border-muted-foreground/30"
               >
                 <Text className="text-muted-foreground text-sm">
-                  {isRefreshing ? 'Refreshing...' : '🔄 Refresh Status (Dev)'}
+                  {isRefreshing ? 'Refreshing...' : 'Refresh Status (Dev)'}
                 </Text>
               </Button>
             )}
 
-            {/* Logout */}
             <View className="mt-2">
               <LogoutButton
                 variant="outline"

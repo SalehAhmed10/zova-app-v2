@@ -107,7 +107,7 @@ export const SessionRecoveryBanner: React.FC<SessionRecoveryBannerProps> = ({
             </Text>
 
             <Text className="text-muted-foreground text-sm mb-3">
-              You have incomplete verification progress. Continue where you left off at step <Text className="text-muted-foreground text-sm">{lastStepCompleted}</Text> of 9.
+              You have incomplete verification progress. Continue where you left off at step {lastStepCompleted} of 9.
             </Text>
 
             <View className="flex-row gap-2">

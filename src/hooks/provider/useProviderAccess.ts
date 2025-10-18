@@ -24,13 +24,16 @@ import { useAuthOptimized } from '@/hooks';
 export const useProviderAccess = () => {
   const { user } = useAuthOptimized();
   
-  // ✅ React Query: Fetch verification + payment status from Supabase
-  const { data: profile, isLoading, error } = useQuery({
-    queryKey: ['provider-access', user?.id],
+  // ✅ React Query: Fetch payment status from profiles table
+  const { 
+    data: profileData, 
+    isLoading: profileLoading, 
+    error: profileError 
+  } = useQuery({
+    queryKey: ['provider-profile', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
       
-      // Fetch from profiles (payment info) and provider_onboarding_progress (verification)
       const { data, error } = await supabase
         .from('profiles')
         .select(`
@@ -42,23 +45,45 @@ export const useProviderAccess = () => {
         .single();
 
       if (error) throw error;
-
-      // Get verification status from provider_onboarding_progress
-      const { data: onboardingData } = await supabase
-        .from('provider_onboarding_progress')
-        .select('verification_status')
-        .eq('provider_id', user.id)
-        .single();
-
-      return {
-        ...data,
-        verification_status: onboardingData?.verification_status || 'pending'
-      };
+      return data;
     },
     enabled: !!user?.id,
     staleTime: 30000, // Cache for 30 seconds
     refetchOnWindowFocus: true, // Refresh when user returns to app
   });
+
+  // ✅ React Query: Fetch verification status from provider_onboarding_progress table
+  const { 
+    data: verificationData, 
+    isLoading: verificationLoading, 
+    error: verificationError 
+  } = useQuery({
+    queryKey: ['provider-verification-status', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      
+      const { data, error } = await supabase
+        .from('provider_onboarding_progress')
+        .select('verification_status')
+        .eq('provider_id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows
+      return data;
+    },
+    enabled: !!user?.id,
+    staleTime: 30000, // Cache for 30 seconds
+    refetchOnWindowFocus: true, // Refresh when user returns to app
+  });
+
+  // Combine data for easier use
+  const profile = {
+    ...profileData,
+    verification_status: verificationData?.verification_status || 'pending'
+  };
+
+  const isLoading = profileLoading || verificationLoading;
+  const error = profileError || verificationError;
 
   // Computed access flags
   const isVerificationApproved = profile?.verification_status === 'approved';

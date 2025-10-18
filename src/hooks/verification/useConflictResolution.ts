@@ -42,82 +42,20 @@ export const useConflictResolution = (): UseConflictResolutionReturn => {
 
       console.log('[ConflictDetection] Checking for conflicts for user:', user.id);
 
-      // Get current device fingerprint (simplified - in real app use proper device ID)
-      const currentDeviceId = `device_${Date.now()}`;
+      // ⚠️ TEMPORARY: Disable conflict detection until sessions table is needed
+      // This feature detects if user is verifying on multiple devices simultaneously
+      // Currently not critical for MVP - can be re-enabled when multi-device support needed
+      console.log('[ConflictDetection] Conflict detection disabled (sessions table not in use)');
+      return null;
 
-      // Check for active sessions from other devices
+      /* DISABLED - Re-enable when sessions table exists
+      const currentDeviceId = `device_${Date.now()}`;
       const { data: activeSessions, error: sessionsError } = await supabase
         .from('provider_verification_sessions')
-        .select(`
-          session_id,
-          device_fingerprint,
-          last_activity_at,
-          provider_verification_step_progress!provider_verification_step_progress_session_id_fkey (
-            step_number,
-            status
-          )
-        `)
-        .eq('provider_id', user.id)
-        .eq('is_active', true)
-        .neq('device_fingerprint', currentDeviceId)
-        .order('last_activity_at', { ascending: false })
-        .limit(1);
-
-      if (sessionsError) {
-        console.error('[ConflictDetection] Error fetching sessions:', sessionsError);
-        throw sessionsError;
-      }
-
-      if (!activeSessions || activeSessions.length === 0) {
-        console.log('[ConflictDetection] No conflicting sessions found');
-        return null;
-      }
-
-      const conflictingSession = activeSessions[0];
-
-      // Get the highest completed step for the conflicting session
-      const conflictingSteps = conflictingSession.provider_verification_step_progress || [];
-      const maxCompletedStep = Math.max(
-        0,
-        ...conflictingSteps
-          .filter((step: any) => step.status === 'completed')
-          .map((step: any) => step.step_number)
-      );
-
-      // Get current session progress
-      const { data: currentProgress, error: progressError } = await supabase
-        .from('provider_verification_step_progress')
-        .select('step_number, status')
-        .eq('provider_id', user.id)
-        .eq('status', 'completed')
-        .order('step_number', { ascending: false })
-        .limit(1);
-
-      if (progressError) {
-        console.error('[ConflictDetection] Error fetching current progress:', progressError);
-        // Continue without current progress
-      }
-
-      const currentMaxStep = currentProgress && currentProgress.length > 0
-        ? currentProgress[0].step_number
-        : 0;
-
-      console.log('[ConflictDetection] Conflict detected:', {
-        currentDevice: currentDeviceId,
-        conflictingDevice: conflictingSession.device_fingerprint,
-        currentStep: currentMaxStep,
-        conflictingStep: maxCompletedStep,
-        lastActivity: conflictingSession.last_activity_at
-      });
-
-      return {
-        hasConflict: true,
-        currentDevice: currentDeviceId,
-        conflictingDevice: conflictingSession.device_fingerprint,
-        lastActivity: new Date(conflictingSession.last_activity_at),
-        currentStep: currentMaxStep,
-        conflictingStep: maxCompletedStep
-      };
+        .select('...')
+        .eq('provider_id', user.id);
+      // ... rest of conflict detection logic
+      */
     },
     enabled: !!user?.id,
     staleTime: 30 * 1000, // 30 seconds - conflicts need fresh data
@@ -137,38 +75,28 @@ export const useConflictResolution = (): UseConflictResolutionReturn => {
   const resolveConflict = async (keepCurrent: boolean) => {
     if (!conflictData) return;
 
-    console.log('[ConflictResolution] Resolving conflict, keepCurrent:', keepCurrent);
+    console.log('[ConflictResolution] Conflict resolution disabled (sessions table not in use)');
+    
+    // Just hide the modal since conflict detection is disabled
+    setShowConflictModal(false);
+    setConflictData(null);
 
+    /* DISABLED - Re-enable when sessions table exists
     try {
       if (keepCurrent) {
-        // End the conflicting session
         const { error } = await supabase
           .from('provider_verification_sessions')
-          .update({
-            is_active: false,
-            ended_at: new Date().toISOString()
-          })
+          .update({ is_active: false, ended_at: new Date().toISOString() })
           .eq('device_fingerprint', conflictData.conflictingDevice)
           .eq('provider_id', user?.id);
-
         if (error) throw error;
-      } else {
-        // End current session and use server data
-        // This will be handled by the modal component
-        console.log('[ConflictResolution] Using server data - handled by modal');
       }
-
-      // Hide modal and clear conflict data
-      setShowConflictModal(false);
-      setConflictData(null);
-
-      // Refetch to confirm resolution
       refetch();
-
     } catch (error) {
       console.error('[ConflictResolution] Failed to resolve conflict:', error);
       throw error;
     }
+    */
   };
 
   return {

@@ -56,12 +56,10 @@ export const useVerificationSessionRecovery = (): VerificationSessionRecovery =>
       const { data: progress, error: progressError } = await supabase
         .from('provider_onboarding_progress')
         .select(`
-          current_session_id,
-          last_session_activity,
-          total_sessions_count,
           current_step,
           verification_status,
-          stripe_validation_status
+          stripe_validation_status,
+          updated_at
         `)
         .eq('provider_id', user.id)
         .single();
@@ -89,48 +87,25 @@ export const useVerificationSessionRecovery = (): VerificationSessionRecovery =>
           hasIncompleteSession: false,
           shouldResumeVerification: false,
           lastStepCompleted: 9,
-          sessionId: progress.current_session_id
+          sessionId: null // No session tracking in current schema
         };
       }
 
-      // Check if there's an active session
-      if (progress.current_session_id) {
-        // Verify the session is still active
-        const { data: session, error: sessionError } = await supabase
-          .from('provider_verification_sessions')
-          .select('is_active, expires_at, last_activity_at')
-          .eq('session_id', progress.current_session_id)
-          .eq('provider_id', user.id)
-          .single();
-
-        if (sessionError) {
-          console.error('[SessionRecovery] Error fetching session:', sessionError);
-          // If session fetch fails, assume no active session
-          return {
-            hasIncompleteSession: false,
-            shouldResumeVerification: false,
-            lastStepCompleted: progress.current_step || 0,
-            sessionId: null
-          };
-        }
-
-        // Check if session is still valid
-        const now = new Date();
-        const expiresAt = new Date(session.expires_at);
-        const isSessionActive = session.is_active && expiresAt > now;
-
-        if (isSessionActive) {
-          console.log('[SessionRecovery] Found active incomplete session:', progress.current_session_id);
-          return {
-            hasIncompleteSession: true,
-            shouldResumeVerification: true,
-            lastStepCompleted: progress.current_step || 0,
-            sessionId: progress.current_session_id
-          };
-        }
+      // Check if there's an active incomplete session (in_progress status with recent activity)
+      const lastActivity = new Date(progress.updated_at);
+      const hoursSinceActivity = (Date.now() - lastActivity.getTime()) / (1000 * 60 * 60);
+      
+      if (progress.verification_status === 'in_progress' && hoursSinceActivity < 24) {
+        console.log('[SessionRecovery] Found incomplete session, should resume');
+        return {
+          hasIncompleteSession: true,
+          shouldResumeVerification: true,
+          lastStepCompleted: progress.current_step || 1,
+          sessionId: null
+        };
       }
 
-      // Check for any incomplete step progress (even without active session)
+      // Check for any incomplete step progress
       const { data: stepProgress, error: stepError } = await supabase
         .from('provider_verification_step_progress')
         .select('step_number, status')
@@ -163,7 +138,7 @@ export const useVerificationSessionRecovery = (): VerificationSessionRecovery =>
         hasIncompleteSession: hasIncompleteSteps,
         shouldResumeVerification: hasIncompleteSteps && progress.verification_status !== 'approved',
         lastStepCompleted: lastCompletedStep,
-        sessionId: progress.current_session_id
+        sessionId: null
       };
     },
     enabled: !!user?.id,

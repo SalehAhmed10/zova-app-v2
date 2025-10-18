@@ -36,28 +36,60 @@ export function SearchableCitySelect({
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // ✅ FIX: Extract string code if countryCode is an object
+  const countryCodeString = useMemo(() => {
+    if (!countryCode) return undefined;
+    
+    // If countryCode is an object with a 'value' or 'code' property, extract it
+    if (typeof countryCode === 'object') {
+      const code = (countryCode as any).value || (countryCode as any).code;
+      console.log('[CitySelect] Converted country object to code:', code);
+      return code;
+    }
+    
+    // Otherwise it's already a string
+    return countryCode;
+  }, [countryCode]);
+
   // Get cities based on country and state
   const allCities = useMemo(() => {
-    if (!countryCode) return [];
+    if (!countryCodeString) {
+      console.log('[CitySelect] No country code provided');
+      return [];
+    }
 
+    console.log('[CitySelect] Fetching cities for country:', countryCodeString, 'state:', stateCode);
+
+    let cities = [];
     if (stateCode) {
       // If state is selected, get cities for that state
-      return getCitiesForState(countryCode, stateCode);
+      cities = getCitiesForState(countryCodeString, stateCode);
+      console.log('[CitySelect] Found', cities.length, 'cities for state', stateCode);
     } else {
       // If no state selected, get all cities for the country
-      return getCitiesForCountry(countryCode);
+      cities = getCitiesForCountry(countryCodeString);
+      console.log('[CitySelect] Found', cities.length, 'cities for country', countryCodeString);
     }
-  }, [countryCode, stateCode]);
+
+    return cities;
+  }, [countryCodeString, stateCode]);
 
   const filteredCities = useMemo(() => {
+    console.log('[CitySelect] All cities count:', allCities.length, 'Search query:', searchQuery);
+    
     if (!searchQuery.trim()) {
-      return allCities.slice(0, 50); // Show first 50 by default
+      const defaultCities = allCities.slice(0, 50);
+      console.log('[CitySelect] Showing default cities:', defaultCities.length);
+      return defaultCities; // Show first 50 by default
     }
 
     const query = searchQuery.toLowerCase();
-    return allCities.filter(city =>
+    const filtered = allCities.filter(city =>
       city.label.toLowerCase().includes(query)
     ).slice(0, 100); // Limit to 100 results for performance
+    
+    console.log('[CitySelect] Filtered cities:', filtered.length);
+    return filtered;
   }, [allCities, searchQuery]);
 
   const handleSelect = (cityName: string) => {
@@ -72,7 +104,7 @@ export function SearchableCitySelect({
     setSearchQuery('');
   };
 
-  const isDisabled = disabled || !countryCode;
+  const isDisabled = disabled || !countryCodeString;
 
   return (
     <>
@@ -156,7 +188,7 @@ export function SearchableCitySelect({
             ListEmptyComponent={
               <View className="items-center justify-center py-8">
                 <Text className="text-muted-foreground">
-                  {!countryCode ? 'Please select a country first' : 'No cities found'}
+                  {!countryCodeString ? 'Please select a country first' : 'No cities found'}
                 </Text>
               </View>
             }

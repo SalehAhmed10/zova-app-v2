@@ -316,21 +316,27 @@ function ProfileContent() {
             <View className="flex-1 bg-card rounded-xl p-4 border border-border">
               <View className="items-center">
                 <Icon as={Calendar} size={20} className="text-info mb-2" />
-                <Text className="text-xl font-bold text-foreground">0</Text>
+                <Text className="text-xl font-bold text-foreground">
+                  {statsLoading ? '...' : (statsData?.total_bookings || 0)}
+                </Text>
                 <Text className="text-muted-foreground text-xs">Bookings</Text>
               </View>
             </View>
             <View className="flex-1 bg-card rounded-xl p-4 border border-border">
               <View className="items-center">
                 <Icon as={DollarSign} size={20} className="text-success mb-2" />
-                <Text className="text-xl font-bold text-foreground">$0</Text>
+                <Text className="text-xl font-bold text-foreground">
+                  {statsLoading ? '...' : `$${statsData?.this_month_earnings?.toFixed(0) || 0}`}
+                </Text>
                 <Text className="text-muted-foreground text-xs">Revenue</Text>
               </View>
             </View>
             <View className="flex-1 bg-card rounded-xl p-4 border border-border">
               <View className="items-center">
                 <Icon as={Star} size={20} className="text-primary mb-2" />
-                <Text className="text-xl font-bold text-foreground">5.0</Text>
+                <Text className="text-xl font-bold text-foreground">
+                  {statsLoading ? '...' : (statsData?.avg_rating?.toFixed(1) || 'N/A')}
+                </Text>
                 <Text className="text-muted-foreground text-xs">Rating</Text>
               </View>
             </View>

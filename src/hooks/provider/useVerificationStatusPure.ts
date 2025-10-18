@@ -20,7 +20,7 @@ import { router } from 'expo-router';
 import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';
 import { useProviderVerificationStore } from '@/stores/verification/provider-verification';
 
-type VerificationStatus = 'pending' | 'in_review' | 'approved' | 'rejected';
+type VerificationStatus = 'pending' | 'submitted' | 'in_review' | 'approved' | 'rejected';
 
 /**
  * ✅ PURE REACT QUERY: Verification status fetching

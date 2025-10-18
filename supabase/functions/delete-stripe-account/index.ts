@@ -164,18 +164,23 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Clear the stripe_account_id from the user's profile
-    console.log('Clearing stripe_account_id from user profile...')
-    const { error: updateError } = await serviceClient
+    // Clear all Stripe-related fields from the user's profile
+    console.log('Clearing all Stripe fields from user profile...')
+    const { data: updatedProfile, error: updateError } = await serviceClient
       .from('profiles')
       .update({
         stripe_account_id: null,
+        stripe_account_status: null,
+        stripe_charges_enabled: false,
+        stripe_details_submitted: false,
         updated_at: new Date().toISOString()
       })
       .eq('id', userId)
+      .select('id, email, stripe_account_id, stripe_charges_enabled')
 
     if (updateError) {
       console.error('Error updating profile:', updateError.message)
+      console.error('Update error details:', JSON.stringify(updateError, null, 2))
       return new Response(JSON.stringify({
         error: 'Account deleted from Stripe but failed to update profile',
         details: updateError.message
@@ -185,7 +190,12 @@ Deno.serve(async (req) => {
       })
     }
 
-    console.log('Profile updated successfully')
+    console.log('Profile updated successfully:', JSON.stringify(updatedProfile, null, 2))
+    
+    // Verify the update worked
+    if (updatedProfile?.[0]?.stripe_account_id !== null) {
+      console.error('WARNING: stripe_account_id was not set to NULL despite successful update')
+    }
 
     return new Response(JSON.stringify({
       success: true,

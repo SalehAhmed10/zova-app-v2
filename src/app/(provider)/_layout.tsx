@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { THEME } from '@/lib/theme';
 import { useAuthOptimized, useProfileSync } from '@/hooks';
+import { useProfile } from '@/hooks/shared/useProfileData';
+import { useVerificationData } from '@/hooks/provider/useVerificationSingleSource';
 import { useProfileHydration } from '@/stores/verification/useProfileStore';
 import { useAuthStore } from '@/stores/auth';
 import { Text } from '@/components/ui/text';
@@ -62,7 +64,45 @@ export default function ProviderLayout() {
     return <Redirect href="/(customer)" />;
   }
 
-  console.log('[ProviderLayout] ✅ Access granted for provider');
+  // ✅ Guard 3: Redirect incomplete profiles to verification onboarding
+  // Use React Query hook to get profile data
+  const { data: profile, isLoading: profileLoading } = useProfile(user?.id);
+
+  // 🔧 FIX: Fetch verification_status from provider_onboarding_progress table (not profiles table)
+  const { data: verificationData, isLoading: verificationLoading } = useVerificationData(user?.id);
+  const verificationStatus = verificationData?.progress?.verification_status;
+
+  const combinedLoading = profileLoading || verificationLoading;
+
+  if (combinedLoading) {
+    console.log('[ProviderLayout] ⏳ Loading profile...');
+    return (
+      <View className="flex-1 bg-background items-center justify-center">
+        <Skeleton className="w-32 h-32 rounded-full mb-4" />
+        <Text className="text-muted-foreground">Checking profile...</Text>
+      </View>
+    );
+  }
+
+  // ✅ Guard 3: Check if provider is verified
+  // APPROVED providers can access dashboard even if profile fields are incomplete
+  // They can complete business setup after verification approval
+  const isApproved = verificationStatus === 'approved';
+  
+  // For non-approved providers: require phone number
+  // For approved providers: just need verification approval
+  const isProfileComplete = isApproved || profile?.phone_number;
+
+  if (!isProfileComplete) {
+    console.log('[ProviderLayout] ⏸️ Incomplete profile, redirecting to /(provider-verification)', {
+      hasPhone: !!profile?.phone_number,
+      verificationStatus: verificationStatus,
+      isApproved: isApproved,
+    });
+    return <Redirect href="/(provider-verification)" />;
+  }
+
+  console.log('[ProviderLayout] ✅ Access granted for verified provider');
 
   return (
     <View className="flex-1 bg-background">

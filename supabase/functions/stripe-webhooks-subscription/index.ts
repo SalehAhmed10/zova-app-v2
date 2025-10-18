@@ -194,12 +194,30 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
 }
 
 function getSubscriptionType(priceId: string): string {
-  // Match your actual price IDs from .env
-  if (priceId === 'price_1SBWW4ENAHMeamEYNObfzeCr') {
+  // MAIN ACCOUNT Price IDs (acct_1S7ef2IO9K9pFTMD - Test Mode)
+  // Customer SOS: £5.99/month (prod_TEOm4H74gest3i)
+  if (priceId === 'price_1SHvyvIO9K9pFTMD94e5xesf') {
     return 'customer_sos'
-  } else if (priceId === 'price_1SBWaVENAHMeamEYAi2o6NQg') {
+  } 
+  // Provider Premium: £5.99/month (prod_TEOlipgHg61iCr)
+  else if (priceId === 'price_1SHvxpIO9K9pFTMDPQgXV4xI') {
     return 'provider_premium'
-  } else {
+  }
+  // BACKUP: Sandbox Account (acct_1S7efRILA2CYnzre)
+  else if (priceId === 'price_1SHv9EILA2CYnzreYIyr8gn1') {
+    return 'customer_sos' // Old Sandbox Customer SOS
+  } 
+  else if (priceId === 'price_1SHv9GILA2CYnzre7wUjFnfL') {
+    return 'provider_premium' // Old Sandbox Provider Premium
+  }
+  // BACKUP: Personal Account (acct_1S9x3XENAHMeamEY)
+  else if (priceId === 'price_1SBWW4ENAHMeamEYNObfzeCr') {
+    return 'customer_sos' // Old Personal Customer SOS
+  } 
+  else if (priceId === 'price_1SBWaVENAHMeamEYAi2o6NQg') {
+    return 'provider_premium' // Old Personal Provider Premium
+  } 
+  else {
     console.warn(`[WEBHOOK] ⚠️ Unknown price ID: ${priceId}`)
     return 'customer_sos' // Default fallback
   }

@@ -15,7 +15,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 
-type VerificationStatus = 'pending' | 'in_review' | 'approved' | 'rejected';
+type VerificationStatus = 'pending' | 'submitted' | 'in_review' | 'approved' | 'rejected';
 
 interface VerificationStatusState {
   // State

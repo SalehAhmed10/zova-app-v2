@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { router } from 'expo-router';
-import { View, Pressable, Platform } from 'react-native';
+import { View, Pressable, Platform, ActivityIndicator } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import {
@@ -40,24 +40,39 @@ export function LogoutButton({
   const { signOut } = useSession();
   const [isLoading, setIsLoading] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSignOut = async () => {
     try {
       setIsLoading(true);
+      setError(null);
       setShowDialog(false);
       
-      console.log('[LogoutButton] Starting logout process');
+      console.log('[LogoutButton] 🚪 Starting logout process');
       
-      // ✅ CLEAN: Sign out with SessionProvider
+      // ✅ Set timeout protection - if logout takes > 10s, show error
+      const timeout = setTimeout(() => {
+        console.warn('[LogoutButton] ⏱️ Logout timeout exceeded (10s)');
+        setError('Logout taking too long. Please try again.');
+        setIsLoading(false);
+      }, 10000);
+      
+      timeoutRef.current = timeout;
+      
+      // ✅ Sign out and clear auth
       await signOut();
-      console.log('[LogoutButton] Sign out completed');
       
-      // ✅ Navigate to auth screen (route group syntax)
-      router.replace('/(auth)');
+      clearTimeout(timeout);
+      console.log('[LogoutButton] ✅ Sign out completed successfully');
+      
+      // ✅ Don't reset isLoading - let layout redirect handle it
+      // The layout will detect null session and redirect to /(auth) automatically
       
     } catch (error) {
-      console.error('[LogoutButton] Logout error:', error);
-    } finally {
+      console.error('[LogoutButton] ❌ Logout error:', error);
+      clearTimeout(timeoutRef.current);
+      setError(error instanceof Error ? error.message : 'Logout failed. Please try again.');
       setIsLoading(false);
     }
   };
@@ -79,21 +94,30 @@ export function LogoutButton({
     return (
       <>
         <Pressable 
-          className={cn(modernButtonClass, className)}
+          className={cn(modernButtonClass, className, isLoading && 'opacity-60')}
           onPress={() => {
-            console.log('[LogoutButton] Button pressed, opening dialog');
-            setShowDialog(true);
+            if (!isLoading) {
+              console.log('[LogoutButton] 📱 Button pressed, opening dialog');
+              setShowDialog(true);
+            }
           }}
+          disabled={isLoading}
         >
-          {showIcon && <LogoutIcon className="text-destructive" />}
-          {children || (
-            <Text className="text-destructive font-semibold text-base flex-1 text-center">
-              Sign Out
-            </Text>
+          {isLoading ? (
+            <ActivityIndicator size="small" className="text-destructive" />
+          ) : (
+            <>
+              {showIcon && <LogoutIcon className="text-destructive" />}
+              {children || (
+                <Text className="text-destructive font-semibold text-base flex-1 text-center">
+                  Sign Out
+                </Text>
+              )}
+            </>
           )}
         </Pressable>
 
-        <AlertDialog open={showDialog} onOpenChange={setShowDialog}>
+        <AlertDialog open={showDialog && !isLoading} onOpenChange={(open) => !isLoading && setShowDialog(open)}>
           <AlertDialogContent className="bg-card border-border max-w-xs mx-8 rounded-2xl ">
             <AlertDialogHeader className="gap-3 px-2">
               <View className="items-center mb-2">
@@ -107,12 +131,23 @@ export function LogoutButton({
               <AlertDialogDescription className="text-center text-muted-foreground leading-relaxed text-sm px-2">
                 Are you sure you want to sign out? You'll need to sign in again to access your account.
               </AlertDialogDescription>
+              {error && (
+                <View className="bg-destructive/10 dark:bg-destructive/20 border border-destructive/30 rounded-lg p-3 mt-2">
+                  <Text className="text-destructive text-sm text-center">{error}</Text>
+                </View>
+              )}
             </AlertDialogHeader>
             <AlertDialogFooter className="flex-row gap-3 mt-4 px-2">
               <Button
                 variant="outline"
                 className="flex-1 h-10"
-                onPress={() => setShowDialog(false)}
+                disabled={isLoading}
+                onPress={() => {
+                  if (!isLoading) {
+                    setShowDialog(false);
+                    setError(null);
+                  }
+                }}
               >
                 <Text className="font-medium text-sm text-center">Cancel</Text>
               </Button>
@@ -122,9 +157,14 @@ export function LogoutButton({
                 disabled={isLoading}
                 onPress={handleSignOut}
               >
-                <Text className="text-white font-semibold text-sm text-center">
-                  {isLoading ? 'Signing Out...' : 'Sign Out'}
-                </Text>
+                {isLoading ? (
+                  <View className="flex-row items-center justify-center gap-2">
+                    <ActivityIndicator size="small" color="white" />
+                    <Text className="text-white font-semibold text-sm">Signing Out...</Text>
+                  </View>
+                ) : (
+                  <Text className="text-white font-semibold text-sm text-center">Sign Out</Text>
+                )}
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>

@@ -9,6 +9,7 @@ import { useAuthStore } from '@/stores/auth';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { ConflictResolutionModal } from '@/components/verification/ConflictResolutionModal';
 import { useConflictResolution } from '@/hooks/verification/useConflictResolution';
+import { supabase } from '@/lib/supabase';
 import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';
 
 /**
@@ -45,54 +46,116 @@ export default function ProviderVerificationLayout() {
 
   // Ref to track if we've already set the provider ID to prevent loops
   const hasSetProviderIdRef = useRef(false);
+  // Ref to track initial mount - only redirect on first render
+  const isInitialMountRef = useRef(true);
+  // Ref to track previous session state for logout detection
+  const previousSessionRef = useRef(session);
 
-  // ✅ Guard 1: Redirect unauthenticated users to login
-  if (!session || !user || !isAuthenticated) {
-    console.log('[ProviderVerificationLayout] ❌ Not authenticated, redirecting to /(auth)');
-    return <Redirect href="/(auth)" />;
-  }
+  // ✅ LOGOUT DETECTION: Listen for session changes and redirect to login
+  useEffect(() => {
+    if (!isHydrated) return;
 
-  // ✅ Guard 2: Redirect non-providers to their dashboard
-  if (userRole !== 'provider') {
-    console.log('[ProviderVerificationLayout] ❌ Not a provider, redirecting to /(customer)');
-    return <Redirect href="/(customer)" />;
-  }
+    // Check if we just logged out (had session, now don't)
+    const hadSession = previousSessionRef.current;
+    const hasSession = !!session;
 
-  console.log('[ProviderVerificationLayout] ✅ Access granted for provider verification');
+    if (hadSession && !hasSession) {
+      console.log('[ProviderVerificationLayout] 📴 Session cleared - user logged out, redirecting to login');
+      
+      // Clear verification store
+      useProviderVerificationStore.setState({ providerId: null });
+      
+      // Redirect to auth
+      router.replace('/(auth)');
+      return;
+    }
+
+    previousSessionRef.current = session;
+  }, [session, isHydrated, router]);
 
   // ✅ ROUTE VALIDATION: Centralized step validation and navigation
+  // Uses DATABASE as single source of truth, not Zustand store
   useEffect(() => {
     if (!isHydrated || !user?.id) return;
+
+    // Check verification status and current step from database
+    const checkVerificationStatus = async () => {
+      try {
+        const { data: progress, error } = await supabase
+          .from('provider_onboarding_progress')
+          .select('verification_status, current_step')
+          .eq('provider_id', user.id)
+          .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('[RouteGuard] Error checking verification status:', error);
+          return { isVerificationSubmitted: false, currentStepInDB: 1 };
+        }
+
+        const isVerificationSubmitted = progress?.verification_status === 'submitted' ||
+                                       progress?.verification_status === 'in_review' ||
+                                       progress?.verification_status === 'approved' ||
+                                       progress?.verification_status === 'rejected';
+
+        console.log('[RouteGuard] Database verification status:', progress?.verification_status, 'currentStep:', progress?.current_step, 'isSubmitted:', isVerificationSubmitted);
+
+        return {
+          isVerificationSubmitted,
+          currentStepInDB: progress?.current_step || 1
+        };
+      } catch (error) {
+        console.error('[RouteGuard] Failed to check verification status:', error);
+        return { isVerificationSubmitted: false, currentStepInDB: 1 };
+      }
+    };
 
     // Get current step from pathname
     const currentStep = VerificationFlowManager.getStepFromRoute(pathname);
 
-    // Get verification data from store for validation
-    const storeState = useProviderVerificationStore.getState();
-    const verificationData = {
-      documentData: storeState.documentData,
-      selfieData: storeState.selfieData,
-      businessData: storeState.businessData,
-      categoryData: storeState.categoryData,
-      servicesData: storeState.servicesData,
-      portfolioData: storeState.portfolioData,
-      bioData: storeState.bioData,
-      termsData: storeState.termsData,
-    };
+    checkVerificationStatus().then(({ isVerificationSubmitted, currentStepInDB: expectedStep }) => {
+      console.log(`[RouteGuard] Validating route - pathname: ${pathname}, currentStep: ${currentStep}, expectedStep: ${expectedStep}, isVerificationSubmitted: ${isVerificationSubmitted}, isInitialMount: ${isInitialMountRef.current}`);
 
-    // Find the first incomplete step based on actual data
-    const expectedStep = VerificationFlowManager.findFirstIncompleteStep(verificationData);
+      // ✅ SPECIAL CASE: Allow access to verification-status if verification submitted
+      if (pathname === '/verification-status' && isVerificationSubmitted) {
+        console.log(`[RouteGuard] ✅ Verification submitted - allowing access to verification-status`);
+        isInitialMountRef.current = false;
+        return;
+      }
 
-    // ✅ ALLOW BACKWARD NAVIGATION: Users can navigate back to previous steps
-    // Only redirect if they're trying to skip ahead to incomplete steps
-    if (currentStep > expectedStep) {
-      console.log(`[RouteGuard] Cannot skip ahead - current: ${currentStep}, expected: ${expectedStep}, redirecting to expected step...`);
-      const correctRoute = VerificationFlowManager.getRouteForStep(expectedStep as any);
-      router.replace(correctRoute as any);
-      return;
-    }
+      // ✅ PRIORITY 1: INITIAL LANDING REDIRECT
+      // On initial mount, use database to determine correct step
+      if (isInitialMountRef.current && currentStep !== expectedStep && !isVerificationSubmitted) {
+        console.log(`[RouteGuard] 🎯 Initial mount - redirecting from Step ${currentStep} to Step ${expectedStep} (from database)`);
+        const correctRoute = VerificationFlowManager.getRouteForStep(expectedStep as any);
+        router.replace(correctRoute as any);
+        isInitialMountRef.current = false;
+        return;
+      }
 
-    console.log(`[RouteGuard] Route validation passed - step ${currentStep} is accessible`);
+      // ✅ SPECIAL CASE: If verification submitted, redirect to verification-status
+      if (isInitialMountRef.current && isVerificationSubmitted && pathname !== '/verification-status') {
+        console.log(`[RouteGuard] 🎯 Verification submitted - redirecting to verification-status`);
+        router.replace('/(provider-verification)/verification-status' as any);
+        isInitialMountRef.current = false;
+        return;
+      }
+
+      // Mark as no longer initial mount after first check
+      isInitialMountRef.current = false;
+
+      // ✅ PRIORITY 2: PREVENT SKIPPING AHEAD
+      // If trying to access incomplete steps, redirect back to expected step
+      if (currentStep > expectedStep && !isVerificationSubmitted) {
+        console.log(`[RouteGuard] ⚠️ Cannot skip ahead - redirecting from step ${currentStep} to step ${expectedStep}`);
+        const correctRoute = VerificationFlowManager.getRouteForStep(expectedStep as any);
+        router.replace(correctRoute as any);
+        return;
+      }
+
+      // ✅ PRIORITY 3: ALLOW BACKWARD NAVIGATION & CURRENT STEP
+      // Users can navigate back to previous completed steps or stay on current expected step
+      console.log(`[RouteGuard] ✅ Route allowed - step ${currentStep} is accessible (expected: ${expectedStep})`);
+    });
   }, [pathname, isHydrated, user?.id]);
 
   // ✅ SAFE: Provider ID initialization - encapsulated useEffect for layout management
@@ -108,6 +171,21 @@ export default function ProviderVerificationLayout() {
       hasSetProviderIdRef.current = false;
     }
   }, [user?.id, isHydrated, providerId, setProviderId]);
+
+  // ✅ Guard 1: Redirect unauthenticated users to login
+  // Only check session - user data might still be loading from React Query
+  if (!session) {
+    console.log('[ProviderVerificationLayout] ❌ No session, redirecting to /(auth)');
+    return <Redirect href="/(auth)" />;
+  }
+
+  // ✅ Guard 2: Redirect non-providers to their dashboard
+  if (userRole !== 'provider') {
+    console.log('[ProviderVerificationLayout] ❌ Not a provider, redirecting to /(customer)');
+    return <Redirect href="/(customer)" />;
+  }
+
+  console.log('[ProviderVerificationLayout] ✅ Access granted for provider verification');
 
   // ✅ SAFETY: Don't render layout until provider ID is properly set
   if (!isHydrated || !user?.id) {
@@ -140,7 +218,7 @@ export default function ProviderVerificationLayout() {
           <Stack.Screen name="selfie" />
           <Stack.Screen name="business-info" />
           <Stack.Screen name="category" />
-          <Stack.Screen name="services" />
+         
           <Stack.Screen name="portfolio" />
           <Stack.Screen name="bio" />
           <Stack.Screen name="terms" />

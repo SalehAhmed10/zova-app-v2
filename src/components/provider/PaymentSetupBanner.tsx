@@ -6,6 +6,8 @@ import { X, CreditCard, ChevronRight } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { useProviderAccess } from '@/hooks/provider/useProviderAccess';
+import { useColorScheme } from '@/lib/core/useColorScheme';
+import { THEME } from '@/lib/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const BANNER_DISMISSED_KEY = '@payment_setup_banner_dismissed';
@@ -30,6 +32,8 @@ const DISMISS_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 export function PaymentSetupBanner() {
   const [isDismissed, setIsDismissed] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
+  const { isDarkColorScheme, colorScheme } = useColorScheme();
+  const colors = THEME[colorScheme];
   
   const { 
     needsPaymentSetup, 
@@ -100,12 +104,15 @@ export function PaymentSetupBanner() {
     >
       <View className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
         {/* Left accent stripe */}
-        <View className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500" />
+        <View className="absolute left-0 top-0 bottom-0 w-1 bg-[hsl(var(--warning))]" />
         
         <View className="flex-row items-center pl-4 pr-2 py-3.5">
           {/* Icon in circular background */}
-          <View className="w-10 h-10 rounded-full bg-amber-500/10 items-center justify-center mr-3">
-            <CreditCard size={20} className="text-amber-600 dark:text-amber-400" />
+          <View className="w-10 h-10 rounded-full bg-[hsl(var(--warning)_/_0.1)] items-center justify-center mr-3">
+            <CreditCard 
+              size={20} 
+              color={colors.warning}
+            />
           </View>
 
           {/* Content */}
@@ -130,7 +137,7 @@ export function PaymentSetupBanner() {
           >
             <ChevronRight 
               size={20} 
-              className="text-muted-foreground" 
+              color={colors.mutedForeground}
             />
           </Pressable>
 
@@ -140,7 +147,7 @@ export function PaymentSetupBanner() {
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             className="p-1.5"
           >
-            <X size={18} className="text-muted-foreground" />
+            <X size={18} color={colors.mutedForeground} />
           </Pressable>
         </View>
       </View>
