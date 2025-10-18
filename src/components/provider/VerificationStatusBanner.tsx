@@ -98,20 +98,21 @@ export function VerificationStatusBanner() {
   const { isDarkColorScheme, colorScheme } = useColorScheme();
   const colors = THEME[colorScheme];
   const [isDismissed, setIsDismissed] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingDismissal, setIsLoadingDismissal] = useState(true);
 
   // ✅ FIX: Use React Query directly instead of Zustand store
   // This prevents stale cache issues - database is source of truth
   const { user } = useAuthOptimized();
   const { data: verificationData, isLoading: isQueryLoading } = useVerificationStatusPure(user?.id);
-  const verificationStatus = verificationData?.status || 'pending';
+  // 🎯 CRITICAL: Don't default to 'pending' - wait for data to load first
+  const verificationStatus = verificationData?.status;
 
   // Check dismissal state on mount
   useEffect(() => {
     const checkDismissalState = async () => {
       const dismissed = await isVerificationBannerDismissed();
       setIsDismissed(dismissed);
-      setIsLoading(false);
+      setIsLoadingDismissal(false);
     };
 
     checkDismissalState();
@@ -153,14 +154,13 @@ export function VerificationStatusBanner() {
   // Don't show banner if loading, dismissed, or status doesn't match
   const config = getBannerConfig(verificationStatus);
   
-  // 🚨 CRITICAL FIX: Never show banner for approved status
-  // This prevents stale Zustand cache from showing incorrect banner
-  // Database is source of truth - if approved, banner should never appear
-  // Now using React Query directly instead of Zustand store
-  if (isLoading || isQueryLoading || isDismissed || !config || verificationStatus === 'approved') {
+  // 🚨 CRITICAL FIX: Never show banner if data is still loading
+  // Don't default to 'pending' - wait for actual verification status from database
+  // Database is source of truth - only show banner when we have real data
+  if (isQueryLoading || isLoadingDismissal || isDismissed || !config || verificationStatus === 'approved' || !verificationStatus) {
     console.log('[VerificationBanner] Hidden -', {
-      isLoading,
       isQueryLoading,
+      isLoadingDismissal,
       isDismissed,
       hasConfig: !!config,
       verificationStatus,

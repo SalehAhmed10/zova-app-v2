@@ -1,7 +1,7 @@
 import React from 'react';
 import { Tabs, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View } from 'react-native';
+import { View, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { THEME } from '@/lib/theme';
@@ -10,10 +10,31 @@ import { useProfile } from '@/hooks/shared/useProfileData';
 import { useVerificationData } from '@/hooks/provider/useVerificationSingleSource';
 import { useProfileHydration } from '@/stores/verification/useProfileStore';
 import { useAuthStore } from '@/stores/auth';
+import { useProfileStore } from '@/stores/verification/useProfileStore';
 import { Text } from '@/components/ui/text';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PaymentSetupBanner } from '@/components/provider/PaymentSetupBanner';
 import { VerificationStatusBanner } from '@/components/provider/VerificationStatusBanner';
+
+/**
+ * Minimal loading screen optimized for fast data loading
+ * Shows only essential UI while verification status loads
+ */
+const MinimalLoadingScreen = () => {
+  const { isDarkColorScheme } = useColorScheme();
+  const spinnerColor = isDarkColorScheme ? THEME.dark.foreground : THEME.light.foreground;
+  
+  return (
+    <View className="flex-1 bg-background items-center justify-center px-6">
+      <View className="mb-6">
+        <ActivityIndicator size="large" color={spinnerColor} />
+      </View>
+      <Text className="text-muted-foreground text-center text-sm">
+        Verifying access...
+      </Text>
+    </View>
+  );
+};
 
 /**
  * Provider Layout - Protected Route Group
@@ -44,12 +65,7 @@ export default function ProviderLayout() {
   // Wait for store hydration
   if (!isHydrated) {
     console.log('[ProviderLayout] ⏳ Waiting for hydration...');
-    return (
-      <View className="flex-1 bg-background items-center justify-center">
-        <Skeleton className="w-32 h-32 rounded-full mb-4" />
-        <Text className="text-muted-foreground">Loading...</Text>
-      </View>
-    );
+    return <MinimalLoadingScreen />;
   }
 
   // ✅ Guard 1: Redirect unauthenticated users to login
@@ -64,17 +80,169 @@ export default function ProviderLayout() {
     return <Redirect href="/(customer)" />;
   }
 
-  // ✅ Guard 3: Redirect incomplete profiles to verification onboarding
-  // Use React Query hook to get profile data
-  const { data: profile, isLoading: profileLoading } = useProfile(user?.id);
-
-  // 🔧 FIX: Fetch verification_status from provider_onboarding_progress table (not profiles table)
+  // ✅ Guard 3: CRITICAL - Load verification status FIRST
+  // This determines routing and MUST complete before any redirect decisions
   const { data: verificationData, isLoading: verificationLoading } = useVerificationData(user?.id);
   const verificationStatus = verificationData?.progress?.verification_status;
 
-  const combinedLoading = profileLoading || verificationLoading;
+  // 🎯 OPTIMIZATION: Check Zustand cache first for instant rendering
+  // If verification data is already in Zustand, use it immediately (no loading screen)
+  const cachedStatus = useProfileStore((state) => state.verificationStatus);
+  const hasCache = cachedStatus === 'approved';
 
-  if (combinedLoading) {
+  // 🎯 SEAMLESS: For approved providers with cache, skip loading screen entirely
+  const isApproved = hasCache || verificationStatus === 'approved';
+
+  // 🎯 ONLY wait if verification is loading AND we don't have cache
+  // This means only unapproved providers or first-time users might see loading
+  if (verificationLoading && !hasCache && !verificationStatus) {
+    console.log('[ProviderLayout] ⏳ Loading verification status...');
+    return <MinimalLoadingScreen />;
+  }
+
+  // 🎯 EARLY EXIT 2: If approved, go straight to dashboard
+  // No need to check profile for approved providers
+  if (isApproved) {
+    console.log('[ProviderLayout] ✅ Verified provider (approved) - Direct access to dashboard', {
+      verificationStatus,
+    });
+    
+    return (
+      <View className="flex-1 bg-background">
+        <Tabs
+          screenOptions={{
+            headerShown: false,
+            tabBarActiveTintColor: isDarkColorScheme ? THEME.dark.foreground : THEME.light.foreground,
+            tabBarInactiveTintColor: isDarkColorScheme ? THEME.dark.mutedForeground : THEME.light.mutedForeground,
+            tabBarStyle: {
+              backgroundColor: isDarkColorScheme ? THEME.dark.background : THEME.light.background,
+              borderTopColor: isDarkColorScheme ? THEME.dark.border : THEME.light.border,
+              paddingBottom: Math.max(insets.bottom, 8),
+              height: Math.max(insets.bottom + 60, 60),
+              borderTopWidth: 1,
+            },
+            tabBarLabelStyle: {
+              fontSize: 12,
+              fontWeight: '500',
+            },
+          }}
+        >
+          <Tabs.Screen
+            name="index"
+            options={{
+              title: 'Home',
+              tabBarIcon: ({ color, size }) => (
+                <Ionicons name="home" size={size} color={color} />
+              ),
+            }}
+          />
+          <Tabs.Screen
+            name="calendar"
+            options={{
+              title: 'Calendar',
+              tabBarIcon: ({ color, size }) => (
+                <Ionicons name="calendar" size={size} color={color} />
+              ),
+            }}
+          />
+          <Tabs.Screen
+            name="bookings"
+            options={{
+              title: 'Bookings',
+              tabBarIcon: ({ color, size }) => (
+                <Ionicons name="clipboard" size={size} color={color} />
+              ),
+            }}
+          />
+          <Tabs.Screen
+            name="earnings"
+            options={{
+              title: 'Earnings',
+              tabBarIcon: ({ color, size }) => (
+                <Ionicons name="cash" size={size} color={color} />
+              ),
+            }}
+          />
+          <Tabs.Screen
+            name="profile"
+            options={{
+              title: 'Profile',
+              tabBarIcon: ({ color, size }) => (
+                <Ionicons name="person" size={size} color={color} />
+              ),
+            }}
+          />
+          <Tabs.Screen
+            name="profile/reviews"
+            options={{
+              href: null,
+            }}
+          />
+          <Tabs.Screen
+            name="profile/subscriptions"
+            options={{
+              href: null,
+            }}
+          />
+          <Tabs.Screen
+            name="bookingdetail/[id]"
+            options={{
+              href: null,
+            }}
+          />
+          <Tabs.Screen
+            name="profile/personal-info"
+            options={{
+              title: 'Personal Info',
+              tabBarIcon: ({ color, size }) => (
+                <Ionicons name="person-circle" size={size} color={color} />
+              ),
+              href: null,
+            }}
+          />
+          <Tabs.Screen
+            name="profile/notifications"
+            options={{
+              title: 'Notifications',
+              tabBarIcon: ({ color, size }) => (
+                <Ionicons name="notifications" size={size} color={color} />
+              ),
+              href: null,
+            }}
+          />
+          <Tabs.Screen
+            name='profile/services'
+            options={{
+              href: null,
+            }}
+          />
+          <Tabs.Screen
+            name='profile/payments'
+            options={{
+              href: null,
+            }}
+          />
+          <Tabs.Screen
+            name='profile/analytics'
+            options={{
+              href: null,
+            }}
+          />
+          <Tabs.Screen
+            name='setup-payment/index'
+            options={{
+              href: null,
+            }}
+          />
+        </Tabs>
+      </View>
+    );
+  }
+
+  // 🔧 Only for non-approved providers: check profile
+  const { data: profile, isLoading: profileLoading } = useProfile(user?.id);
+
+  if (profileLoading) {
     console.log('[ProviderLayout] ⏳ Loading profile...');
     return (
       <View className="flex-1 bg-background items-center justify-center">
@@ -84,20 +252,14 @@ export default function ProviderLayout() {
     );
   }
 
-  // ✅ Guard 3: Check if provider is verified
-  // APPROVED providers can access dashboard even if profile fields are incomplete
-  // They can complete business setup after verification approval
-  const isApproved = verificationStatus === 'approved';
-  
   // For non-approved providers: require phone number
-  // For approved providers: just need verification approval
-  const isProfileComplete = isApproved || profile?.phone_number;
+  const isProfileComplete = profile?.phone_number;
 
   if (!isProfileComplete) {
     console.log('[ProviderLayout] ⏸️ Incomplete profile, redirecting to /(provider-verification)', {
       hasPhone: !!profile?.phone_number,
-      verificationStatus: verificationStatus,
-      isApproved: isApproved,
+      verificationStatus,
+      isApproved: false,
     });
     return <Redirect href="/(provider-verification)" />;
   }
