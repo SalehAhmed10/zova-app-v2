@@ -10,7 +10,7 @@
  *
  * Status: Currently simplified - full Stripe integration requires implementing
  * the missing Edge Functions: upload-verification-document and sync-verification-status
- */import { supabase } from '../core/supabase';
+ */import { supabase } from "@/lib/supabase";
 
 // Integration hooks for your existing verification flow
 export const useStripeVerificationIntegration = () => {

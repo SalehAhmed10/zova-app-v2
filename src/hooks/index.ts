@@ -1,7 +1,4 @@
 // Shared hooks
-export { useAuthOptimized, useProfileSync } from './shared';
-
-// Search hooks (NEW - keyword-based full-text search)
 export { 
   useServiceSearch,
   type ServiceSearchResult,
@@ -12,12 +9,12 @@ export {
   type ProviderSearchResult,
   type UseProviderSearchOptions
 } from './shared/use-provider-search';
-export { useServiceCategories } from './customer/useSearch';
+export { useServiceCategories } from './shared/useProfileData';
 
-// Provider hooks (export first)
-export * from './provider';
+// Provider hooks - import directly from provider directory instead of re-exporting
+// To use provider hooks, import directly: import { useHook } from '@/hooks/provider'
 
-// Customer hooks (export second, with aliases for conflicting types)
+// Customer hooks
 export {
   useUserFavorites,
   useToggleFavorite,
@@ -25,13 +22,7 @@ export {
   type UserFavorite,
   type FavoriteProvider,
   type FavoriteService,
-  useSearchResults,
   useTrustedProviders,
-  useProfile as useCustomerProfile,
-  useProfileStats,
-  useUserBookings as useCustomerBookings,
-  useNotificationSettings as useCustomerNotificationSettings,
-  useUpdateNotificationSettings,
   useUpdateProfile,
   useServiceDetails,
   useProviderDetails,
@@ -39,7 +30,6 @@ export {
   useUserReviews,
   type ProfileData as CustomerProfileData,
   type BookingData as CustomerBookingData,
-  type NotificationSettings as CustomerNotificationSettings,
 } from './customer';
 
 // Additional provider exports to resolve conflicts
@@ -51,11 +41,3 @@ export {
   useDeleteService,
   useToggleServiceStatus
 } from './shared/useProfileData';
-
-// Type exports for compatibility
-export type BookingData = any;
-export type { ProviderProfileData as ProfileData } from './provider';
-export type NotificationSettings = any;
-
-// Verification hooks
-export * from './verification';

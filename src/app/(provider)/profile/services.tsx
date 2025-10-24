@@ -3,27 +3,30 @@ import { View, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, Ale
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 // ✅ Centralized validation system
-import { serviceSchema, type ServiceFormData, hasFormErrors, getFormErrorCount } from '@/lib/validation';
+import { serviceSchema, type ServiceFormData } from '@/lib/validation';
 
 // ✅ UI Components with proper theme colors
 import { Text } from '@/components/ui/text';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+// ✅ Form Sections
+import {
+  ServiceDetailsSection,
+  PricingSection,
+  ServiceSettingsSection
+} from '@/components/provider/service-form-sections';
 
 // ✅ React Query hooks for server state
 import {
-  useAuthOptimized,
   useProviderServices,
   useServiceCategories,
   useCreateService,
@@ -31,14 +34,15 @@ import {
   useDeleteService,
   useToggleServiceStatus
 } from '@/hooks';
+import { useServiceSubcategories } from '@/hooks/provider';
+import { useAuthStore } from '@/stores/auth';
 
 // ✅ Theme and utilities
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { THEME } from '@/lib/theme';
 import { cn } from '@/lib/utils';
-import { ChevronLeft } from 'lucide-react-native';
 
-// ✅ Service Card Component - Memoized for performance with detailed information
+// ✅ Service Card Component - Enhanced UI with better visual hierarchy
 const ServiceCard = React.memo(({ service, onEdit, onToggle, onDelete, isDeleting, isToggling }: {
   service: any;
   onEdit: (service: any) => void;
@@ -53,96 +57,162 @@ const ServiceCard = React.memo(({ service, onEdit, onToggle, onDelete, isDeletin
   return (
     <Animated.View entering={FadeIn.duration(300)}>
       <Card className={cn(
-        "mb-4 border-l-4",
-        service.isActive ? "border-l-green-500" : "border-l-gray-400"
+        "mb-4 border-l-4 mx-1 overflow-hidden",
+        service.isActive ? "border-l-green-500 bg-card" : "border-l-amber-400 bg-card/50"
       )}>
-        <CardContent className="p-4">
-          <View className="flex-row justify-between items-start mb-3">
-            <View className="flex-1">
-              <Text className="text-lg font-bold text-foreground mb-1">
-                {String(service.title || 'Untitled Service')}
-              </Text>
-              <Text className="text-sm text-muted-foreground mb-2">
-                {String(service.description || 'No description provided')}
-              </Text>
-              <View className="flex-row items-center gap-2 mb-2">
-                <Badge variant={service.isActive ? "default" : "secondary"}>
-                  <Text>{service.isActive ? 'Active' : 'Inactive'}</Text>
-                </Badge>
-                <Text className="text-sm text-muted-foreground">
-                  {String(service.category || 'Uncategorized')}
-                </Text>
-              </View>
-            </View>
-            <View className="flex-row gap-2">
+        {/* Header Section - Title & Actions */}
+        <View className="px-4 py-3 border-b border-border/40">
+          {/* Title and Category Row */}
+          <View className="flex-row items-center justify-between mb-2.5">
+            <Text className="text-lg font-bold text-foreground flex-1 leading-6">
+              {String(service.title || 'Untitled Service')}
+            </Text>
+            {/* Action Buttons - Clean with Borders */}
+            <View className="flex-row gap-2 ml-3">
+              {/* Edit Button */}
               <TouchableOpacity
                 onPress={() => onEdit(service)}
-                className="w-8 h-8 items-center justify-center rounded-full"
-                style={{ backgroundColor: colors.info + '1A' }}
+                className="w-10 h-10 items-center justify-center rounded-lg border-2 border-primary"
                 disabled={isDeleting || isToggling}
               >
-                <Ionicons name="pencil" size={16} color={colors.accent} />
+                <Ionicons name="pencil-outline" size={20} color={colors.primary} />
               </TouchableOpacity>
+
+              {/* Toggle Button */}
               <TouchableOpacity
                 onPress={() => onToggle(service)}
-                className="w-8 h-8 items-center justify-center rounded-full"
-                style={{ backgroundColor: colors.success + '1A' }}
+                className="w-10 h-10 items-center justify-center rounded-lg border-2"
+                style={{
+                  borderColor: service.isActive ? colors.warning : colors.success,
+                }}
                 disabled={isDeleting || isToggling}
               >
                 <Ionicons
-                  name={service.isActive ? "eye-off" : "eye"}
-                  size={16}
+                  name={service.isActive ? "eye-off-outline" : "eye-outline"}
+                  size={20}
                   color={service.isActive ? colors.warning : colors.success}
                 />
               </TouchableOpacity>
+
+              {/* Delete Button */}
               <TouchableOpacity
                 onPress={() => onDelete(service.id)}
-                className="w-8 h-8 items-center justify-center rounded-full"
-                style={{ backgroundColor: colors.destructive + '1A' }}
+                className="w-10 h-10 items-center justify-center rounded-lg border-2 border-destructive"
                 disabled={isDeleting || isToggling}
               >
-                <Ionicons name="trash" size={16} color={colors.destructiveForeground} />
+                <Ionicons name="trash-outline" size={20} color={colors.destructive} />
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Pricing Information */}
-          <View className="bg-muted/30 rounded-lg p-3 mb-3">
-            <View className="flex-row justify-between items-center mb-2">
-              <Text className="text-sm font-medium text-foreground">Base Price:</Text>
-              <Text className="text-sm font-bold text-foreground">
+          {/* Badge and Category Row */}
+          <View className="flex-row items-center gap-2">
+            <Badge variant={service.isActive ? "default" : "outline"}>
+              <Text className="text-xs font-medium">
+                {service.isActive ? '✓ Active' : '⊘ Inactive'}
+              </Text>
+            </Badge>
+            <Text className="text-xs text-muted-foreground flex-1">
+              {String(service.category || 'Uncategorized')}
+            </Text>
+          </View>
+        </View>
+
+        {/* Content Section */}
+        <CardContent className="px-4 py-3 gap-3">
+          {/* Description */}
+          {service.description && (
+            <View>
+              <Text className="text-xs font-medium text-muted-foreground mb-1">DESCRIPTION</Text>
+              <Text className="text-sm text-foreground leading-5">
+                {String(service.description)}
+              </Text>
+            </View>
+          )}
+
+          {/* Pricing Card */}
+          <View className="bg-primary/5 rounded-lg p-3 border border-primary/10">
+            <View className="flex-row items-center justify-between mb-2">
+              <Text className="text-xs font-semibold text-primary uppercase">Pricing</Text>
+              <Text className="text-lg font-bold text-primary">
                 £{String(service.price || '0.00')}
               </Text>
             </View>
-            {service.priceType === 'hourly' && (
-              <View className="flex-row justify-between items-center">
-                <Text className="text-sm text-muted-foreground">Per Hour</Text>
-                <Text className="text-xs text-muted-foreground">Hourly Rate</Text>
+            
+            <View className="flex-row items-center justify-between">
+              <View className="flex-1">
+                <Text className="text-xs text-muted-foreground">
+                  {service.priceType === 'hourly' ? 'Per Hour' : 'Fixed Price'}
+                </Text>
+                {service.duration && (
+                  <Text className="text-xs text-muted-foreground mt-0.5">
+                    Duration: {service.duration} min
+                  </Text>
+                )}
               </View>
-            )}
-            {service.houseCallExtraFee && (
-              <View className="flex-row justify-between items-center mt-1">
-                <Text className="text-sm text-muted-foreground">House Call Fee:</Text>
-                <Text className="text-sm text-foreground">+£{String(service.houseCallExtraFee)}</Text>
-              </View>
-            )}
+              {service.houseCallExtraFee && (
+                <View className="items-end">
+                  <Text className="text-xs text-muted-foreground">House Call</Text>
+                  <Text className="text-xs font-semibold text-foreground">+£{String(service.houseCallExtraFee)}</Text>
+                </View>
+              )}
+            </View>
           </View>
 
-          {/* Additional Details */}
+          {/* Additional Details Grid */}
           <View className="gap-2">
-            {service.depositPercentage && (
-              <View className="flex-row justify-between">
-                <Text className="text-sm text-muted-foreground">Deposit Required:</Text>
-                <Text className="text-sm text-foreground">{String(service.depositPercentage)}%</Text>
+            <View className="flex-row justify-between items-center">
+              {service.depositPercentage !== null && service.depositPercentage !== 0 ? (
+                <>
+                  <View className="flex-row items-center gap-2">
+                    <View className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                    <Text className="text-xs font-medium text-foreground">Deposit</Text>
+                  </View>
+                  <Badge variant="outline">
+                    <Text className="text-xs">{String(service.depositPercentage)}%</Text>
+                  </Badge>
+                </>
+              ) : (
+                <>
+                  <View className="flex-row items-center gap-2">
+                    <View className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                    <Text className="text-xs font-medium text-foreground">No Deposit</Text>
+                  </View>
+                  <Text className="text-xs text-muted-foreground">Required</Text>
+                </>
+              )}
+            </View>
+
+            <View className="flex-row justify-between items-center">
+              <View className="flex-row items-center gap-2">
+                <View className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                <Text className="text-xs font-medium text-foreground">House Calls</Text>
               </View>
-            )}
-            {service.cancellationPolicy && (
-              <View className="flex-row justify-between">
-                <Text className="text-sm text-muted-foreground">Cancellation:</Text>
-                <Text className="text-sm text-foreground">{String(service.cancellationPolicy)}</Text>
+              <Text className="text-xs text-muted-foreground">
+                {service.houseCallAvailable ? '✓ Enabled' : '✗ Disabled'}
+              </Text>
+            </View>
+
+            <View className="flex-row justify-between items-center">
+              <View className="flex-row items-center gap-2">
+                <View className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                <Text className="text-xs font-medium text-foreground">SOS Bookings</Text>
               </View>
-            )}
+              <Text className="text-xs text-muted-foreground">
+                {service.allowsSosBooking ? '✓ Enabled' : '✗ Disabled'}
+              </Text>
+            </View>
           </View>
+
+          {/* Cancellation Policy */}
+          {service.cancellationPolicy && (
+            <View className="bg-muted/40 rounded-lg p-2.5 border border-muted/60">
+              <Text className="text-xs font-semibold text-foreground mb-1">Cancellation Policy</Text>
+              <Text className="text-xs text-muted-foreground leading-4">
+                {String(service.cancellationPolicy)}
+              </Text>
+            </View>
+          )}
         </CardContent>
       </Card>
     </Animated.View>
@@ -150,7 +220,7 @@ const ServiceCard = React.memo(({ service, onEdit, onToggle, onDelete, isDeletin
 });
 
 export default function ServicesScreen() {
-  const { user } = useAuthOptimized();
+  const user = useAuthStore((state) => state.user);
   const { colorScheme, isDarkColorScheme } = useColorScheme();
   const colors = THEME[colorScheme];
   const insets = useSafeAreaInsets();
@@ -214,8 +284,28 @@ export default function ServicesScreen() {
     }
   });
 
+  // Get form values to watch category changes
+  const categoryValue = watch('category');
+
+  // ✅ REACT QUERY: Subcategories for selected category
+  const { data: subcategories, isLoading: subcategoriesLoading } = useServiceSubcategories(categoryValue);
+
   const [activeTab, setActiveTab] = React.useState('list');
   const [editingService, setEditingService] = React.useState<any>(null);
+
+  // Helper to get category ID from service data
+  const getCategoryIdForService = (service: any) => {
+    // If we have category_id, use it
+    if (service.category_id) return service.category_id;
+    // Otherwise, find category ID from the categories list by matching the service's subcategory
+    if (service.subcategory_id && categories) {
+      const foundCategory = categories.find(cat =>
+        cat.service_subcategories?.some((sub: any) => sub.id === service.subcategory_id)
+      );
+      return foundCategory?.id;
+    }
+    return '';
+  };
 
   // ✅ FORM HANDLERS: Create and update services
   const onSubmit = async (data: ServiceFormData) => {
@@ -262,10 +352,15 @@ export default function ServicesScreen() {
   // ✅ SERVICE MANAGEMENT: Edit, delete, and toggle status
   const handleEdit = (service: any) => {
     setEditingService(service);
+    
+    // Get the category ID for this service
+    const categoryId = getCategoryIdForService(service);
+    
+    // Set all form values including category and subcategory
     setValue('title', service.title || '');
     setValue('description', service.description || '');
-    setValue('category', service.category_id || service.category || '');
-    setValue('subcategory', service.subcategory_id || service.subcategory || '');
+    setValue('category', categoryId || '');
+    setValue('subcategory', service.subcategory_id || '');
     setValue('price', service.base_price?.toString() || service.price?.toString() || '');
     setValue('duration', service.duration_minutes?.toString() || service.duration?.toString() || '');
     setValue('priceType', service.price_type || service.priceType || 'fixed');
@@ -275,6 +370,7 @@ export default function ServicesScreen() {
     setValue('houseCallAvailable', service.house_call_available ?? service.houseCallAvailable ?? false);
     setValue('allowsSosBooking', service.allows_sos_booking ?? service.allowsSosBooking ?? false);
     setValue('isActive', service.is_active ?? service.isActive ?? true);
+    
     setActiveTab('form');
   };
 
@@ -326,14 +422,10 @@ export default function ServicesScreen() {
     setActiveTab('list');
   };
 
-  // ✅ FORM VALIDATION: Check for errors
-  const formErrors = hasFormErrors(errors);
-  const errorCount = getFormErrorCount(errors);
-
   return (
     <SafeAreaView className="flex-1 bg-background">
    
-      <View className="px-4 py-4 border-b border-border">
+      <View className="px-2 py-4 border-b border-border">
         <View className="flex-row items-center justify-between">
           <Button
             variant="ghost"
@@ -356,7 +448,7 @@ export default function ServicesScreen() {
         className="flex-1"
       >
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
-          <TabsList className="flex-row mx-4 mt-4">
+          <TabsList className="flex-row mx-2 mt-3">
             <TabsTrigger value="list" className="flex-1">
               <Text className="text-sm font-medium">My Services</Text>
             </TabsTrigger>
@@ -368,7 +460,7 @@ export default function ServicesScreen() {
           </TabsList>
 
           <TabsContent value="list" className="flex-1">
-            <ScrollView className="flex-1 px-4 pt-4" showsVerticalScrollIndicator={false}>
+            <ScrollView className="flex-1 px-2 pt-3" showsVerticalScrollIndicator={false}>
               {servicesLoading ? (
                 <View className="gap-4">
                   {[1, 2, 3].map((i) => (
@@ -396,16 +488,22 @@ export default function ServicesScreen() {
                   ))}
                 </View>
               ) : (
-                <View className="items-center justify-center py-12">
-                  <View className="mb-4">
-                    <Ionicons name="construct-outline" size={64} color={colors.mutedForeground} />
+                <View className="flex-1 items-center justify-center py-16 px-6">
+                  <View className="w-20 h-20 rounded-full bg-primary/10 items-center justify-center mb-6">
+                    <Ionicons name="briefcase-outline" size={48} color={colors.primary} />
                   </View>
-                  <Text className="text-xl font-bold text-foreground mb-2">No Services Yet</Text>
-                  <Text className="text-muted-foreground text-center mb-6">
-                    Create your first service to start accepting bookings
+                  <Text className="text-2xl font-bold text-foreground mb-3 text-center">
+                    No Services Yet
                   </Text>
-                  <Button onPress={() => setActiveTab('form')}>
-                    <Text className="text-primary-foreground font-medium">Add Your First Service</Text>
+                  <Text className="text-base text-muted-foreground text-center mb-8 leading-6">
+                    Get started by creating your first service to begin accepting customer bookings
+                  </Text>
+                  <Button 
+                    onPress={() => setActiveTab('form')}
+                    className="w-full max-w-xs"
+                  >
+                    <Ionicons name="add-circle-outline" size={20} color={colors.primaryForeground} />
+                    <Text className="text-primary-foreground font-semibold ml-2">Create First Service</Text>
                   </Button>
                 </View>
               )}
@@ -413,315 +511,46 @@ export default function ServicesScreen() {
           </TabsContent>
 
           <TabsContent value="form" className="flex-1">
-            <ScrollView className="flex-1 px-4 pt-4" showsVerticalScrollIndicator={false}>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Service Details</CardTitle>
-                </CardHeader>
-                <CardContent className="gap-4">
-                  <View>
-                    <Text className="text-sm font-medium mb-2">Service Title *</Text>
-                    <Controller
-                      control={control}
-                      name="title"
-                      render={({ field: { onChange, value } }) => (
-                        <Input
-                          value={value}
-                          onChangeText={onChange}
-                          placeholder="e.g., House Cleaning, Plumbing Service"
-                          className={cn(errors.title && 'border-destructive')}
-                        />
-                      )}
-                    />
-                    {errors.title && (
-                      <Text className="text-destructive text-xs mt-1">{errors.title.message}</Text>
-                    )}
-                  </View>
+            <ScrollView 
+              className="flex-1 px-2 pt-2" 
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 48 }}
+            >
+              {/* Form Sections */}
+              <ServiceDetailsSection 
+                control={control}
+                errors={errors}
+                categories={categories}
+                categoriesLoading={categoriesLoading}
+                subcategories={subcategories}
+                subcategoriesLoading={subcategoriesLoading}
+              />
 
-                  <View>
-                    <Text className="text-sm font-medium mb-2">Description *</Text>
-                    <Controller
-                      control={control}
-                      name="description"
-                      render={({ field: { onChange, value } }) => (
-                        <Textarea
-                          value={value}
-                          onChangeText={onChange}
-                          placeholder="Describe what this service includes..."
-                          className={cn("min-h-[80px]", errors.description && 'border-destructive')}
-                        />
-                      )}
-                    />
-                    {errors.description && (
-                      <Text className="text-destructive text-xs mt-1">{errors.description.message}</Text>
-                    )}
-                  </View>
+              <PricingSection 
+                control={control}
+                errors={errors}
+              />
 
-                  <View>
-                    <Text className="text-sm font-medium mb-2">Category *</Text>
-                    <Controller
-                      control={control}
-                      name="category"
-                      render={({ field: { onChange, value } }) => (
-                        <View className="border border-border rounded-lg">
-                          {categoriesLoading ? (
-                            <View className="p-3">
-                              <Skeleton className="h-5 w-full" />
-                            </View>
-                          ) : (
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="p-2">
-                              <View className="flex-row gap-2">
-                                {categories?.map((category) => (
-                                  <TouchableOpacity
-                                    key={category.id}
-                                    onPress={() => onChange(category.id)}
-                                    className={cn(
-                                      "px-4 py-2 rounded-full border",
-                                      value === category.id
-                                        ? "bg-primary border-primary"
-                                        : "bg-background border-border"
-                                    )}
-                                  >
-                                    <Text className={cn(
-                                      "text-sm font-medium",
-                                      value === category.id
-                                        ? "text-primary-foreground"
-                                        : "text-foreground"
-                                    )}>
-                                      {category.name}
-                                    </Text>
-                                  </TouchableOpacity>
-                                ))}
-                              </View>
-                            </ScrollView>
-                          )}
-                        </View>
-                      )}
-                    />
-                    {errors.category && (
-                      <Text className="text-destructive text-xs mt-1">{errors.category.message}</Text>
-                    )}
-                  </View>
-                </CardContent>
-              </Card>
-
-              <Card className="mt-4">
-                <CardHeader>
-                  <CardTitle>Pricing</CardTitle>
-                </CardHeader>
-                <CardContent className="gap-4">
-                  <View className="flex-row gap-3">
-                    <View className="flex-1">
-                      <Text className="text-sm font-medium mb-2">Base Price (£) *</Text>
-                      <Controller
-                        control={control}
-                        name="price"
-                        render={({ field: { onChange, value } }) => (
-                          <Input
-                            value={value}
-                            onChangeText={onChange}
-                            placeholder="0.00"
-                            keyboardType="decimal-pad"
-                            className={cn(errors.price && 'border-destructive')}
-                          />
-                        )}
-                      />
-                      {errors.price && (
-                        <Text className="text-destructive text-xs mt-1">{errors.price.message}</Text>
-                      )}
-                    </View>
-                    <View className="flex-1">
-                      <Text className="text-sm font-medium mb-2">Price Type</Text>
-                      <Controller
-                        control={control}
-                        name="priceType"
-                        render={({ field: { onChange, value } }) => (
-                          <View className="flex-row gap-2">
-                            <TouchableOpacity
-                              onPress={() => onChange('fixed')}
-                              className={cn(
-                                "flex-1 py-3 rounded-lg border items-center",
-                                value === 'fixed'
-                                  ? "bg-primary border-primary"
-                                  : "bg-background border-border"
-                              )}
-                            >
-                              <Text className={cn(
-                                "text-sm font-medium",
-                                value === 'fixed'
-                                  ? "text-primary-foreground"
-                                  : "text-foreground"
-                              )}>
-                                Fixed
-                              </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              onPress={() => onChange('hourly')}
-                              className={cn(
-                                "flex-1 py-3 rounded-lg border items-center",
-                                value === 'hourly'
-                                  ? "bg-primary border-primary"
-                                  : "bg-background border-border"
-                              )}
-                            >
-                              <Text className={cn(
-                                "text-sm font-medium",
-                                value === 'hourly'
-                                  ? "text-primary-foreground"
-                                  : "text-foreground"
-                              )}>
-                                Hourly
-                              </Text>
-                            </TouchableOpacity>
-                          </View>
-                        )}
-                      />
-                    </View>
-                  </View>
-
-                  <View>
-                    <Text className="text-sm font-medium mb-2">Duration (minutes) *</Text>
-                    <Controller
-                      control={control}
-                      name="duration"
-                      render={({ field: { onChange, value } }) => (
-                        <Input
-                          value={value}
-                          onChangeText={onChange}
-                          placeholder="e.g., 60 for 1 hour"
-                          keyboardType="decimal-pad"
-                          className={cn(errors.duration && 'border-destructive')}
-                        />
-                      )}
-                    />
-                    {errors.duration && (
-                      <Text className="text-destructive text-xs mt-1">{errors.duration.message}</Text>
-                    )}
-                  </View>
-
-                  <View>
-                    <Text className="text-sm font-medium mb-2">Deposit Percentage (Optional)</Text>
-                    <Controller
-                      control={control}
-                      name="depositPercentage"
-                      render={({ field: { onChange, value } }) => (
-                        <Input
-                          value={value}
-                          onChangeText={onChange}
-                          placeholder="e.g., 20 for 20%"
-                          keyboardType="decimal-pad"
-                        />
-                      )}
-                    />
-                  </View>
-
-                  <View>
-                    <Text className="text-sm font-medium mb-2">House Call Extra Fee (Optional)</Text>
-                    <Controller
-                      control={control}
-                      name="houseCallExtraFee"
-                      render={({ field: { onChange, value } }) => (
-                        <Input
-                          value={value}
-                          onChangeText={onChange}
-                          placeholder="Additional fee for house calls"
-                          keyboardType="decimal-pad"
-                        />
-                      )}
-                    />
-                  </View>
-                </CardContent>
-              </Card>
-
-              <Card className="mt-4">
-                <CardHeader>
-                  <CardTitle>Service Settings</CardTitle>
-                </CardHeader>
-                <CardContent className="gap-4">
-                  <View>
-                    <Text className="text-sm font-medium mb-2">Cancellation Policy</Text>
-                    <Controller
-                      control={control}
-                      name="cancellationPolicy"
-                      render={({ field: { onChange, value } }) => (
-                        <Textarea
-                          value={value}
-                          onChangeText={onChange}
-                          placeholder="Describe your cancellation policy..."
-                          className="min-h-[60px]"
-                        />
-                      )}
-                    />
-                  </View>
-
-                  <View className="flex-row items-center justify-between">
-                    <View className="flex-1">
-                      <Text className="text-sm font-medium">House Call Available</Text>
-                      <Text className="text-xs text-muted-foreground">Offer this service at customer's location</Text>
-                    </View>
-                    <Controller
-                      control={control}
-                      name="houseCallAvailable"
-                      render={({ field: { onChange, value } }) => (
-                        <Switch
-                          checked={value}
-                          onCheckedChange={onChange}
-                        />
-                      )}
-                    />
-                  </View>
-
-                  <View className="flex-row items-center justify-between">
-                    <View className="flex-1">
-                      <Text className="text-sm font-medium">Allow SOS Bookings</Text>
-                      <Text className="text-xs text-muted-foreground">Accept urgent same-day bookings</Text>
-                    </View>
-                    <Controller
-                      control={control}
-                      name="allowsSosBooking"
-                      render={({ field: { onChange, value } }) => (
-                        <Switch
-                          checked={value}
-                          onCheckedChange={onChange}
-                        />
-                      )}
-                    />
-                  </View>
-
-                  <View className="flex-row items-center justify-between">
-                    <View className="flex-1">
-                      <Text className="text-sm font-medium">Service Status</Text>
-                      <Text className="text-xs text-muted-foreground">Make this service available for booking</Text>
-                    </View>
-                    <Controller
-                      control={control}
-                      name="isActive"
-                      render={({ field: { onChange, value } }) => (
-                        <Switch
-                          checked={value}
-                          onCheckedChange={onChange}
-                        />
-                      )}
-                    />
-                  </View>
-                </CardContent>
-              </Card>
+              <ServiceSettingsSection 
+                control={control}
+                errors={errors}
+              />
 
               {/* Action Buttons */}
-              <View className="flex-row gap-3 mt-6 mb-8">
+              <View className="flex-row gap-3 mt-8 mb-4">
                 <Button
                   variant="outline"
                   onPress={handleCancel}
                   className="flex-1"
                 >
-                  <Text className="text-foreground font-medium">Cancel</Text>
+                  <Text className="text-foreground font-semibold">Cancel</Text>
                 </Button>
                 <Button
                   onPress={handleSubmit(onSubmit)}
                   disabled={createServiceMutation.isPending || updateServiceMutation.isPending}
                   className="flex-1"
                 >
-                  <Text className="text-primary-foreground font-medium">
+                  <Text className="text-primary-foreground font-semibold">
                     {createServiceMutation.isPending || updateServiceMutation.isPending
                       ? 'Saving...'
                       : editingService ? 'Update Service' : 'Create Service'

@@ -20,7 +20,6 @@ import { FileText, CheckCircle, Info, DollarSign, AlertCircle, Home } from 'luci
 
 // ✅ SINGLE-SOURCE: Use new verification hooks
 import { useVerificationData, useUpdateStepCompletion, useVerificationRealtime } from '@/hooks/provider/useVerificationSingleSource';
-import { useVerificationNavigation } from '@/hooks/provider';
 import { useAuthStore } from '@/stores/auth';
 
 // UI Components
@@ -39,7 +38,6 @@ export default function BusinessTermsScreen() {
   // ✅ SINGLE-SOURCE: Use new verification hooks
   const { data: verificationData, isLoading: verificationLoading } = useVerificationData(providerId);
   const updateStepMutation = useUpdateStepCompletion();
-  const { navigateNext, navigateBack } = useVerificationNavigation();
 
   // Real-time subscription for live updates
   useVerificationRealtime(providerId);
@@ -103,12 +101,12 @@ export default function BusinessTermsScreen() {
         },
       });
 
-      navigateNext();
+      router.push('/(provider-verification)/complete');
     } catch (error) {
       console.error('[Terms] Submit error:', error);
       Alert.alert('Save Failed', 'Failed to save terms. Please try again.');
     }
-  }, [validateForm, providerId, houseCallAvailable, houseCallExtraFee, updateStepMutation, navigateNext]);
+  }, [validateForm, providerId, houseCallAvailable, houseCallExtraFee, updateStepMutation]);
 
   return (
     <View className="flex-1 bg-background">
@@ -224,7 +222,10 @@ export default function BusinessTermsScreen() {
         <Button
           variant="outline"
           size="lg"
-          onPress={navigateBack}
+          onPress={() => {
+            // Go to bio (step 6) - previous step before terms (step 7)
+            router.push('/(provider-verification)/bio');
+          }}
           disabled={updateStepMutation.isPending}
           className="w-full"
         >

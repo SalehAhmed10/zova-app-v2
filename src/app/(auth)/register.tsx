@@ -27,8 +27,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useAuthOptimized } from '@/hooks';
-import { useSession } from '@/app/ctx';
+import { useAuthStore } from '@/stores/auth';
 import { registrationSchema, type RegistrationFormData } from '@/lib/validation/authValidation';
 import { supabase } from '@/lib/supabase';
 
@@ -39,9 +38,8 @@ interface RoleSwitchData {
 }
 
 export default function RegisterScreen() {
-  // ✅ OPTIMIZED: Using SessionProvider for auth state
-  const { refetchSession } = useAuthOptimized();
-  const { session } = useSession();
+  // ✅ OPTIMIZED: Using Zustand store for auth state
+  const session = useAuthStore((state) => state.session);
   
   // Dialog state
   const [showExistingUserDialog, setShowExistingUserDialog] = useState(false);

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { useAuthPure } from '@/hooks/shared/useAuthPure';
+import { useAuthStore } from '@/stores/auth';
 import { getSubscriptionConfig } from '@/lib/payment/subscription-config';
 
 export interface UserSubscription {
@@ -35,7 +35,7 @@ export interface CancelSubscriptionRequest {
 }
 
 export function useUserSubscriptions() {
-  const { user } = useAuthPure();
+  const user = useAuthStore((state) => state.user);
   
   return useQuery({
     queryKey: ['subscriptions', user?.id],
@@ -56,7 +56,7 @@ export function useUserSubscriptions() {
 }
 
 export function useActiveSubscription(type: 'customer_sos' | 'provider_premium') {
-  const { user } = useAuthPure();
+  const user = useAuthStore((state) => state.user);
   
   return useQuery({
     queryKey: ['subscription', user?.id, type],
@@ -79,7 +79,7 @@ export function useActiveSubscription(type: 'customer_sos' | 'provider_premium')
 }
 
 export function useCreateSubscription() {
-  const { user } = useAuthPure();
+  const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
   
   return useMutation({
@@ -117,7 +117,7 @@ export function useCreateSubscription() {
 }
 
 export function useCancelSubscription() {
-  const { user } = useAuthPure();
+  const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
   
   return useMutation({
@@ -150,7 +150,7 @@ export function useCancelSubscription() {
 }
 
 export function useReactivateSubscription() {
-  const { user } = useAuthPure();
+  const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
   
   return useMutation({

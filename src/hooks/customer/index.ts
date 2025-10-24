@@ -1,13 +1,18 @@
+/**
+ * Customer-specific hooks
+ * 
+ * ⚠️ IMPORTANT: For profile data, use @/hooks/shared/useProfileData
+ * - useProfile(userId?) - queries full profiles table with all fields
+ * - useProfileStats(userId?, userRole?) - fetches profile statistics
+ * 
+ * Do NOT import useProfile from customer hooks - it was removed.
+ */
+
 export { useUserFavorites, useToggleFavorite, useIsFavorited, type UserFavorite, type FavoriteProvider, type FavoriteService } from './useFavorites';
 
 // ✅ Customer booking management hooks
 export { useCancelBooking } from './useCancelBooking';
 export { useUserReviews, type UserReview } from './useUserReviews';
-
-// ✅ Optimized search hooks following copilot-rules.md
-export {
-  useSearchResults
-} from './useSearchOptimized';
 
 // ✅ Detail hooks for service and provider screens
 export { useServiceDetails } from './useServiceDetails';
@@ -28,16 +33,14 @@ export { useCustomerBookings, type BookingData } from './useBookings';
 // ✅ Import required dependencies for hooks
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { SearchFilters, useProviderSearch } from '../provider/useProviderSearch';
 
-// ✅ Customer-specific hooks with proper data structures
-export const useTrustedProviders = (limit: number | SearchFilters = {}) => {
-  const filters = typeof limit === 'number' ? { maxResults: limit } : limit;
-  const { data, isLoading, error, refetch } = useProviderSearch(filters);
-  return { data, isLoading, error, refetch };
-};
-
-// ✅ Hook to get ALL providers (not just those with services) for provider selection
+/**
+ * Get all providers with payment filters applied
+ * Returns providers with active Stripe accounts and verified status
+ * 
+ * ✅ PAYMENT SECURITY: This includes stripe_account_status = 'active', 
+ *    stripe_charges_enabled = true, and verification_status = 'approved'
+ */
 export const useAllProviders = (limit: number = 50) => {
   return useQuery({
     queryKey: ['allProviders', limit],
@@ -53,6 +56,8 @@ export const useAllProviders = (limit: number = 50) => {
           bio,
           availability_status,
           is_business_visible,
+          stripe_account_status,
+          stripe_charges_enabled,
           created_at,
           provider_onboarding_progress!inner (
             verification_status
@@ -65,6 +70,8 @@ export const useAllProviders = (limit: number = 50) => {
         .eq('is_business_visible', true)
         .eq('provider_onboarding_progress.verification_status', 'approved')
         .eq('availability_status', 'available')
+        .eq('stripe_account_status', 'active')       // ✅ PAYMENT SECURITY
+        .eq('stripe_charges_enabled', true)          // ✅ PAYMENT SECURITY
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -81,7 +88,6 @@ export const useAllProviders = (limit: number = 50) => {
           ...provider,
           avg_rating: avgRating,
           total_reviews: reviews.length,
-          // Remove reviews from the response to keep it clean
           reviews: undefined
         };
       }) || [];
@@ -92,58 +98,15 @@ export const useAllProviders = (limit: number = 50) => {
   });
 };
 
-export const useProfile = (userId?: string) => {
-  const { data } = useProviderSearch({ maxResults: 1 });
-  return {
-    data: data?.[0] || null,
-    isLoading: false,
-    error: null,
-  };
+/**
+ * Alias for useAllProviders with payment filters applied
+ * Use this when you want clearly named provider fetching
+ */
+export const useTrustedProviders = (limit: number = 50) => {
+  return useAllProviders(limit);
 };
 
-export const useUserBookings = (userId?: string) => {
-  return {
-    data: [],
-    bookings: [],
-    isLoading: false,
-    loading: false,
-    error: null,
-    getBookingsForDate: (date: string) => [],
-    getBookingsForDateRange: (startDate: string, endDate: string) => [],
-    getBookingStats: () => ({ total: 0, completed: 0 }),
-    refetch: async () => ({ bookings: [] }),
-  };
-};
-
-export const useProfileStats = (userId?: string) => {
-  return {
-    data: {
-      total_spent: 0,
-      avg_rating: 4.5,
-      total_bookings: 0,
-      completed_bookings: 0,
-    },
-    isLoading: false,
-    error: null,
-  };
-};
-
-export const useNotificationSettings = () => {
-  return {
-    data: { push: true, email: true, sms: false },
-    isLoading: false,
-    error: null,
-  };
-};
-
-export const useUpdateNotificationSettings = () => {
-  return {
-    mutateAsync: async (settings: any) => settings,
-    isLoading: false,
-    error: null,
-  };
-};
-
+// Update profile mutation
 export const useUpdateProfile = () => {
   const queryClient = useQueryClient();
   
@@ -191,7 +154,6 @@ export const useUpdateProfile = () => {
     },
     onSuccess: (data) => {
       console.log('[useUpdateProfile] ✅ Mutation success, invalidating queries');
-      // Invalidate and refetch profile data
       queryClient.invalidateQueries({ queryKey: ['profile'] });
     },
     onError: (error) => {
@@ -217,10 +179,4 @@ export type ProfileData = {
   verification_status?: string;
   created_at?: string;
   updated_at?: string;
-};
-
-export type NotificationSettings = {
-  push: boolean;
-  email: boolean;
-  sms: boolean;
 };

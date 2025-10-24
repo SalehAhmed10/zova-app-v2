@@ -13,7 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useSession } from '@/app/ctx';
+import { useSignOut } from '@/hooks/auth/useSignOut';
 import { cn } from '@/lib/utils';
 
 interface LogoutButtonProps {
@@ -37,7 +37,7 @@ export function LogoutButton({
   showIcon = true,
   fullWidth = false
 }: LogoutButtonProps) {
-  const { signOut } = useSession();
+  const signOutMutation = useSignOut();
   const [isLoading, setIsLoading] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +61,7 @@ export function LogoutButton({
       timeoutRef.current = timeout;
       
       // ✅ Sign out and clear auth
-      await signOut();
+      await signOutMutation.mutateAsync();
       
       clearTimeout(timeout);
       console.log('[LogoutButton] ✅ Sign out completed successfully');

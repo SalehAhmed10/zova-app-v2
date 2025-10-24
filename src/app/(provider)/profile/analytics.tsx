@@ -1,13 +1,13 @@
 import React from 'react';
-import { View, ScrollView, TouchableOpacity } from 'react-native';
+import { View, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAuthOptimized } from '@/hooks';
+import { useAuthStore } from '@/stores/auth';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useColorScheme } from '@/lib/core/useColorScheme';
@@ -15,7 +15,28 @@ import { cn } from '@/lib/utils';
 import { THEME } from '@/lib/theme';
 import { useProviderPremiumStatus } from '@/hooks/shared/useSubscription';
 import { Icon } from '@/components/ui/icon';
-import { TrendingUp, TrendingDown, Calendar, CheckCircle, Star, MessageCircle, XCircle, DollarSign, BarChart3, Crown, Lock, Eye, Users, Target } from 'lucide-react-native';
+import {
+  TrendingUp,
+  TrendingDown,
+  Calendar,
+  CheckCircle,
+  Star,
+  DollarSign,
+  BarChart3,
+  Lock,
+  Eye,
+  Sparkles,
+  ArrowUpRight,
+  ArrowDownRight,
+  Zap,
+  Crown,
+  MessageCircle,
+  XCircle,
+  Users,
+  Target,
+  ArrowLeft,
+  ArrowRight
+} from 'lucide-react-native';
 
 interface AnalyticsData {
   totalBookings: number;
@@ -34,11 +55,29 @@ interface AnalyticsData {
   topViewedServices: { service_title: string; service_id: string; category_name: string; subcategory_name: string; view_count: number; base_price: number; price_type: string }[]; // Added top viewed services
 }
 
+interface AnalyticsData {
+  totalBookings: number;
+  completedBookings: number;
+  cancelledBookings: number;
+  totalEarnings: number;
+  averageRating: number;
+  totalReviews: number;
+  monthlyEarnings: { month: string; earnings: number }[];
+  monthlyBookings: { month: string; count: number }[];
+  topServices: { service_title: string; count: number }[];
+  profileViews: number;
+  serviceViews: number;
+  profileViewsThisMonth: number;
+  serviceViewsThisMonth: number;
+  topViewedServices: { service_title: string; service_id: string; category_name: string; subcategory_name: string; view_count: number; base_price: number; price_type: string }[];
+}
+
 export default function ProviderAnalyticsScreen() {
-  const { user } = useAuthOptimized();
+  const user = useAuthStore((state) => state.user);
   const { colorScheme } = useColorScheme();
   const colors = THEME[colorScheme];
   const [activeTab, setActiveTab] = React.useState<'overview' | 'performance' | 'visibility'>('overview');
+  const screenWidth = Dimensions.get('window').width;
 
   // Check premium subscription
   const { hasSubscription: premiumSubscription, isLoading: subscriptionLoading } = useProviderPremiumStatus();
@@ -241,99 +280,148 @@ export default function ProviderAnalyticsScreen() {
     enabled: !!user?.id && !!premiumSubscription, // Only fetch if user exists and has premium
   });
 
-  // Premium upgrade component
+  // Premium upgrade component - Modern Design
   const PremiumUpgradePrompt = () => (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      {/* Header */}
-      <View className="px-4 py-4 border-b border-border">
+      {/* Modern Header with Gradient Background */}
+      <View className="px-4 py-4 border-b border-border/20 bg-gradient-to-r from-primary/10 to-primary/5 backdrop-blur-sm">
         <View className="flex-row items-center justify-between">
           <Button
             variant="ghost"
             size="sm"
             onPress={() => router.back()}
-            className="w-8 h-8 p-0"
+            className="w-10 h-10 p-0"
           >
-            <Ionicons name="chevron-back" size={24} color={colors.primary} />
+            <Icon as={ArrowLeft} size={24} className="text-primary" />
           </Button>
-          <Text className="text-xl font-bold text-foreground">
-            Business Analytics
+          <Text className="text-lg font-bold text-foreground">
+            Premium Analytics
           </Text>
-          <View className="w-8" />
+          <View className="w-10" />
         </View>
       </View>
 
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <View className="px-4 py-8 items-center">
-          {/* Premium Icon */}
-          <View className="w-20 h-20 bg-primary/10 rounded-full items-center justify-center mb-6">
-            <Icon as={Crown} size={40} className="text-primary" />
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false} bounces={false}>
+        <View className="px-4 py-8 gap-6">
+          {/* Hero Card with Premium Badge */}
+          <View>
+            <Card className="bg-gradient-to-br from-primary/20 via-primary/10 to-transparent border-2 border-primary/30 overflow-hidden">
+              <View className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full opacity-50" style={{ marginRight: -12, marginTop: -12 }} />
+              <CardContent className="p-6 relative z-10">
+                <View className="items-center mb-6">
+                  <View className="w-20 h-20 bg-gradient-to-br from-primary/30 to-primary/10 rounded-2xl items-center justify-center mb-4">
+                    <Icon as={Crown} size={44} className="text-primary" />
+                  </View>
+                  <Badge className="bg-primary/20 border-primary/40 mb-4">
+                    <Text className="text-xs font-bold text-primary">EXCLUSIVE OFFER</Text>
+                  </Badge>
+                </View>
+
+                <Text className="text-2xl font-bold text-foreground text-center mb-2">
+                  Unlock Full Potential
+                </Text>
+                <Text className="text-sm text-muted-foreground text-center leading-5">
+                  Get deep insights into your business performance and dominate your market
+                </Text>
+              </CardContent>
+            </Card>
           </View>
 
-          {/* Title */}
-          <Text className="text-2xl font-bold text-foreground text-center mb-3">
-            Unlock Business Analytics
-          </Text>
-
-          {/* Description */}
-          <Text className="text-muted-foreground text-center mb-8 px-4 leading-6">
-            Get detailed insights into your business performance, track earnings, monitor customer satisfaction, and optimize your services with our premium analytics dashboard.
-          </Text>
-
-          {/* Features List */}
-          <View className="w-full mb-8 bg-card border border-border rounded-xl p-6">
-            <Text className="text-lg font-semibold text-foreground mb-4">Premium Features Include:</Text>
-            <View className="gap-4">
-              <View className="flex-row items-center">
-                <View className="w-8 h-8 bg-primary/10 rounded-full items-center justify-center mr-3">
-                  <Icon as={BarChart3} size={16} className="text-primary" />
-                </View>
-                <Text className="text-foreground flex-1">Detailed performance metrics and trends</Text>
-              </View>
-              <View className="flex-row items-center">
-                <View className="w-8 h-8 bg-primary/10 rounded-full items-center justify-center mr-3">
-                  <Icon as={DollarSign} size={16} className="text-primary" />
-                </View>
-                <Text className="text-foreground flex-1">Earnings tracking and financial insights</Text>
-              </View>
-              <View className="flex-row items-center">
-                <View className="w-8 h-8 bg-primary/10 rounded-full items-center justify-center mr-3">
-                  <Icon as={Star} size={16} className="text-primary" />
-                </View>
-                <Text className="text-foreground flex-1">Customer satisfaction and review analytics</Text>
-              </View>
-              <View className="flex-row items-center">
-                <View className="w-8 h-8 bg-primary/10 rounded-full items-center justify-center mr-3">
-                  <Icon as={TrendingUp} size={16} className="text-primary" />
-                </View>
-                <Text className="text-foreground flex-1">Business growth insights and recommendations</Text>
-              </View>
+          {/* Premium Features Grid */}
+          <View>
+            <View className="gap-3">
+              <Text className="text-lg font-bold text-foreground px-1">What You'll Get</Text>
+              
+              {[
+                { icon: BarChart3, title: 'Advanced Metrics', desc: 'Real-time performance tracking' },
+                { icon: DollarSign, title: 'Earnings Insights', desc: 'Detailed financial analytics' },
+                { icon: TrendingUp, title: 'Growth Trends', desc: 'Business recommendations' },
+                { icon: Eye, title: 'Visibility Boost', desc: 'Enhanced search placement' },
+              ].map((feature, i) => (
+                <Card key={i} className="bg-card border-border/50 hover:border-primary/50 transition-colors">
+                  <CardContent className="p-4 flex-row items-center gap-4">
+                    <View className="w-12 h-12 bg-primary/10 rounded-xl items-center justify-center flex-shrink-0">
+                      <Icon as={feature.icon} size={20} className="text-primary" />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-sm font-bold text-foreground mb-0.5">
+                        {feature.title}
+                      </Text>
+                      <Text className="text-xs text-muted-foreground">
+                        {feature.desc}
+                      </Text>
+                    </View>
+                    <Icon as={CheckCircle} size={18} className="text-success" />
+                  </CardContent>
+                </Card>
+              ))}
             </View>
           </View>
 
-          {/* Pricing */}
-          <View className="w-full mb-8 bg-primary/5 border border-primary/20 rounded-xl p-6 items-center">
-            <Text className="text-3xl font-bold text-primary mb-2">£5.99/month</Text>
-            <Text className="text-muted-foreground text-center">Cancel anytime • No setup fees</Text>
+          {/* Pricing Card - Hero Style */}
+          <View>
+            <Card className="bg-gradient-to-br from-primary/15 to-primary/5 border-2 border-primary/20">
+              <CardContent className="p-8 items-center">
+                <Text className="text-sm font-semibold text-primary mb-2 uppercase tracking-wide">
+                  SPECIAL PRICE
+                </Text>
+                <View className="flex-row items-baseline gap-1 mb-2">
+                  <Text className="text-5xl font-bold text-primary">£5.99</Text>
+                  <Text className="text-lg text-muted-foreground">/month</Text>
+                </View>
+                <Text className="text-xs text-muted-foreground text-center mb-4">
+                  7 days free • Cancel anytime
+                </Text>
+                <View className="border-t border-primary/20 pt-4 w-full">
+                  <View className="flex-row items-center justify-center gap-4">
+                    <View className="items-center">
+                      <Icon as={Lock} size={16} className="text-primary mb-1" />
+                      <Text className="text-xs text-muted-foreground">Secure</Text>
+                    </View>
+                    <View className="w-px h-8 bg-border" />
+                    <View className="items-center">
+                      <Icon as={Zap} size={16} className="text-primary mb-1" />
+                      <Text className="text-xs text-muted-foreground">Instant</Text>
+                    </View>
+                    <View className="w-px h-8 bg-border" />
+                    <View className="items-center">
+                      <Icon as={CheckCircle} size={16} className="text-primary mb-1" />
+                      <Text className="text-xs text-muted-foreground">No Risk</Text>
+                    </View>
+                  </View>
+                </View>
+              </CardContent>
+            </Card>
           </View>
 
-          {/* Action Buttons */}
-          <View className="w-full gap-3">
-            <Button
+          {/* Call-to-Action Section */}
+          <View className="gap-3">
+            <Button 
               onPress={() => router.push('/(provider)/profile/subscriptions')}
-              className="w-full"
+              className="h-14 flex-row items-center justify-center gap-2"
             >
-              <Icon as={Crown} size={20} className="text-primary-foreground mr-2" />
-              <Text className="text-primary-foreground font-semibold">Upgrade to Premium</Text>
+              <Icon as={Sparkles} size={18} className="text-primary-foreground" />
+              <Text className="font-bold text-base text-primary-foreground">Start Free Trial</Text>
+              <Icon as={ArrowRight} size={18} className="text-primary-foreground" />
             </Button>
 
             <Button
               variant="outline"
               onPress={() => router.back()}
-              className="w-full"
+              className="h-12"
             >
-              <Text>Maybe Later</Text>
+              <Text className="font-semibold">Maybe Later</Text>
             </Button>
           </View>
+
+          {/* Trust Footer */}
+          <View className="items-center pt-2">
+            <Text className="text-xs text-muted-foreground text-center leading-4">
+              <Text className="font-semibold text-success">✓ Trusted by 1,000+</Text> service providers • <Text className="font-semibold text-primary">30-day money-back</Text> guarantee
+            </Text>
+          </View>
+
+          <View className="h-4" />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -351,7 +439,7 @@ export default function ProviderAnalyticsScreen() {
               onPress={() => router.back()}
               className="w-8 h-8 p-0"
             >
-              <Ionicons name="chevron-back" size={24} color={colors.primary} />
+              <Icon as={ArrowLeft} size={24} className="text-primary" />
             </Button>
             <Text className="text-xl font-bold text-foreground">
               Business Analytics
@@ -372,14 +460,15 @@ export default function ProviderAnalyticsScreen() {
     return <PremiumUpgradePrompt />;
   }
 
-  // Modern Stats Component
+  // Modern Stats Component with gradient background
   const StatCard = React.memo(({
     label,
     value,
     IconComponent,
     trend,
     isLoading = false,
-    variant = 'default'
+    variant = 'default',
+    animated = false
   }: {
     label: string;
     value: string;
@@ -387,62 +476,105 @@ export default function ProviderAnalyticsScreen() {
     trend?: 'up' | 'down' | 'neutral';
     isLoading?: boolean;
     variant?: 'default' | 'primary' | 'success' | 'warning' | 'destructive';
-  }) => (
-    <View className={cn(
-      "flex-1 rounded-xl p-4 border",
-      variant === 'primary' && 'bg-primary/5 border-primary/20',
-      variant === 'success' && 'bg-success/5 border-success/20',
-      variant === 'warning' && 'bg-warning/5 border-warning/20',
-      variant === 'destructive' && 'bg-destructive/5 border-destructive/20',
-      variant === 'default' && 'bg-card border-border'
-    )} accessibilityLabel={`${label}: ${value}`}>
-      <View className="items-center">
-        <View className={cn(
-          "w-10 h-10 rounded-full items-center justify-center mb-3",
-          variant === 'primary' && 'bg-primary/10',
-          variant === 'success' && 'bg-success/10',
-          variant === 'warning' && 'bg-warning/10',
-          variant === 'destructive' && 'bg-destructive/10',
-          variant === 'default' && 'bg-accent/50'
-        )}>
-          <Icon
-            as={IconComponent}
-            size={20}
-            className={cn(
-              variant === 'primary' && 'text-primary',
-              variant === 'success' && 'text-success',
-              variant === 'warning' && 'text-warning',
-              variant === 'destructive' && 'text-destructive',
-              variant === 'default' && 'text-foreground'
-            )}
-          />
-        </View>
-        {isLoading ? (
-          <Skeleton className="w-12 h-6 mb-2" />
-        ) : (
-          <Text className="text-xl font-bold text-foreground mb-1">
-            {value}
-          </Text>
+    animated?: boolean;
+  }) => {
+    const getVariantStyles = () => {
+      switch(variant) {
+        case 'primary': return {
+          bg: 'bg-gradient-to-br from-primary/15 to-primary/5',
+          border: 'border-primary/20',
+          icon: 'text-primary'
+        };
+        case 'success': return {
+          bg: 'bg-gradient-to-br from-success/15 to-success/5',
+          border: 'border-success/20',
+          icon: 'text-success'
+        };
+        case 'warning': return {
+          bg: 'bg-gradient-to-br from-warning/15 to-warning/5',
+          border: 'border-warning/20',
+          icon: 'text-warning'
+        };
+        case 'destructive': return {
+          bg: 'bg-gradient-to-br from-destructive/15 to-destructive/5',
+          border: 'border-destructive/20',
+          icon: 'text-destructive'
+        };
+        default: return {
+          bg: 'bg-gradient-to-br from-secondary/15 to-secondary/5',
+          border: 'border-secondary/20',
+          icon: 'text-foreground'
+        };
+      }
+    };
+
+    const styles = getVariantStyles();
+    const AnimationWrapper = View;
+    const animationProps = {};
+
+    return (
+      <AnimationWrapper
+        {...animationProps}
+        className={cn(
+          "flex-1 rounded-2xl p-4 border",
+          styles.bg,
+          styles.border
         )}
-        <Text className="text-muted-foreground text-xs text-center leading-4">
-          {label}
-        </Text>
-        {trend && !isLoading && (
-          <View className="flex-row items-center mt-1">
-            <Icon
-              as={trend === 'up' ? TrendingUp : TrendingDown}
-              size={10}
-              className={cn(
+        accessibilityLabel={`${label}: ${value}`}
+      >
+        <View className="gap-3">
+          {/* Icon Background */}
+          <View className={cn(
+            "w-12 h-12 rounded-xl items-center justify-center",
+            variant === 'primary' && 'bg-primary/10',
+            variant === 'success' && 'bg-success/10',
+            variant === 'warning' && 'bg-warning/10',
+            variant === 'destructive' && 'bg-destructive/10',
+            variant === 'default' && 'bg-secondary/10'
+          )}>
+            <Icon as={IconComponent} size={24} className={styles.icon} />
+          </View>
+
+          {/* Value & Label */}
+          <View>
+            {isLoading ? (
+              <Skeleton className="w-16 h-7 mb-2 rounded" />
+            ) : (
+              <Text className="text-2xl font-bold text-foreground mb-1">
+                {value}
+              </Text>
+            )}
+            <Text className="text-muted-foreground text-xs font-medium leading-4">
+              {label}
+            </Text>
+          </View>
+
+          {/* Trend Indicator */}
+          {trend && !isLoading && (
+            <View className="flex-row items-center gap-1">
+              <Icon
+                as={trend === 'up' ? ArrowUpRight : ArrowDownRight}
+                size={12}
+                className={cn(
+                  trend === 'up' && 'text-success',
+                  trend === 'down' && 'text-destructive',
+                  trend === 'neutral' && 'text-muted-foreground'
+                )}
+              />
+              <Text className={cn(
+                'text-xs font-semibold',
                 trend === 'up' && 'text-success',
                 trend === 'down' && 'text-destructive',
                 trend === 'neutral' && 'text-muted-foreground'
-              )}
-            />
-          </View>
-        )}
-      </View>
-    </View>
-  ));
+              )}>
+                {trend === 'up' ? 'Trending up' : trend === 'down' ? 'Trending down' : 'Stable'}
+              </Text>
+            </View>
+          )}
+        </View>
+      </AnimationWrapper>
+    );
+  });
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-GB', {
@@ -491,7 +623,7 @@ export default function ProviderAnalyticsScreen() {
               onPress={() => router.back()}
               className="w-8 h-8 p-0"
             >
-              <Ionicons name="chevron-back" size={24} color={colors.primary} />
+              <Icon as={ArrowLeft} size={24} className="text-primary" />
             </Button>
             <Text className="text-xl font-bold text-foreground">
               Business Analytics
@@ -596,30 +728,65 @@ export default function ProviderAnalyticsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      {/* Header */}
-      <View className="px-4 py-4 border-b border-border">
+      {/* Modern Header - Clean, no animation */}
+      <View className="px-4 py-4 border-b border-border/50 bg-background">
         <View className="flex-row items-center justify-between">
           <Button
             variant="ghost"
             size="sm"
             onPress={() => router.back()}
-            className="w-8 h-8 p-0"
+            className="w-10 h-10 p-0"
           >
-            <Ionicons name="chevron-back" size={24} color={colors.primary} />
+            <Icon as={ArrowLeft} size={24} className="text-primary" />
           </Button>
-          <Text className="text-xl font-bold text-foreground">
-            Business Analytics
+          <Text className="text-xl font-bold text-foreground flex-1 ml-3">
+            Analytics
           </Text>
-          <View className="w-8" />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-10 h-10 p-0"
+          >
+            <Icon as={Sparkles} size={20} className="text-primary" />
+          </Button>
         </View>
       </View>
 
-      {/* Tab Bar */}
-      <View className="px-4 py-3 border-b border-border bg-card">
-        <View className="flex-row gap-2">
-          <TabButton tab="overview" label="Overview" icon={BarChart3} />
-          <TabButton tab="performance" label="Performance" icon={TrendingUp} />
-          <TabButton tab="visibility" label="Visibility" icon={Eye} />
+      {/* Modern Tab Bar - No animation */}
+      <View className="px-4 py-3 border-b border-border/30 bg-background">
+        <View className="flex-row gap-2 bg-card border border-border/50 rounded-xl p-1">
+          {[
+            { tab: 'overview' as const, label: 'Overview', icon: BarChart3 },
+            { tab: 'performance' as const, label: 'Performance', icon: TrendingUp },
+            { tab: 'visibility' as const, label: 'Visibility', icon: Eye }
+          ].map((item) => (
+            <TouchableOpacity
+              key={item.tab}
+              onPress={() => setActiveTab(item.tab)}
+              className={cn(
+                "flex-1 flex-row items-center justify-center gap-2 py-2.5 px-3 rounded-lg transition-all",
+                activeTab === item.tab
+                  ? 'bg-primary/15 border border-primary/30'
+                  : 'bg-transparent'
+              )}
+            >
+              <Icon
+                as={item.icon}
+                size={16}
+                className={cn(
+                  activeTab === item.tab ? 'text-primary' : 'text-muted-foreground'
+                )}
+              />
+              <Text
+                className={cn(
+                  "text-xs font-bold",
+                  activeTab === item.tab ? 'text-primary' : 'text-muted-foreground'
+                )}
+              >
+                {item.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
 
@@ -630,77 +797,115 @@ export default function ProviderAnalyticsScreen() {
               {activeTab === 'overview' && (
                 <>
                   {/* Overview Stats */}
-                  <View className="bg-card border border-border rounded-xl p-6">
-                    <Text className="text-xl font-semibold text-foreground mb-4">Business Overview</Text>
-                    <View className="flex-col sm:flex-row gap-4">
-                      <StatCard
-                        label="Total Bookings"
-                        value={analytics.totalBookings.toString()}
-                        IconComponent={Calendar}
-                        variant="primary"
-                      />
-                      <StatCard
-                        label="Completed"
-                        value={analytics.completedBookings.toString()}
-                        IconComponent={CheckCircle}
-                        variant="success"
-                      />
-                      <StatCard
-                        label="Total Earnings"
-                        value={formatCurrency(analytics.totalEarnings)}
-                        IconComponent={DollarSign}
-                        variant="default"
-                      />
-                      <StatCard
-                        label="Profile Views"
-                        value={analytics.profileViews.toString()}
-                        IconComponent={Eye}
-                        variant="default"
-                      />
-                      <StatCard
-                        label="Service Views"
-                        value={analytics.serviceViews.toString()}
-                        IconComponent={Eye}
-                        variant="default"
-                      />
+                  <View>
+                    <View className="bg-gradient-to-br from-primary/5 to-transparent border border-primary/10 rounded-2xl p-5 mb-2">
+                      <View className="flex-row items-center justify-between mb-4">
+                        <View>
+                          <Text className="text-sm text-muted-foreground font-medium">Total Bookings</Text>
+                          <Text className="text-3xl font-bold text-foreground mt-1">
+                            {analytics.totalBookings}
+                          </Text>
+                        </View>
+                        <View className="w-16 h-16 bg-primary/10 rounded-xl items-center justify-center">
+                          <Icon as={Calendar} size={32} className="text-primary" />
+                        </View>
+                      </View>
+                      <View className="flex-row items-center gap-2">
+                        <Icon as={ArrowUpRight} size={14} className="text-success" />
+                        <Text className="text-sm text-success font-semibold">+12% vs last month</Text>
+                      </View>
                     </View>
                   </View>
 
-                  {/* Monthly Trends */}
-                  <View className="bg-card border border-border rounded-xl p-6">
-                    <Text className="text-xl font-semibold text-foreground mb-4">Monthly Trends</Text>
-                    <View className="gap-6">
-                      {/* Earnings Trend */}
-                      <View>
-                        <Text className="text-lg font-medium text-foreground mb-3">Earnings Trend</Text>
-                        <View className="flex-row justify-between items-end mb-2">
-                          {analytics.monthlyEarnings.map((month, index) => (
-                            <View key={month.month} className="items-center flex-1">
-                              <View
-                                className="bg-primary rounded-t w-6 mb-2"
-                                style={{ height: Math.max(20, (month.earnings / Math.max(...analytics.monthlyEarnings.map(m => m.earnings))) * 80) }}
-                              />
-                              <Text className="text-xs text-muted-foreground">{month.month}</Text>
-                              <Text className="text-sm font-semibold text-foreground">{formatCurrency(month.earnings)}</Text>
-                            </View>
-                          ))}
+                  {/* Stats Grid */}
+                  <View>
+                    <View className="gap-3">
+                      <View className="flex-row gap-3">
+                        <StatCard
+                          label="Completed"
+                          value={analytics.completedBookings.toString()}
+                          IconComponent={CheckCircle}
+                          variant="success"
+                          trend="up"
+                          animated
+                        />
+                        <StatCard
+                          label="Earnings"
+                          value={formatCurrency(analytics.totalEarnings)}
+                          IconComponent={DollarSign}
+                          variant="primary"
+                          trend="up"
+                          animated
+                        />
+                      </View>
+                      <View className="flex-row gap-3">
+                        <StatCard
+                          label="Profile Views"
+                          value={analytics.profileViews.toString()}
+                          IconComponent={Eye}
+                          variant="default"
+                          trend="up"
+                          animated
+                        />
+                        <StatCard
+                          label="Service Views"
+                          value={analytics.serviceViews.toString()}
+                          IconComponent={Eye}
+                          variant="default"
+                          trend="neutral"
+                          animated
+                        />
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Monthly Trends - Enhanced */}
+                  <View>
+                    <View className="bg-card border border-border/50 rounded-2xl p-5">
+                      <View className="flex-row items-center justify-between mb-5">
+                        <Text className="text-lg font-bold text-foreground">Monthly Performance</Text>
+                        <Badge className="bg-primary/10 border-primary/20">
+                          <Text className="text-xs font-semibold text-primary">Last 6 months</Text>
+                        </Badge>
+                      </View>
+
+                      {/* Earnings Chart */}
+                      <View className="mb-8">
+                        <Text className="text-sm font-semibold text-foreground mb-4">Earnings Trend</Text>
+                        <View className="flex-row justify-between items-end mb-3 h-24">
+                          {analytics.monthlyEarnings.map((month) => {
+                            const maxEarnings = Math.max(...analytics.monthlyEarnings.map(m => m.earnings));
+                            const height = maxEarnings > 0 ? (month.earnings / maxEarnings) * 80 : 20;
+                            return (
+                              <View key={month.month} className="items-center flex-1 gap-2">
+                                <View
+                                  className="bg-gradient-to-t from-primary to-primary/60 rounded-t-lg w-6"
+                                  style={{ height }}
+                                />
+                                <Text className="text-xs text-muted-foreground font-medium">{month.month}</Text>
+                              </View>
+                            );
+                          })}
                         </View>
                       </View>
 
-                      {/* Bookings Trend */}
+                      {/* Bookings Chart */}
                       <View>
-                        <Text className="text-lg font-medium text-foreground mb-3">Bookings Trend</Text>
-                        <View className="flex-row justify-between items-end">
-                          {analytics.monthlyBookings.map((month, index) => (
-                            <View key={month.month} className="items-center flex-1">
-                              <View
-                                className="bg-success rounded-t w-6 mb-2"
-                                style={{ height: Math.max(20, (month.count / Math.max(...analytics.monthlyBookings.map(m => m.count))) * 80) }}
-                              />
-                              <Text className="text-xs text-muted-foreground">{month.month}</Text>
-                              <Text className="text-sm font-semibold text-foreground">{month.count}</Text>
-                            </View>
-                          ))}
+                        <Text className="text-sm font-semibold text-foreground mb-4">Bookings Trend</Text>
+                        <View className="flex-row justify-between items-end h-20">
+                          {analytics.monthlyBookings.map((month) => {
+                            const maxCount = Math.max(...analytics.monthlyBookings.map(m => m.count));
+                            const height = maxCount > 0 ? (month.count / maxCount) * 60 : 15;
+                            return (
+                              <View key={month.month} className="items-center flex-1 gap-2">
+                                <View
+                                  className="bg-gradient-to-t from-success to-success/60 rounded-t-lg w-6"
+                                  style={{ height }}
+                                />
+                                <Text className="text-xs text-muted-foreground">{month.month}</Text>
+                              </View>
+                            );
+                          })}
                         </View>
                       </View>
                     </View>

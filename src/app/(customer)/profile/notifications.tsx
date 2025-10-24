@@ -7,7 +7,7 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { useAuthOptimized } from '@/hooks';
+import { useAuthStore } from '@/stores/auth';
 import {
   useNotificationSettings,
   useUpdateNotificationSettings
@@ -18,7 +18,7 @@ import { useColorScheme } from '@/lib/core/useColorScheme';
 import { THEME } from '@/lib/theme';
 
 export default function CustomerNotificationsScreen() {
-  const { user } = useAuthOptimized();
+  const user = useAuthStore((state) => state.user);
   const { colorScheme } = useColorScheme();
 
   // Data fetching hooks

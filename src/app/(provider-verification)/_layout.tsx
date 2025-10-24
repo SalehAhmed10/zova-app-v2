@@ -4,7 +4,6 @@ import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text } from '@/components/ui/text';
 import { useProviderVerificationStore, useProviderVerificationHydration } from '@/stores/verification/provider-verification';
-import { useAuthOptimized } from '@/hooks';
 import { useAuthStore } from '@/stores/auth';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { ConflictResolutionModal } from '@/components/verification/ConflictResolutionModal';
@@ -31,8 +30,8 @@ export default function ProviderVerificationLayout() {
   const pathname = usePathname();
   const router = useRouter();
   const { providerId, setProviderId } = useProviderVerificationStore();
-  const { user, isAuthenticated } = useAuthOptimized();
   const session = useAuthStore((state) => state.session);
+  const user = useAuthStore((state) => state.user);
   const userRole = useAuthStore((state) => state.userRole);
   const isHydrated = useProviderVerificationHydration();
   const conflictResolution = useConflictResolution();
@@ -41,7 +40,7 @@ export default function ProviderVerificationLayout() {
     hasSession: !!session, 
     userRole,
     isHydrated,
-    isAuthenticated
+    isAuthenticated: !!session
   });
 
   // Ref to track if we've already set the provider ID to prevent loops
@@ -50,6 +49,8 @@ export default function ProviderVerificationLayout() {
   const isInitialMountRef = useRef(true);
   // Ref to track previous session state for logout detection
   const previousSessionRef = useRef(session);
+  // State to track initial verification check completion
+  const [verificationCheckComplete, setVerificationCheckComplete] = React.useState(false);
 
   // ✅ LOGOUT DETECTION: Listen for session changes and redirect to login
   useEffect(() => {
@@ -76,7 +77,10 @@ export default function ProviderVerificationLayout() {
   // ✅ ROUTE VALIDATION: Centralized step validation and navigation
   // Uses DATABASE as single source of truth, not Zustand store
   useEffect(() => {
-    if (!isHydrated || !user?.id) return;
+    if (!isHydrated || !user?.id) {
+      setVerificationCheckComplete(false);
+      return;
+    }
 
     // Check verification status and current step from database
     const checkVerificationStatus = async () => {
@@ -89,7 +93,8 @@ export default function ProviderVerificationLayout() {
 
         if (error && error.code !== 'PGRST116') {
           console.error('[RouteGuard] Error checking verification status:', error);
-          return { isVerificationSubmitted: false, currentStepInDB: 1 };
+          setVerificationCheckComplete(true);
+          return { isVerificationSubmitted: false, isApproved: false, currentStepInDB: 1, verificationStatus: null };
         }
 
         const isVerificationSubmitted = progress?.verification_status === 'submitted' ||
@@ -97,28 +102,43 @@ export default function ProviderVerificationLayout() {
                                        progress?.verification_status === 'approved' ||
                                        progress?.verification_status === 'rejected';
 
-        console.log('[RouteGuard] Database verification status:', progress?.verification_status, 'currentStep:', progress?.current_step, 'isSubmitted:', isVerificationSubmitted);
+        const isApproved = progress?.verification_status === 'approved';
+
+        console.log('[RouteGuard] Database verification status:', progress?.verification_status, 'currentStep:', progress?.current_step, 'isSubmitted:', isVerificationSubmitted, 'isApproved:', isApproved);
 
         return {
           isVerificationSubmitted,
-          currentStepInDB: progress?.current_step || 1
+          isApproved,
+          currentStepInDB: progress?.current_step || 1,
+          verificationStatus: progress?.verification_status
         };
       } catch (error) {
         console.error('[RouteGuard] Failed to check verification status:', error);
-        return { isVerificationSubmitted: false, currentStepInDB: 1 };
+        setVerificationCheckComplete(true);
+        return { isVerificationSubmitted: false, isApproved: false, currentStepInDB: 1, verificationStatus: null };
       }
     };
 
     // Get current step from pathname
     const currentStep = VerificationFlowManager.getStepFromRoute(pathname);
 
-    checkVerificationStatus().then(({ isVerificationSubmitted, currentStepInDB: expectedStep }) => {
-      console.log(`[RouteGuard] Validating route - pathname: ${pathname}, currentStep: ${currentStep}, expectedStep: ${expectedStep}, isVerificationSubmitted: ${isVerificationSubmitted}, isInitialMount: ${isInitialMountRef.current}`);
+    checkVerificationStatus().then(({ isVerificationSubmitted, isApproved, currentStepInDB: expectedStep }) => {
+      console.log(`[RouteGuard] Validating route - pathname: ${pathname}, currentStep: ${currentStep}, expectedStep: ${expectedStep}, isVerificationSubmitted: ${isVerificationSubmitted}, isApproved: ${isApproved}, isInitialMount: ${isInitialMountRef.current}`);
 
-      // ✅ SPECIAL CASE: Allow access to verification-status if verification submitted
+      // 🎯 PRIORITY 0: IF APPROVED, SKIP VERIFICATION SCREENS & GO STRAIGHT TO DASHBOARD
+      if (isApproved) {
+        console.log(`[RouteGuard] ✅ Already approved - redirecting to provider dashboard`);
+        isInitialMountRef.current = false;
+        setVerificationCheckComplete(true);
+        router.replace('/(provider)' as any);
+        return;
+      }
+
+      // ✅ SPECIAL CASE: Allow access to verification-status if verification submitted (but not approved)
       if (pathname === '/verification-status' && isVerificationSubmitted) {
         console.log(`[RouteGuard] ✅ Verification submitted - allowing access to verification-status`);
         isInitialMountRef.current = false;
+        setVerificationCheckComplete(true);
         return;
       }
 
@@ -127,16 +147,18 @@ export default function ProviderVerificationLayout() {
       if (isInitialMountRef.current && currentStep !== expectedStep && !isVerificationSubmitted) {
         console.log(`[RouteGuard] 🎯 Initial mount - redirecting from Step ${currentStep} to Step ${expectedStep} (from database)`);
         const correctRoute = VerificationFlowManager.getRouteForStep(expectedStep as any);
-        router.replace(correctRoute as any);
         isInitialMountRef.current = false;
+        setVerificationCheckComplete(true);
+        router.replace(correctRoute as any);
         return;
       }
 
       // ✅ SPECIAL CASE: If verification submitted, redirect to verification-status
       if (isInitialMountRef.current && isVerificationSubmitted && pathname !== '/verification-status') {
         console.log(`[RouteGuard] 🎯 Verification submitted - redirecting to verification-status`);
-        router.replace('/(provider-verification)/verification-status' as any);
         isInitialMountRef.current = false;
+        setVerificationCheckComplete(true);
+        router.replace('/(provider-verification)/verification-status' as any);
         return;
       }
 
@@ -148,6 +170,7 @@ export default function ProviderVerificationLayout() {
       if (currentStep > expectedStep && !isVerificationSubmitted) {
         console.log(`[RouteGuard] ⚠️ Cannot skip ahead - redirecting from step ${currentStep} to step ${expectedStep}`);
         const correctRoute = VerificationFlowManager.getRouteForStep(expectedStep as any);
+        setVerificationCheckComplete(true);
         router.replace(correctRoute as any);
         return;
       }
@@ -155,6 +178,7 @@ export default function ProviderVerificationLayout() {
       // ✅ PRIORITY 3: ALLOW BACKWARD NAVIGATION & CURRENT STEP
       // Users can navigate back to previous completed steps or stay on current expected step
       console.log(`[RouteGuard] ✅ Route allowed - step ${currentStep} is accessible (expected: ${expectedStep})`);
+      setVerificationCheckComplete(true);
     });
   }, [pathname, isHydrated, user?.id]);
 
@@ -193,6 +217,18 @@ export default function ProviderVerificationLayout() {
       <SafeAreaView edges={['top']} className="flex-1 bg-background">
         <View className="flex-1 justify-center items-center">
           <Text className="text-muted-foreground">Loading verification...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ⏳ CRITICAL: Block rendering until initial verification status check completes
+  // This prevents the UI from briefly showing step 1 when the provider is already approved
+  if (!verificationCheckComplete) {
+    return (
+      <SafeAreaView edges={['top']} className="flex-1 bg-background">
+        <View className="flex-1 justify-center items-center">
+          <Text className="text-muted-foreground">Checking verification status...</Text>
         </View>
       </SafeAreaView>
     );

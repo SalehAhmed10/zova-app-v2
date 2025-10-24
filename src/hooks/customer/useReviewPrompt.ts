@@ -7,7 +7,7 @@ import { useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCustomerBookings } from '@/hooks/customer';
-import { useAuthOptimized } from '@/hooks';
+import { useAuthStore } from '@/stores/auth';
 
 interface ReviewPromptState {
   showPrompt: boolean;
@@ -19,7 +19,7 @@ interface ReviewPromptState {
 const REVIEW_PROMPT_STORAGE_KEY = 'review_prompt_dismissed';
 
 export const useReviewPrompt = () => {
-  const { user } = useAuthOptimized();
+  const user = useAuthStore((state) => state.user);
   const userId = user?.id;
   const { data: bookingsData } = useCustomerBookings(userId);
   const queryClient = useQueryClient();

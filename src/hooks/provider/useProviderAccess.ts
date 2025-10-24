@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { useAuthOptimized } from '@/hooks';
+import { useAuthStore } from '@/stores/auth';
 
 /**
  * Provider Access Control Hook
@@ -22,7 +22,7 @@ import { useAuthOptimized } from '@/hooks';
  * }
  */
 export const useProviderAccess = () => {
-  const { user } = useAuthOptimized();
+  const user = useAuthStore((state) => state.user);
   
   // ✅ React Query: Fetch payment status from profiles table
   const { 

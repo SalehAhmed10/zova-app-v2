@@ -23,8 +23,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { useAuthOptimized } from '@/hooks';
-import { useSession } from '@/app/ctx';
+import { useSignIn } from '@/hooks/auth/useSignIn';
+import { useAuthStore } from '@/stores/auth';
 import { loginSchema, type LoginFormData } from '@/lib/validation/authValidation';
 import { DebugPanel, StorageDebugPanel } from '@/components';
 import { Logo } from '@/components/branding';
@@ -32,8 +32,9 @@ import { supabase } from '@/lib/supabase';
 
 export default function LoginScreen() {
   // ✅ OPTIMIZED: React Query + Zustand + React Hook Form + Zod
-  const { signIn, isLoading } = useAuthOptimized();
-  const { session, userRole } = useSession();
+  const { mutate: signIn, isPending: isLoading } = useSignIn();
+  const session = useAuthStore((state) => state.session);
+  const userRole = useAuthStore((state) => state.userRole);
   
   // ✅ Optimistic loading state for immediate UI feedback
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -66,97 +67,57 @@ export default function LoginScreen() {
 
   const formValues = watch();
 
-  // ✅ REMOVED: Manual navigation logic - let SessionProvider handle this
-  // The SessionProvider in the root layout will handle post-login navigation
+  // ✅ REMOVED: Manual navigation logic - let Zustand store handle this
+  // The auth layout in the root layout will handle post-login navigation
   React.useMemo(() => {
     if (session && userRole) {
-      console.log('[Login] Auth state updated - navigation will be handled by SessionProvider');
+      console.log('[Login] Auth state updated - navigation will be handled by auth layout');
       setIsSubmitting(false); // Reset optimistic state
-      // Navigation is now handled by SessionProvider in the root layout
+      // Navigation is now handled by auth guards in the root layout
     }
   }, [session, userRole]);
 
-  const onSubmit = async (data: LoginFormData) => {
+  const onSubmit = (data: LoginFormData) => {
     // ✅ Set optimistic loading state immediately
     setIsSubmitting(true);
     
-    try {
-      console.log('[Login] Attempting login with:', { email: data.email });
-      
-      const result = await signIn(data.email, data.password);
-
-      if (result.success) {
-        console.log('[Login] Login successful');
-        // Keep loading state until navigation happens
-        // Navigation will happen automatically via the auth state check above
-      } else if (result.requiresVerification) {
-        // Reset loading state for verification flow
-        setIsSubmitting(false);
-        
-        // Fetch user's role from database before navigating
-        try {
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('email', data.email)
-            .single();
+    console.log('[Login] Attempting login with:', { email: data.email });
+    
+    signIn(
+      { email: data.email, password: data.password },
+      {
+        onSuccess: async () => {
+          console.log('[Login] Login successful');
+          // Keep loading state until navigation happens
+          // Navigation will happen automatically via the auth state check above
+        },
+        onError: (error: any) => {
+          console.error('[Login] Login failed:', error);
+          setIsSubmitting(false); // Reset loading state on error
           
-          const userRole = profileData?.role || 'customer'; // Default to customer if not found
+          const errorMessage = error?.message || 'An error occurred while trying to sign in.';
           
-          // Show verification dialog
-          setErrorDialog({
-            open: true,
-            title: 'Email Verification Required',
-            message: 'Please verify your email before signing in.',
-            showVerification: true,
-            email: result.email || data.email,
-            role: userRole
-          });
-        } catch (error) {
-          console.error('[Login] Error fetching user role:', error);
-          // Fallback: show dialog without role (will default to customer)
-          setErrorDialog({
-            open: true,
-            title: 'Email Verification Required',
-            message: 'Please verify your email before signing in.',
-            showVerification: true,
-            email: result.email || data.email
-          });
-        }
-      } else {
-        console.error('[Login] Login failed:', result.error);
-        setIsSubmitting(false); // Reset loading state on error
-        
-        // Set form-level error for invalid credentials
-        if (result.error?.includes('Invalid credentials') || result.error?.includes('Invalid login')) {
-          setError('password', { message: 'Invalid email or password' });
-          
-          // Also show user-friendly dialog
-          setErrorDialog({
-            open: true,
-            title: 'Login Failed',
-            message: 'The email or password you entered is incorrect. Please check your credentials and try again.'
-          });
-        } else {
-          // Show generic error dialog for other errors
-          setErrorDialog({
-            open: true,
-            title: 'Login Failed', 
-            message: result.error || 'An error occurred while trying to sign in. Please try again.'
-          });
+          // Set form-level error for invalid credentials
+          if (errorMessage.includes('Invalid credentials') || errorMessage.includes('Invalid login') || errorMessage.includes('invalid')) {
+            setError('password', { message: 'Invalid email or password' });
+            
+            // Also show user-friendly dialog
+            setErrorDialog({
+              open: true,
+              title: 'Login Failed',
+              message: 'The email or password you entered is incorrect. Please check your credentials and try again.'
+            });
+          } else {
+            // Show generic error dialog for other errors
+            setErrorDialog({
+              open: true,
+              title: 'Login Failed', 
+              message: errorMessage
+            });
+          }
         }
       }
-    } catch (error) {
-      console.error('[Login] Unexpected error:', error);
-      setIsSubmitting(false); // Reset loading state on error
-      
-      // Show error dialog for unexpected errors
-      setErrorDialog({
-        open: true,
-        title: 'Login Error',
-        message: 'An unexpected error occurred. Please check your internet connection and try again.'
-      });
-    }
+    );
   };
 
   return (

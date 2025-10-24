@@ -11,7 +11,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { useAuthOptimized, useToggleFavorite, useIsFavorited } from '@/hooks';
+import { useAuthStore } from '@/stores/auth';
+import { useToggleFavorite, useIsFavorited } from '@/hooks';
 import type { ServiceSearchResult } from '@/hooks/shared/use-service-search';
 
 export interface SearchResultsProps {
@@ -107,7 +108,7 @@ export function SearchResults({
  * - Smooth press animations
  */
 function ServiceSearchCard({ service }: { service: ServiceSearchResult }) {
-  const { user } = useAuthOptimized();
+  const user = useAuthStore((state) => state.user);
   const toggleFavorite = useToggleFavorite();
   const { data: isFavorited = false } = useIsFavorited(
     user?.id,

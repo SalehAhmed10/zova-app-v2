@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useAuthPure } from '@/hooks/shared/useAuthPure';
+import { useAuthStore } from '@/stores/auth';
 
 // Types
 interface WorkingHours {
@@ -33,7 +33,7 @@ interface Booking {
 
 // Custom hook for calendar data with optimized React Query usage
 export const useCalendarData = () => {
-  const { user } = useAuthPure();
+  const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
 
   // Provider weekly schedule with optimistic updates

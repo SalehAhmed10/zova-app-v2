@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { useAuthPure } from '@/hooks/shared/useAuthPure';
+import { useAuthStore } from '@/stores/auth';
 
 interface SubmitReviewParams {
   booking_id: string;
@@ -17,7 +17,7 @@ interface SubmitReviewResponse {
 
 export const useSubmitReview = () => {
   const queryClient = useQueryClient();
-  const { user } = useAuthPure();
+  const user = useAuthStore((state) => state.user);
 
   return useMutation({
     mutationFn: async (params: SubmitReviewParams): Promise<SubmitReviewResponse> => {

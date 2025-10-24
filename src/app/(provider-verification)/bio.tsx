@@ -19,7 +19,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ✅ SINGLE-SOURCE: Use new verification hooks
 import { useVerificationData, useUpdateStepCompletion, useVerificationRealtime } from '@/hooks/provider/useVerificationSingleSource';
-import { useVerificationNavigation } from '@/hooks/provider';
 import { useAuthStore } from '@/stores/auth';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -38,7 +37,6 @@ export default function BusinessBioScreen() {
   // ✅ SINGLE-SOURCE: Use new verification hooks
   const { data: verificationData, isLoading: verificationLoading } = useVerificationData(providerId);
   const updateStepMutation = useUpdateStepCompletion();
-  const { navigateNext, navigateBack } = useVerificationNavigation();
 
   // Real-time subscription for live updates
   useVerificationRealtime(providerId);
@@ -113,12 +111,14 @@ export default function BusinessBioScreen() {
         },
       });
 
-      navigateNext();
+      console.log('[Bio] Step completion confirmed, navigating to terms (step 7)...');
+      // ✅ Navigate to next step: terms (step 7)
+      router.push('/(provider-verification)/terms');
     } catch (error) {
       console.error('[Bio] Submit error:', error);
       Alert.alert('Save Failed', 'Failed to save your information. Please try again.');
     }
-  }, [validateForm, providerId, businessDescription, yearsOfExperience, updateStepMutation, navigateNext]);
+  }, [validateForm, providerId, businessDescription, yearsOfExperience, updateStepMutation]);
 
   return (
     <View className="flex-1 bg-background">
@@ -212,7 +212,10 @@ export default function BusinessBioScreen() {
         <Button
           variant="outline"
           size="lg"
-          onPress={navigateBack}
+          onPress={() => {
+            // Go to portfolio (step 5) - previous step before bio (step 6)
+            router.push('/(provider-verification)/portfolio');
+          }}
           className="w-full"
         >
             <Text className='text-foreground'>Back to Portfolio</Text>

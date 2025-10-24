@@ -1,1 +1,0 @@
-// Provider search functionality has been moved to customer stores

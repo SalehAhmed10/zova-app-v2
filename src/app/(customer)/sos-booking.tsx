@@ -40,7 +40,7 @@ import {
 } from 'lucide-react-native';
 
 // Hooks
-import { useAuthOptimized } from '@/hooks';
+import { useAuthStore } from '@/stores/auth';
 import { useCustomerSOSStatus } from '@/hooks/shared/useSubscription';
 import { useSOSProviders } from '@/hooks/customer/useSOSProviders';
 import { useCreateSOSBooking } from '@/hooks/customer/useCreateSOSBooking';
@@ -106,7 +106,7 @@ function getUrgencyColor(urgency: 'low' | 'medium' | 'high') {
 
 export default function SOSBookingScreen() {
   // ✅ Following React Query + Zustand architecture
-  const { user } = useAuthOptimized();
+  const user = useAuthStore((state) => state.user);
   const { hasSubscription, isLoading: subscriptionLoading } = useCustomerSOSStatus();
   const { hasPermission, requestPermission } = useLocationPermission();
   

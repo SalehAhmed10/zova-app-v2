@@ -3,9 +3,8 @@ import { Stack, Redirect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Alert, View, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
-import { useAuthStore } from '@/stores/auth';
 import { usePendingRegistration } from '@/hooks/shared/usePendingRegistration';
-import { useAuthSync } from '@/hooks/auth/useAuthSync';
+import { useAuthLayoutGuards } from '@/hooks/routing/useLayoutGuards';
 import { Text } from '@/components/ui/text';
 
 /**
@@ -16,43 +15,29 @@ import { Text } from '@/components/ui/text';
  * - Only allows unauthenticated users to access auth screens
  */
 export default function AuthLayout() {
-  const session = useAuthStore((state) => state.session);
-  const userRole = useAuthStore((state) => state.userRole);
-
   // ✅ CRITICAL: Call all hooks BEFORE any conditional returns (Rules of Hooks)
+  const { guardResult, isLoading } = useAuthLayoutGuards();
   const { pendingRegistration, hasPendingRegistration, clearPending } = usePendingRegistration();
   
-  // ✅ CRITICAL: Sync profile role to auth store when session exists
-  useAuthSync();
+  // ✅ Profile role sync is handled automatically via auth store listener in _layout.tsx root
 
-  console.log('[AuthLayout] 🔐 Checking authentication...', { 
-    hasSession: !!session, 
-    userRole 
-  });
+  console.log('[AuthLayout] 🔐 Checking authentication...', guardResult);
 
-  // ✅ Guard: Redirect authenticated users to their dashboard
-  if (session && userRole) {
-    console.log('[AuthLayout] ✅ User authenticated with role, redirecting to dashboard');
-    
-    if (userRole === 'customer') {
-      return <Redirect href="/(customer)" />;
-    }
-    
-    if (userRole === 'provider') {
-      return <Redirect href="/(provider)" />;
-    }
+  // ✅ Handle redirect if guard function requires it
+  if (guardResult.type === 'redirect') {
+    console.log(`[AuthLayout] ✅ User authenticated, redirecting to ${guardResult.href}`);
+    return <Redirect href={guardResult.href as any} />;
   }
 
-  // ✅ CRITICAL FIX: If session exists but role is still loading, show loading screen
-  // This prevents infinite redirect loop with root index
-  if (session && !userRole) {
-    console.log('[AuthLayout] ⏳ Session exists but role loading, showing loading screen');
+  // ✅ Handle loading state
+  if (isLoading) {
+    console.log('[AuthLayout] ⏳ Loading authentication state');
     return (
       <SafeAreaView className="flex-1 bg-background">
         <View className="flex-1 items-center justify-center px-6">
           <ActivityIndicator size="large" className="text-primary mb-4" />
           <Text className="text-center text-muted-foreground">
-            Determining user role...
+            Loading...
           </Text>
         </View>
       </SafeAreaView>

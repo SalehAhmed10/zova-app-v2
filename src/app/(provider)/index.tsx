@@ -30,13 +30,14 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Icon } from '@/components/ui/icon';
 import { Textarea } from '@/components/ui/textarea';
-import { useAuthOptimized } from '@/hooks';
+import { useAuthStore } from '@/stores/auth';
 import {
   useProfile,
   useProviderStats,
   useUserBookings
 } from '@/hooks/shared/useProfileData';
-import { useBusinessAvailability, useUpdateBusinessAvailability, useNextUpcomingBooking, useRecentActivity } from '@/hooks/provider';
+import { useBusinessAvailability } from '@/hooks/provider/useBusinessAvailability';
+import { useUpdateBusinessAvailability } from '@/hooks/provider/useUpdateBusinessAvailability';
 import { ProviderBannerManager } from '@/components/provider/ProviderBannerManager';
 import { cn, formatCurrency } from '@/lib/utils';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -149,8 +150,8 @@ const getActivityDisplay = (activity: any) => ({
 });
 
 export default function ProviderDashboard() {
-  // ✅ MIGRATED: Using optimized auth hook following copilot-rules.md
-  const { user } = useAuthOptimized();
+  // ✅ MIGRATED: Using Zustand store following copilot-rules.md
+  const user = useAuthStore((state) => state.user);
   const { data: profileData, isLoading: profileLoading } = useProfile(user?.id);
   const { data: statsData, isLoading: statsLoading } = useProviderStats(user?.id);
   const { data: bookingsData, isLoading: bookingsLoading } = useUserBookings(user?.id);
@@ -172,9 +173,25 @@ export default function ProviderDashboard() {
   const [showRescheduleDatePicker, setShowRescheduleDatePicker] = React.useState(false);
   const [showRescheduleTimePicker, setShowRescheduleTimePicker] = React.useState(false);
 
-  // ✅ REACT QUERY: Data fetching with proper error handling
-  const { data: nextBooking, isLoading: nextBookingLoading } = useNextUpcomingBooking(user?.id);
-  const { data: recentActivity, isLoading: activityLoading } = useRecentActivity(user?.id);
+  // TODO: These hooks need to be created or replaced with proper implementation
+  // const { data: nextBooking, isLoading: nextBookingLoading } = useNextUpcomingBooking(user?.id);
+  // const { data: recentActivity, isLoading: activityLoading } = useRecentActivity(user?.id);
+  const nextBooking = null;
+  const nextBookingLoading = false;
+  const recentActivity = null;
+  const activityLoading = false;
+
+  // 🔍 Debug profile data
+  React.useEffect(() => {
+    console.log('[ProviderDashboard] Profile data:', {
+      profileLoading,
+      profileData,
+      hasFirstName: !!profileData?.first_name,
+      hasLastName: !!profileData?.last_name,
+      hasEmail: !!profileData?.email,
+      displayName: getDisplayName()
+    });
+  }, [profileData, profileLoading]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -184,10 +201,15 @@ export default function ProviderDashboard() {
   };
 
   const getDisplayName = () => {
+    // ✅ Proper fallback chain: first_name + last_name → email → 'Provider'
     if (profileData?.first_name || profileData?.last_name) {
-      return `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim();
+      const name = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim();
+      if (name.length > 0) return name;
     }
-    return profileData?.email?.split('@')[0] || 'Provider';
+    if (profileData?.email) {
+      return profileData.email.split('@')[0] || 'Provider';
+    }
+    return 'Provider';
   };
 
   // Reschedule handlers
@@ -237,7 +259,7 @@ export default function ProviderDashboard() {
                 <Skeleton className="w-32 h-6" />
               ) : (
                 <Text className="text-foreground text-xl font-bold">
-                  {getDisplayName()}
+                  {getDisplayName() || (user?.email?.split('@')[0] || 'Provider')}
                 </Text>
               )}
               <Text className="text-muted-foreground text-sm mt-1">
@@ -252,10 +274,11 @@ export default function ProviderDashboard() {
                   <AvatarImage source={{ uri: profileData.avatar_url }} />
                 ) : null}
                 <AvatarFallback className="bg-primary/20">
-                  {profileData?.first_name?.[0] || profileData?.email?.[0] ? (
+                  {profileData?.first_name?.[0] || profileData?.email?.[0] || user?.email?.[0] ? (
                     <Text className="text-2xl text-primary font-bold">
                       {profileData?.first_name?.[0]?.toUpperCase() ||
-                        profileData?.email?.[0]?.toUpperCase()}
+                        profileData?.email?.[0]?.toUpperCase() ||
+                        user?.email?.[0]?.toUpperCase()}
                     </Text>
                   ) : (
                     <Icon as={User} size={24} className="text-primary" />

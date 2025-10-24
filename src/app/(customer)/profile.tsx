@@ -27,10 +27,9 @@ import { LogoutButton } from '@/components/ui/logout-button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Icon } from '@/components/ui/icon';
 import { cn } from '@/lib/utils';
-import { useAuthOptimized } from '@/hooks';
 import { useProfile, useProfileStats } from '@/hooks/shared/useProfileData';
 import { useUserFavorites } from '@/hooks/customer';
-import { useSession } from '@/app/ctx';
+import { useAuthStore } from '@/stores/auth';
 import { useProfileModalStore } from '@/stores/ui/profileModal';
 
 // Loading Skeleton Component
@@ -96,8 +95,8 @@ function ProfileError({ error, refetch }: { error: Error; refetch?: () => void }
 
 // Profile Content Component (wrapped in Suspense)
 function ProfileContent() {
-  const { user } = useAuthOptimized();
-  const { userRole } = useSession();
+  const user = useAuthStore((state) => state.user);
+  const userRole = useAuthStore((state) => state.userRole);
   const shouldFetchData = !!user?.id && userRole === 'customer';
 
   // React Query hooks - will suspend if data not ready

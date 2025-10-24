@@ -16,7 +16,7 @@
  * - Professional spacing and typography
  */
 
-import React, { Suspense, useMemo } from 'react';
+import React, { Suspense } from 'react';
 import { View, ScrollView, Platform, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -34,7 +34,8 @@ import {
   ChevronRight,
   TrendingUp,
   Store,
-  DollarSign
+  DollarSign,
+  Crown
 } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
@@ -43,9 +44,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { LogoutButton } from '@/components/ui/logout-button';
-import { useSession } from '@/app/ctx';
+import { useAuthStore } from '@/stores/auth';
 import { useProfileModalStore } from '@/stores/ui/profileModal';
-import { useAuthOptimized } from '@/hooks';
 import {
   useProfile,
   useProviderStats
@@ -138,8 +138,8 @@ function ProfileError({ error, refetch }: { error: Error; refetch?: () => void }
 
 // Profile Content Component (wrapped in Suspense)
 function ProfileContent() {
-  const { user } = useAuthOptimized();
-  const { userRole } = useSession();
+  const user = useAuthStore((state) => state.user);
+  const userRole = useAuthStore((state) => state.userRole);
   const shouldFetchData = !!user?.id && userRole === 'provider';
 
   // React Query hooks - will suspend if data not ready
@@ -175,7 +175,8 @@ function ProfileContent() {
     onPress: () => void;
   };
 
-  const businessManagementMenu = useMemo((): MenuItem[] => {
+  // Build business management menu based on stripe account
+  const buildBusinessMenu = (): MenuItem[] => {
     const menu: MenuItem[] = [
       {
         id: 'calendar',
@@ -230,9 +231,11 @@ function ProfileContent() {
     );
 
     return menu;
-  }, [profileData?.stripe_account_id]);
+  };
 
-  const customerRelationsMenu = useMemo((): MenuItem[] => [
+  const businessManagementMenu = buildBusinessMenu();
+
+  const customerRelationsMenu: MenuItem[] = [
     {
       id: 'reviews',
       icon: Star,
@@ -240,9 +243,9 @@ function ProfileContent() {
       subtitle: statsData?.avg_rating ? `${statsData.avg_rating.toFixed(1)}★ average rating` : 'No reviews yet',
       onPress: () => router.push('/(provider)/profile/reviews'),
     },
-  ], [statsData?.avg_rating]);
+  ];
 
-  const accountSettingsMenu = useMemo((): MenuItem[] => [
+  const accountSettingsMenu: MenuItem[] = [
     {
       id: 'profile',
       icon: User,
@@ -257,7 +260,7 @@ function ProfileContent() {
       subtitle: 'Set your availability schedule',
       onPress: () => router.push('/(provider)/calendar'),
     },
-  ], []);
+  ];
 
   const MenuItemComponent = React.memo(({ item }: { item: MenuItem }) => (
     <TouchableOpacity
@@ -472,6 +475,25 @@ function ProfileContent() {
                   <View className="flex-1">
                     <Text className="text-foreground font-medium">Notification Settings</Text>
                     <Text className="text-muted-foreground text-sm">Manage notifications</Text>
+                  </View>
+                </View>
+              </CardContent>
+            </Card>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => router.push('/(provider)/profile/subscriptions')}
+            className="active:opacity-80"
+          >
+            <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20">
+              <CardContent className="p-4">
+                <View className="flex-row items-center">
+                  <View className="w-12 h-12 bg-primary/15 rounded-xl items-center justify-center mr-4">
+                    <Icon as={Crown} size={20} className="text-primary" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-foreground font-medium">Manage Subscription</Text>
+                    <Text className="text-muted-foreground text-sm">View and manage premium features</Text>
                   </View>
                 </View>
               </CardContent>

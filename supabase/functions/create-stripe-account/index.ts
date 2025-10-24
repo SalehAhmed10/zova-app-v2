@@ -428,11 +428,14 @@ Deno.serve(async (req) => {
     console.log('Account link created:', accountLink.url)
     console.log('Account link URL length:', accountLink.url.length)
     console.log('Account link URL starts with https:', accountLink.url.startsWith('https://'))
+    
+    const desktopUrl = `https://wezgwqqdlwybadtvripr.supabase.co/functions/v1/stripe-redirect?type=onboard&account=${stripeAccountId}&desktop=true`
+    console.log('Desktop URL:', desktopUrl)
     console.log('=== FUNCTION SUCCESS ===')
 
     return new Response(JSON.stringify({
       url: accountLink.url,
-      desktopUrl: `https://wezgwqqdlwybadtvripr.supabase.co/functions/v1/stripe-redirect?type=onboard&account=${stripeAccountId}&desktop=true`,
+      desktopUrl: desktopUrl,
       accountId: stripeAccountId,
       accountSetupComplete: false,
       message: stripeAccountId === existingProfile?.stripe_account_id ? 'Existing Stripe account found. Complete onboarding to start receiving payments.' : 'Stripe account created successfully. Complete onboarding to start receiving payments.'

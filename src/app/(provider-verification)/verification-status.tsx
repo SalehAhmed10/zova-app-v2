@@ -20,9 +20,9 @@ import { Icon } from '@/components/ui/icon';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { cn } from '@/lib/utils';
 
-import { useAuthOptimized } from '@/hooks';
 import { useVerificationData, useVerificationRealtime } from '@/hooks/provider/useVerificationSingleSource';
-import { useSession } from '@/app/ctx';
+import { useAuthStore } from '@/stores/auth';
+import { useSignOut } from '@/hooks/auth/useSignOut';
 import { LogoutButton } from '@/components/ui/logout-button';
 import { supabase } from '@/lib/supabase';
 
@@ -247,10 +247,11 @@ const statusConfigs: Record<VerificationStatus, StatusConfig> = {
 
 export default function VerificationStatusScreen() {
   const { isDarkColorScheme, colorScheme } = useColorScheme();
-  const { signOut } = useSession();
+  const signOutMutation = useSignOut();
 
-  const { user, isAuthenticated } = useAuthOptimized();
-  const { session } = useSession();
+  const user = useAuthStore((state) => state.user);
+  const session = useAuthStore((state) => state.session);
+  const isAuthenticated = !!session;
 
   if (!isAuthenticated || !user) {
     console.log('[VerificationStatus] Auth check failed, showing redirect screen');
@@ -274,6 +275,8 @@ export default function VerificationStatusScreen() {
   } = useVerificationData(user.id);
 
   const queryClient = useQueryClient();
+
+  
 
   const restartVerificationMutation = useMutation({
     mutationFn: async () => {

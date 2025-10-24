@@ -6,9 +6,8 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
 import { VerificationHeader } from '@/components/verification/VerificationHeader';
-import { useSession } from '@/app/ctx';
+import { useAuthStore } from '@/stores/auth';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useVerificationNavigation } from '@/hooks/provider';
 
 import { PaymentAnalyticsService } from '@/lib/payment/payment-analytics';
 
@@ -18,15 +17,12 @@ import { useVerificationData, useUpdateStepCompletion } from '@/hooks/provider/u
 export default function VerificationCompleteScreen() {
   console.log('[Complete Screen] Rendered');
   
-  const { session } = useSession();
+  const session = useAuthStore((state) => state.session);
   
   // ✅ SINGLE-SOURCE ARCHITECTURE: Use centralized verification hooks
   const { data: verificationData, isLoading } = useVerificationData(session?.user?.id);
   const updateStepMutation = useUpdateStepCompletion();
-  
-  // ✅ CENTRALIZED NAVIGATION: Replace manual routing
-  const { navigateBack } = useVerificationNavigation();
-  
+
   // Calculate completion percentage - all 7 steps done = 100%
   // Since we're on Step 8 (completion), always show 100%
   const completionPercentage = 100;

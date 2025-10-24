@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
-import { supabase } from '@/lib/core/supabase';
+import { supabase } from '@/lib//supabase';
 import { useAuthStore } from '@/stores/auth';
 
 interface SignInCredentials {

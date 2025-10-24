@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Alert, Image, Pressable, ActivityIndicator } from 'react-native';
+import React, { useState, useMemo, useCallback } from 'react';
+import { View, Alert, Image as RNImage, Pressable, ActivityIndicator, Dimensions } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
@@ -16,8 +16,122 @@ import { VerificationHeader } from '@/components/verification/VerificationHeader
 import { useVerificationData, useUpdateStepCompletion, useVerificationRealtime } from '@/hooks/provider/useVerificationSingleSource';
 import { supabase } from '@/lib/supabase';
 import { createStorageService } from '@/lib/storage/organized-storage';
-import { useVerificationNavigation } from '@/hooks/provider';
 import { useAuthStore } from '@/stores/auth';
+import { StoragePathUtils } from '@/lib';
+
+
+// ✅ Separate component for portfolio image with hooks at top level
+interface PortfolioImageItemProps {
+  img: any;
+  index: number;
+  imageWidth: number;
+  deletingImageIndex: number | null;
+  onDelete: (index: number) => void;
+  isDeleting: boolean;
+  providerId: string;
+}
+
+const PortfolioImageItem = React.memo(({
+  img,
+  index,
+  imageWidth,
+  deletingImageIndex,
+  onDelete,
+  isDeleting,
+  providerId
+}: PortfolioImageItemProps) => {
+  const [imageLoadError, setImageLoadError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [imageUrl, setImageUrl] = useState(img.image_url); // ✅ State for URL to trigger re-render
+
+  // ✅ Hooks at top level of component
+  const handleImageLoad = useCallback(() => {
+    console.log(`[Portfolio] ✅ Image ${index + 1} LOADED SUCCESSFULLY!`);
+    setImageLoadError(false);
+  }, [index]);
+  
+  const handleImageError = useCallback(async (error: any) => {
+    console.error(`[Portfolio] ❌ Image ${index + 1} FAILED TO LOAD`);
+    console.error(`[Portfolio] Error:`, error?.nativeEvent?.error);
+    
+    // Try to refresh URL on error (same pattern as selfie.tsx)
+    if (retryCount < 2) {
+      try {
+        console.log(`[Portfolio] 🔄 Attempting to refresh signed URL (attempt ${retryCount + 1})`);
+        const filePath = StoragePathUtils.extractFilePathFromUrl(imageUrl);
+        if (!filePath) {
+          throw new Error('Could not extract file path');
+        }
+        
+        const storageService = createStorageService(providerId);
+        const freshUrlResult = await storageService.getSignedUrl(filePath);
+        
+        if (freshUrlResult.success && freshUrlResult.signedUrl) {
+          console.log(`[Portfolio] ✅ Got fresh signed URL for image ${index + 1}`);
+          // Update state with fresh URL (triggers re-render)
+          setImageUrl(freshUrlResult.signedUrl);
+          setRetryCount(retryCount + 1);
+          setImageLoadError(false);
+        } else {
+          throw new Error(freshUrlResult.error);
+        }
+      } catch (refreshError) {
+        console.error(`[Portfolio] Failed to refresh URL:`, refreshError);
+        setImageLoadError(true);
+      }
+    } else {
+      setImageLoadError(true);
+    }
+  }, [index, imageUrl, providerId, retryCount]);
+
+  return (
+    <View 
+      key={img.id} 
+      className="relative"
+      style={{ width: imageWidth, height: imageWidth }}
+    >
+      {!imageLoadError ? (
+        <RNImage 
+          source={{ uri: imageUrl }} 
+          style={{ 
+            width: imageWidth,
+            height: imageWidth,
+            borderRadius: 8,
+            backgroundColor: '#f5f5f5'
+          }}
+          resizeMode="cover"
+          onLoad={handleImageLoad}
+          onError={handleImageError}
+          testID={`portfolio-image-${index}`}
+        />
+      ) : (
+        <View 
+          style={{ 
+            width: imageWidth,
+            height: imageWidth,
+          }}
+          className="bg-muted rounded-lg items-center justify-center"
+        >
+          <Text className="text-2xl mb-1">🖼️</Text>
+          <Text className="text-xs text-muted-foreground text-center px-2">Failed to load</Text>
+        </View>
+      )}
+      
+      <Pressable
+        onPress={() => onDelete(index)}
+        disabled={deletingImageIndex === index || isDeleting}
+        className="absolute z-50 w-8 h-8 bg-destructive rounded-full items-center justify-center shadow-lg"
+        style={{ top: -6, right: -6 }}
+      >
+        {deletingImageIndex === index ? (
+          <ActivityIndicator size="small" color="white" />
+        ) : (
+          <Text className="text-white text-lg font-bold leading-none">×</Text>
+        )}
+      </Pressable>
+    </View>
+  );
+});
 
 export default function PortfolioUploadScreen() {
   const insets = useSafeAreaInsets();
@@ -30,14 +144,13 @@ export default function PortfolioUploadScreen() {
   // ✅ SINGLE-SOURCE: Use new verification hooks
   const { data: verificationData, isLoading: verificationLoading } = useVerificationData(providerId);
   const updateStepMutation = useUpdateStepCompletion();
-  const { navigateNext, navigateBack } = useVerificationNavigation();
 
   // Real-time subscription for live updates
   useVerificationRealtime(providerId);
 
   // Portfolio configuration
   const portfolioConfig = {
-    maxImages: 10, // Maximum portfolio images allowed
+    maxImages: 5, // Maximum portfolio images allowed
   };
 
   // ✅ REACT QUERY: Fetch existing portfolio images
@@ -70,23 +183,30 @@ export default function PortfolioUploadScreen() {
       const storageService = createStorageService(providerId);
       
       // Generate signed URLs using the organized storage service
+      console.log('[Portfolio] Generating signed URLs for', data.length, 'images');
       const signedUrlResults = await storageService.getPortfolioSignedUrls(
         data.map(img => ({ id: img.id.toString(), image_url: img.image_url }))
       );
       
+      console.log('[Portfolio] Signed URL results:', signedUrlResults.length, 'URLs generated');
+      
       // Map results back to image data with signed URLs
       const imagesWithSignedUrls = data
-        .map((img) => {
+        .map((img, index) => {
           const signedUrlData = signedUrlResults.find(result => result.id === img.id.toString());
+          
           if (!signedUrlData?.signedUrl) {
-            console.error('[Portfolio] Failed to get signed URL for image:', img.id);
-            return null;
+            console.warn('[Portfolio] No signed URL for image:', img.id, '- attempting individual generation');
+            // Fallback: try to generate individual signed URL
+            return { ...img, image_url: img.image_url, signedUrl: undefined };
           }
           
+          console.log(`[Portfolio] ✅ Got signed URL for image ${index + 1}:`, signedUrlData.signedUrl?.substring(0, 100) + '...');
           return { ...img, image_url: signedUrlData.signedUrl };
         })
         .filter(img => img !== null);
 
+      console.log('[Portfolio] Returning', imagesWithSignedUrls.length, 'images with signed URLs');
       return imagesWithSignedUrls;
     },
     enabled: !!providerId,
@@ -536,7 +656,12 @@ export default function PortfolioUploadScreen() {
     },
     onSuccess: () => {
       console.log('[Portfolio] All images cleared completely (DB + Storage)');
+      // ✅ Reset local state immediately
+      setSelectedImages([]);
+      // ✅ Invalidate query to refetch
       queryClient.invalidateQueries({ queryKey: ['portfolioImages', providerId] });
+      // ✅ Also set empty data directly for immediate UI update
+      queryClient.setQueryData(['portfolioImages', providerId], []);
     },
     onError: (error: any) => {
       console.error('[Portfolio] Clear failed:', error);
@@ -581,7 +706,7 @@ export default function PortfolioUploadScreen() {
   };
 
   // ✅ OPTIMIZED: Handle form submission with React Query mutation
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     // If we have existing images and no new selections, just proceed
     if (existingImages.length > 0 && selectedImages.length === 0) {
       console.log('[Portfolio] Using existing portfolio images, completing step');
@@ -592,15 +717,40 @@ export default function PortfolioUploadScreen() {
         sortOrder: img.sort_order,
       }));
       
-      // ✅ SINGLE-SOURCE: Use centralized mutation to update step completion
-      await updateStepMutation.mutateAsync({
-        providerId,
-        stepNumber: 5, // Portfolio is now step 5 (services removed)
-        completed: true,
-        data: { images: portfolioImages },
-      });
+      try {
+        // ✅ Use mutateAsync to wait for completion (matches category.tsx pattern)
+        await updateStepMutation.mutateAsync({
+          providerId,
+          stepNumber: 5,
+          completed: true,
+          data: { images: portfolioImages },
+        });
 
-      navigateNext();
+        console.log('[Portfolio] Step completion confirmed');
+        
+        // ✅ Invalidate and refetch to ensure RouteGuard sees updated data
+        await queryClient.invalidateQueries({ queryKey: ['verificationData', providerId] });
+        await queryClient.refetchQueries({ queryKey: ['verificationData', providerId] });
+
+        console.log('[Portfolio] Cache invalidated, showing alert and routing...');
+        Alert.alert(
+          'Portfolio Complete',
+          'Your portfolio has been verified and saved successfully.',
+          [
+            {
+              text: 'Continue',
+              onPress: () => {
+                console.log('[Portfolio] User confirmed, navigating to bio (step 6)...');
+                // ✅ Navigate directly like category.tsx does
+                router.push('/(provider-verification)/bio');
+              },
+            },
+          ]
+        );
+      } catch (error) {
+        console.error('[Portfolio] Step completion failed:', error);
+        Alert.alert('Error', 'Failed to complete portfolio step. Please try again.');
+      }
       return;
     }
     
@@ -614,7 +764,7 @@ export default function PortfolioUploadScreen() {
       // ✅ APPEND mode: Add images to existing portfolio
       uploadPortfolioMutation.mutate(selectedImages);
     }
-  };
+  }, [selectedImages, existingImages, providerId, updateStepMutation, queryClient]);
 
   // ✅ Handle Replace All action
   const handleReplaceAll = async () => {
@@ -640,7 +790,7 @@ export default function PortfolioUploadScreen() {
         step={5} 
         title="Upload Portfolio" 
       />
-      <ScreenWrapper scrollable contentContainerClassName="px-4 py-6 pb-32">
+      <ScreenWrapper scrollable contentContainerClassName="px-4 py-6 pb-40">
 
       {/* Upload Area */}
       {/* Existing Images Section with Skeleton Loading */}
@@ -687,52 +837,36 @@ export default function PortfolioUploadScreen() {
                 Portfolio Gallery ({existingImages.length})
               </Text>
               <View className="flex-row flex-wrap gap-3">
-                {existingImages.map((img, index) => (
-                  <View 
-                    key={img.id} 
-                    className="relative"
-                    style={{ width: '48%', aspectRatio: 1 }}
-                  >
-                    <Image 
-                      source={{ uri: img.image_url }} 
-                      style={{ 
-                        width: '100%', 
-                        height: '100%',
-                        borderRadius: 8,
-                        backgroundColor: '#f5f5f5'
+                {(() => {
+                  // Calculate image dimensions - 2 columns with gap
+                  const screenWidth = Dimensions.get('window').width;
+                  const padding = 16; // 4 classes = 16px per side
+                  const gap = 12; // gap-3 = 12px
+                  const availableWidth = screenWidth - (padding * 2) - gap;
+                  const imageWidth = Math.floor(availableWidth / 2);
+
+                  return existingImages.map((img, index) => (
+                    <PortfolioImageItem
+                      key={img.id}
+                      img={img}
+                      index={index}
+                      imageWidth={imageWidth}
+                      deletingImageIndex={deletingImageIndex}
+                      onDelete={(idx) => {
+                        setDeletingImageIndex(idx);
+                        deletePortfolioImageMutation.mutate(idx);
                       }}
-                      resizeMode="cover"
-                      onError={(error) => {
-                        console.error('Existing portfolio image load error:', error);
-                        console.error('Failed URL:', img.image_url);
-                      }}
-                      onLoad={() => {
-                        console.log('Existing portfolio image loaded successfully:', img.image_url);
-                      }}
+                      isDeleting={refetchingImages}
+                      providerId={providerId}
                     />
-                    <Pressable
-                      onPress={() => {
-                        setDeletingImageIndex(index);
-                        deletePortfolioImageMutation.mutate(index);
-                      }}
-                      disabled={deletingImageIndex === index || refetchingImages}
-                      className="absolute z-50 w-8 h-8 bg-destructive rounded-full items-center justify-center shadow-lg"
-                      style={{ top: -6, right: -6 }}
-                    >
-                      {deletingImageIndex === index ? (
-                        <ActivityIndicator size="small" color="white" />
-                      ) : (
-                        <Text className="text-white text-lg font-bold leading-none">×</Text>
-                      )}
-                    </Pressable>
-                  </View>
-                ))}
+                  ));
+                })()}
               </View>
             </View>
           )}
 
           {/* Action Buttons */}
-          <View className="flex-row gap-3">
+          <View className="flex-row gap-3 mt-6 mb-8">
             <Button
               variant="outline"
               size="sm"
@@ -769,33 +903,41 @@ export default function PortfolioUploadScreen() {
                 Selected Images ({selectedImages.length})
               </Text>
               <View className="flex-row flex-wrap gap-3">
-                {selectedImages.map((uri, index) => (
-                  <View 
-                    key={index} 
-                    className="relative"
-                    style={{ width: '48%', aspectRatio: 1 }}
-                  >
-                    <Image 
-                      source={{ uri }} 
-                      style={{ 
-                        width: '100%', 
-                        height: '100%',
-                        borderRadius: 8,
-                        backgroundColor: '#f5f5f5'
-                      }}
-                      resizeMode="cover"
-                      onLoad={() => console.log('[Portfolio] Selected image loaded:', index)}
-                      onError={(error) => console.error('[Portfolio] Selected image failed to load:', index, error)}
-                    />
-                    <Pressable
-                      onPress={() => removeImage(index)}
-                      className="absolute z-50 w-8 h-8 bg-destructive rounded-full items-center justify-center shadow-lg"
-                      style={{ top: -6, right: -6 }}
+                {selectedImages.map((uri, index) => {
+                  const screenWidth = Dimensions.get('window').width;
+                  const padding = 16;
+                  const gap = 12;
+                  const availableWidth = screenWidth - (padding * 2) - gap;
+                  const imageWidth = Math.floor(availableWidth / 2);
+
+                  return (
+                    <View 
+                      key={index} 
+                      className="relative"
+                      style={{ width: imageWidth, height: imageWidth }}
                     >
-                      <Text className="text-white text-lg font-bold leading-none">×</Text>
-                    </Pressable>
-                  </View>
-                ))}
+                      <RNImage 
+                        source={{ uri }} 
+                        style={{ 
+                          width: imageWidth, 
+                          height: imageWidth,
+                          borderRadius: 8,
+                          backgroundColor: '#f5f5f5'
+                        }}
+                        resizeMode="cover"
+                        onLoad={() => console.log('[Portfolio] Selected image loaded:', index)}
+                        onError={(error) => console.error('[Portfolio] Selected image failed:', index, error?.nativeEvent?.error)}
+                      />
+                      <Pressable
+                        onPress={() => removeImage(index)}
+                        className="absolute z-50 w-8 h-8 bg-destructive rounded-full items-center justify-center shadow-lg"
+                        style={{ top: -6, right: -6 }}
+                      >
+                        <Text className="text-white text-lg font-bold leading-none">×</Text>
+                      </Pressable>
+                    </View>
+                  );
+                })}
               </View>
             </View>
           )}
@@ -881,7 +1023,7 @@ export default function PortfolioUploadScreen() {
           className="w-full"
         >
           <Text className="font-bold text-primary-foreground">
-            {uploadPortfolioMutation.isPending || replacePortfolioMutation.isPending ? 'Uploading...' : 
+            {uploadPortfolioMutation.isPending || replacePortfolioMutation.isPending ? 'Processing...' : 
              fetchingExisting ? 'Loading...' :
              refetchingImages ? 'Syncing...' :
              (existingImages.length > 0 && selectedImages.length === 0) ? 'Continue to Next Step' : 
@@ -894,7 +1036,10 @@ export default function PortfolioUploadScreen() {
         <Button
           variant="outline"
           size="lg"
-          onPress={navigateBack}
+          onPress={() => {
+            // Go to category (step 4) - previous step before portfolio (step 5)
+            router.push('/(provider-verification)/category');
+          }}
           disabled={uploadPortfolioMutation.isPending || replacePortfolioMutation.isPending}
           className="w-full"
         >

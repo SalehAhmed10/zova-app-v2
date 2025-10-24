@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useAuthOptimized } from '@/hooks';
+import { useAuthStore } from '@/stores/auth';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useColorScheme } from '@/lib/core/useColorScheme';
@@ -34,7 +34,7 @@ interface CustomerReview {
 }
 
 export default function CustomerReviewsScreen() {
-  const { user } = useAuthOptimized();
+  const user = useAuthStore((state) => state.user);
   const { colorScheme } = useColorScheme();
   const [refreshing, setRefreshing] = useState(false);
 

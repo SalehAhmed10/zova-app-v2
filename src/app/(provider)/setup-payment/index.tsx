@@ -16,9 +16,10 @@ import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '@/lib/supabase';
 import { PaymentAnalyticsService } from '@/lib/payment/payment-analytics';
 import { useProviderAccess } from '@/hooks/provider/useProviderAccess';
-import { useAuthOptimized } from '@/hooks';
+import { useAuthStore } from '@/stores/auth';
 import { usePaymentSetupStore } from '@/stores/verification/usePaymentSetupStore';
 import { CheckCircle, AlertCircle, CreditCard, Zap, Lock, Info } from 'lucide-react-native';
+import { Icon } from '@/components/ui/icon';
 
 /**
  * ✅ PAYMENT SETUP SCREEN (Onboarding)
@@ -35,7 +36,7 @@ import { CheckCircle, AlertCircle, CreditCard, Zap, Lock, Info } from 'lucide-re
  */
 export default function PaymentSetupScreen() {
   const queryClient = useQueryClient();
-  const { user } = useAuthOptimized();
+  const user = useAuthStore((state) => state.user);
   const { colorScheme } = useColorScheme();
   const colors = THEME[colorScheme];
   
@@ -170,6 +171,16 @@ export default function PaymentSetupScreen() {
   // ✅ REACT QUERY MUTATION: Handle Stripe setup
   const stripeSetupMutation = useMutation({
     mutationFn: async () => {
+      // TEST: Check Stripe configuration first
+      console.log('[PaymentSetup] Testing Stripe configuration...')
+      const { data: configData, error: configError } = await supabase.functions.invoke('stripe-config-check', {})
+      
+      if (configError) {
+        console.error('[PaymentSetup] Config check error:', configError)
+      } else {
+        console.log('[PaymentSetup] Stripe config response:', configData)
+      }
+
       // Refresh session to get fresh JWT token
       console.log('[PaymentSetup] Refreshing session...');
       const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
@@ -193,7 +204,7 @@ export default function PaymentSetupScreen() {
       await PaymentAnalyticsService.trackPaymentSetupStarted(userId, 'dashboard');
 
       // Call edge function to create Stripe Connect account link
-      const { data, error } = await supabase.functions.invoke('create-stripe-connect-link', {
+      const { data, error } = await supabase.functions.invoke('create-stripe-account', {
         body: { 
           userId,
           returnUrl: 'zova://provider/setup-payment', // Proper deep link from app.json
@@ -203,14 +214,41 @@ export default function PaymentSetupScreen() {
 
       if (error) {
         console.error('[PaymentSetup] Error creating Stripe link:', error);
-        throw error;
+        
+        // Try to extract the actual error response
+        let errorMessage = error?.message || 'Unknown error';
+        let errorDetails = null;
+        
+        try {
+          if (error?.context?._bodyBlob?._data) {
+            const bodyData = error.context._bodyBlob._data;
+            if (Array.isArray(bodyData)) {
+              const decoder = new TextDecoder();
+              const text = decoder.decode(new Uint8Array(bodyData));
+              errorDetails = JSON.parse(text);
+              errorMessage = errorDetails?.error || errorDetails?.message || errorMessage;
+            }
+          }
+        } catch (parseErr) {
+          console.warn('[PaymentSetup] Could not parse error response');
+        }
+        
+        console.error('[PaymentSetup] Error details:', {
+          message: errorMessage,
+          status: error?.status,
+          errorBody: errorDetails,
+          constructor: error?.constructor?.name
+        });
+        throw new Error(errorMessage);
       }
 
       if (!data?.url) {
+        console.error('[PaymentSetup] No URL in response. Data:', data);
         throw new Error('No Stripe Connect URL returned');
       }
 
       console.log('[PaymentSetup] Stripe Connect link created:', data.url);
+      console.log('[PaymentSetup] Desktop URL:', data.desktopUrl);
       return data;
     },
     onSuccess: async (data) => {
@@ -303,7 +341,7 @@ export default function PaymentSetupScreen() {
     return (
       <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
         <View className="flex-1 items-center justify-center p-6">
-          <AlertCircle size={64} color={colors.destructive} />
+          <Icon as={AlertCircle} size={64} className="text-destructive mb-4" />
           <Text className="text-xl font-semibold text-center mb-2 text-foreground">
             Complete Verification First
           </Text>
@@ -379,129 +417,130 @@ export default function PaymentSetupScreen() {
           />
         }
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingVertical: 8, paddingBottom: 40 }}
       >
-        <View className="p-4">
-          {/* Status Card */}
-          <Card className="mb-4">
-            <CardHeader>
-              <View className="flex-row items-center justify-between">
-                <CardTitle>Payment Account Status</CardTitle>
-                {getStatusBadge()}
+        <View className="px-4 gap-6">
+          {/* Hero Section */}
+          <Animated.View entering={FadeIn}>
+            <View className="relative h-48 rounded-3xl overflow-hidden -mx-4 mb-2">
+              {/* Background gradient */}
+              <View className="absolute inset-0 bg-gradient-to-br from-primary/20 to-secondary/20" />
+              <View className="absolute top-0 right-0 w-56 h-56 bg-primary/15 rounded-full blur-3xl" />
+              <View className="absolute bottom-0 left-0 w-40 h-40 bg-secondary/10 rounded-full blur-3xl" />
+              
+              {/* Content */}
+              <View className="absolute inset-0 items-center justify-center">
+                <View className="w-32 h-32 bg-primary/10 rounded-full items-center justify-center">
+                  <View className="w-20 h-20 bg-primary/20 rounded-full items-center justify-center">
+                    <Icon as={CreditCard} size={56} className="text-primary" />
+                  </View>
+                </View>
               </View>
-              <Text variant="small" className="text-muted-foreground">
-                {getStatusDescription()}
-              </Text>
-            </CardHeader>
-          </Card>
+            </View>
+          </Animated.View>
 
-          {/* Setup Required Card */}
+          {/* Status Overview Card */}
           {!stripeAccountId && (
-            <Animated.View entering={FadeIn}>
-              <Card className="mb-4">
-                <CardHeader>
-                  <CardTitle style={{ color: colors.warning }}>
-                    Setup Required
-                  </CardTitle>
-                  <Text variant="small" className="text-muted-foreground">
-                    Connect your payment account to start earning
-                  </Text>
-                </CardHeader>
-                <CardContent>
-                  <Button
-                    onPress={() => stripeSetupMutation.mutate()}
-                    disabled={isLoading}
-                    className="h-12"
-                  >
-                    <Text className="text-primary-foreground font-semibold">
-                      {isLoading ? 'Connecting...' : 'Connect Payment Account'}
-                    </Text>
-                  </Button>
-                </CardContent>
-              </Card>
-            </Animated.View>
-          )}
-
-          {/* Account Setup In Progress Card */}
-          {stripeAccountId && !accountSetupComplete && (
-            <Animated.View entering={SlideInDown}>
-              <Card className="mb-4">
-                <CardHeader>
-                  <CardTitle className="text-blue-600 dark:text-blue-400">
-                    Complete Account Setup
-                  </CardTitle>
-                  <Text variant="small" className="text-muted-foreground">
-                    Finish setting up your Stripe account to start accepting payments
-                  </Text>
-                </CardHeader>
-                <CardContent>
-                  <Button
-                    onPress={() => stripeSetupMutation.mutate()}
-                    disabled={isLoading}
-                    className="h-12 mb-4"
-                  >
-                    <Text className="text-primary-foreground font-semibold">
-                      {isLoading ? 'Opening Setup...' : 'Continue Setup'}
-                    </Text>
-                  </Button>
-
+            <Animated.View entering={SlideInUp}>
+              <Card className="border-0 bg-card">
+                <CardContent className="p-6 gap-4">
                   <View className="gap-2">
-                    <Text variant="small" className="font-medium text-foreground">
-                      Setup includes:
+                    <Text className="text-3xl font-bold text-foreground leading-tight">
+                      Get Started with Payments
                     </Text>
-                    <Text variant="small" className="text-muted-foreground">
-                      • Business information{'\n'}
-                      • Bank account details{'\n'}
-                      • Tax information{'\n'}
-                      • Identity verification
+                    <Text className="text-muted-foreground text-base leading-relaxed">
+                      Connect your Stripe account in 2 minutes to start earning from bookings.
                     </Text>
+                  </View>
+
+                  {/* Status Badge Row */}
+                  <View className="flex-row items-center gap-3 p-4 bg-muted/50 rounded-2xl border border-border/50">
+                    <View className="w-12 h-12 bg-destructive/20 rounded-full items-center justify-center">
+                      <Icon as={AlertCircle} size={24} className="text-destructive" />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-foreground font-semibold mb-1">Not Connected</Text>
+                      <Text className="text-muted-foreground text-xs">
+                        {getStatusDescription()}
+                      </Text>
+                    </View>
                   </View>
                 </CardContent>
               </Card>
             </Animated.View>
           )}
 
-          {/* Account Active Card */}
+          {/* Setup In Progress */}
+          {stripeAccountId && !accountSetupComplete && (
+            <Animated.View entering={SlideInDown}>
+              <Card className="border-0 bg-card">
+                <CardContent className="p-6 gap-4">
+                  <View className="gap-2">
+                    <Text className="text-2xl font-bold text-foreground leading-tight">
+                      Complete Your Setup
+                    </Text>
+                    <Text className="text-muted-foreground text-base leading-relaxed">
+                      Finish verifying your information with Stripe to activate payments.
+                    </Text>
+                  </View>
+
+                  {/* Status Badge Row */}
+                  <View className="flex-row items-center gap-3 p-4 bg-secondary/10 rounded-2xl border border-secondary/25">
+                    <View className="w-12 h-12 bg-secondary/20 rounded-full items-center justify-center">
+                      <Icon as={Zap} size={24} className="text-secondary" />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-foreground font-semibold mb-1">Setup In Progress</Text>
+                      <Text className="text-muted-foreground text-xs">
+                        {getStatusDescription()}
+                      </Text>
+                    </View>
+                  </View>
+                </CardContent>
+              </Card>
+            </Animated.View>
+          )}
+
+          {/* Account Active */}
           {accountSetupComplete && (
             <Animated.View entering={SlideInUp}>
-              <Card className="mb-4">
-                <CardHeader>
-                  <CardTitle className="text-green-600 dark:text-green-400">
-                    Account Active
-                  </CardTitle>
-                  <Text variant="small" className="text-muted-foreground">
-                    Your Stripe account is ready to accept payments
-                  </Text>
-                </CardHeader>
-                <CardContent>
-                  <View className="gap-4">
-                    <View className="flex-row items-center justify-between p-3 bg-muted/50 rounded-lg">
-                      <Text variant="small" className="text-foreground font-medium">
-                        Account ID
+              <Card className="border-0 bg-gradient-to-br from-green-500/10 to-green-500/5">
+                <CardContent className="p-6 gap-4">
+                  <View className="gap-2">
+                    <Text className="text-2xl font-bold text-foreground leading-tight">
+                      Payment Ready!
+                    </Text>
+                    <Text className="text-muted-foreground text-base leading-relaxed">
+                      Your account is fully set up and ready to accept bookings.
+                    </Text>
+                  </View>
+
+                  {/* Status Badge Row */}
+                  <View className="flex-row items-center gap-3 p-4 bg-green-500/20 rounded-2xl border border-green-500/25">
+                    <View className="w-12 h-12 bg-green-500/30 rounded-full items-center justify-center">
+                      <Icon as={CheckCircle} size={24} className="text-green-600 dark:text-green-400" />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-foreground font-semibold mb-1">Account Active</Text>
+                      <Text className="text-muted-foreground text-xs">
+                        {getStatusDescription()}
                       </Text>
-                      <Text variant="small" className="text-muted-foreground font-mono">
+                    </View>
+                  </View>
+
+                  {/* Account Info */}
+                  <View className="gap-3 pt-3 border-t border-border">
+                    <View className="flex-row items-center justify-between">
+                      <Text className="text-muted-foreground text-sm">Account ID</Text>
+                      <Text className="text-foreground font-mono text-sm font-semibold">
                         {stripeAccountId ? `${stripeAccountId.slice(0, 8)}...` : 'N/A'}
                       </Text>
                     </View>
-
-                    <View className="flex-row items-center justify-between p-3 bg-muted/50 rounded-lg">
-                      <Text variant="small" className="text-foreground font-medium">
-                        Status
-                      </Text>
-                      <Badge variant="default" style={{ backgroundColor: colors.success }}>
-                        <Text>Ready</Text>
+                    <View className="flex-row items-center justify-between">
+                      <Text className="text-muted-foreground text-sm">Status</Text>
+                      <Badge className="bg-green-500/20 border-0">
+                        <Text className="text-green-600 dark:text-green-400 font-semibold">Ready</Text>
                       </Badge>
-                    </View>
-
-                    <View className="pt-4 border-t border-border">
-                      <Button
-                        variant="outline"
-                        onPress={() => router.replace('/(provider)')}
-                        className="h-10"
-                      >
-                        <Text className="font-medium text-foreground">
-                          Return to Dashboard
-                        </Text>
-                      </Button>
                     </View>
                   </View>
                 </CardContent>
@@ -509,74 +548,151 @@ export default function PaymentSetupScreen() {
             </Animated.View>
           )}
 
-          {/* Why Payment Setup? */}
-          <Animated.View entering={SlideInDown.delay(100).springify()}>
-            <Card className="mb-4">
-              <CardHeader>
-                <CardTitle>Why do I need this?</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <View className="gap-4">
-                  <View className="flex-row items-start gap-3">
-                    <View className="w-10 h-10 bg-primary/10 rounded-full items-center justify-center">
-                      <CreditCard size={20} color={colors.primary} />
-                    </View>
-                    <View className="flex-1">
-                      <Text className="font-medium text-foreground mb-1">Accept Payments</Text>
-                      <Text variant="small" className="text-muted-foreground">
-                        Receive payments securely from customers
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View className="flex-row items-start gap-3">
-                    <View className="w-10 h-10 bg-primary/10 rounded-full items-center justify-center">
-                      <Zap size={20} color={colors.primary} />
-                    </View>
-                    <View className="flex-1">
-                      <Text className="font-medium text-foreground mb-1">Fast Payouts</Text>
-                      <Text variant="small" className="text-muted-foreground">
-                        Get paid automatically to your bank account
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View className="flex-row items-start gap-3">
-                    <View className="w-10 h-10 bg-primary/10 rounded-full items-center justify-center">
-                      <Lock size={20} color={colors.primary} />
-                    </View>
-                    <View className="flex-1">
-                      <Text className="font-medium text-foreground mb-1">Secure & Compliant</Text>
-                      <Text variant="small" className="text-muted-foreground">
-                        Bank-level security with Stripe
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </CardContent>
-            </Card>
-          </Animated.View>
-
-          {/* Info Card */}
-          <Card className="bg-muted/30">
-            <CardContent className="p-4">
-              <View className="flex-row items-start">
-                <Info size={20} color={colors.mutedForeground} />
-                <View className="flex-1 ml-3">
-                  <Text variant="small" className="text-muted-foreground leading-relaxed">
-                    <Text className="font-medium">Secure Payments:</Text>
-                    {'\n'}
-                    All payments are processed securely through Stripe. ZOVA never stores your payment information.
-                    {'\n\n'}
-                    <Text className="font-medium">Quick Setup:</Text>
-                    {'\n'}
-                    The entire process takes just 2-3 minutes. You'll be redirected to Stripe to complete verification.
-                    {'\n\n'}
-                    <Text className="font-medium">Support:</Text>
-                    {'\n'}
-                    Need help? Contact our support team or Stripe directly for assistance.
+          {/* CTA Button */}
+          {!accountSetupComplete && (
+            <Animated.View entering={SlideInUp.delay(100)}>
+              <Button
+                size="lg"
+                className="w-full h-14"
+                onPress={() => stripeSetupMutation.mutate()}
+                disabled={isLoading}
+              >
+                <View className="flex-row items-center gap-3">
+                  <Icon as={CreditCard} size={20} className="text-primary-foreground" />
+                  <Text className="font-bold text-primary-foreground text-base">
+                    {isLoading ? 'Connecting...' : !stripeAccountId ? 'Connect Stripe Account' : 'Continue Setup'}
                   </Text>
                 </View>
+              </Button>
+            </Animated.View>
+          )}
+
+          {accountSetupComplete && (
+            <Animated.View entering={SlideInUp.delay(100)}>
+              <Button
+                size="lg"
+                variant="outline"
+                className="w-full h-14"
+                onPress={() => router.replace('/(provider)')}
+              >
+                <Text className="font-bold text-foreground text-base">
+                  Go to Dashboard
+                </Text>
+              </Button>
+            </Animated.View>
+          )}
+
+          {/* Benefits Section */}
+          <Card className="border-0 bg-card">
+            <CardHeader>
+              <CardTitle className="text-lg">Why Connect Stripe?</CardTitle>
+            </CardHeader>
+            <CardContent className="gap-4">
+              {/* Benefit 1 */}
+              <View className="flex-row items-start gap-4 p-4 bg-muted/50 rounded-2xl border border-border/50">
+                <View className="w-12 h-12 bg-primary/20 rounded-xl items-center justify-center flex-shrink-0">
+                  <Icon as={CheckCircle} size={24} className="text-primary" />
+                </View>
+                <View className="flex-1 gap-1">
+                  <Text className="font-semibold text-foreground">Secure Payments</Text>
+                  <Text className="text-muted-foreground text-sm leading-relaxed">
+                    Bank-level security with industry-leading fraud protection
+                  </Text>
+                </View>
+              </View>
+
+              {/* Benefit 2 */}
+              <View className="flex-row items-start gap-4 p-4 bg-muted/50 rounded-2xl border border-border/50">
+                <View className="w-12 h-12 bg-secondary/20 rounded-xl items-center justify-center flex-shrink-0">
+                  <Icon as={Zap} size={24} className="text-secondary" />
+                </View>
+                <View className="flex-1 gap-1">
+                  <Text className="font-semibold text-foreground">Fast Payouts</Text>
+                  <Text className="text-muted-foreground text-sm leading-relaxed">
+                    Automatic deposits to your bank every Monday • 2-7 day delivery
+                  </Text>
+                </View>
+              </View>
+
+              {/* Benefit 3 */}
+              <View className="flex-row items-start gap-4 p-4 bg-muted/50 rounded-2xl border border-border/50">
+                <View className="w-12 h-12 bg-accent/20 rounded-xl items-center justify-center flex-shrink-0">
+                  <Icon as={Lock} size={24} className="text-accent-foreground" />
+                </View>
+                <View className="flex-1 gap-1">
+                  <Text className="font-semibold text-foreground">Compliance Ready</Text>
+                  <Text className="text-muted-foreground text-sm leading-relaxed">
+                    Full PCI compliance • Tax reporting • Regulatory support
+                  </Text>
+                </View>
+              </View>
+            </CardContent>
+          </Card>
+
+          {/* What's Included */}
+          <Card className="border-0 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="text-lg">What's Included in Setup</CardTitle>
+            </CardHeader>
+            <CardContent className="gap-3">
+              <View className="gap-3">
+                <View className="flex-row items-center gap-3">
+                  <View className="w-6 h-6 bg-primary rounded-full items-center justify-center">
+                    <Text className="text-primary-foreground text-xs font-bold">1</Text>
+                  </View>
+                  <Text className="text-foreground flex-1">Business information & verification</Text>
+                </View>
+                <View className="flex-row items-center gap-3">
+                  <View className="w-6 h-6 bg-primary rounded-full items-center justify-center">
+                    <Text className="text-primary-foreground text-xs font-bold">2</Text>
+                  </View>
+                  <Text className="text-foreground flex-1">Bank account details for payouts</Text>
+                </View>
+                <View className="flex-row items-center gap-3">
+                  <View className="w-6 h-6 bg-primary rounded-full items-center justify-center">
+                    <Text className="text-primary-foreground text-xs font-bold">3</Text>
+                  </View>
+                  <Text className="text-foreground flex-1">Tax identification & reporting setup</Text>
+                </View>
+                <View className="flex-row items-center gap-3">
+                  <View className="w-6 h-6 bg-primary rounded-full items-center justify-center">
+                    <Text className="text-primary-foreground text-xs font-bold">4</Text>
+                  </View>
+                  <Text className="text-foreground flex-1">Identity verification (takes 2-3 min)</Text>
+                </View>
+              </View>
+              <View className="pt-4 border-t border-border">
+                <Text className="text-muted-foreground text-xs leading-relaxed">
+                  💡 <Text className="font-semibold">Tip:</Text> Have your business documents ready for faster setup. Most providers complete this in under 5 minutes.
+                </Text>
+              </View>
+            </CardContent>
+          </Card>
+
+          {/* Trust Badges */}
+          <View className="flex-row gap-2 justify-center px-2">
+            <View className="flex-row items-center gap-2 px-3 py-2 bg-card rounded-full border border-border">
+              <Icon as={Lock} size={12} className="text-primary" />
+              <Text className="text-xs font-medium text-muted-foreground">Secure</Text>
+            </View>
+            <View className="flex-row items-center gap-2 px-3 py-2 bg-card rounded-full border border-border">
+              <Icon as={CheckCircle} size={12} className="text-green-600 dark:text-green-400" />
+              <Text className="text-xs font-medium text-muted-foreground">Verified</Text>
+            </View>
+            <View className="flex-row items-center gap-2 px-3 py-2 bg-card rounded-full border border-border">
+              <Icon as={Zap} size={12} className="text-secondary" />
+              <Text className="text-xs font-medium text-muted-foreground">Fast Setup</Text>
+            </View>
+          </View>
+
+          {/* Footer Info */}
+          <Card className="border-0 bg-muted/30">
+            <CardContent className="p-4 gap-2">
+              <View className="flex-row items-start gap-3">
+                <Icon as={Info} size={16} className="text-muted-foreground mt-0.5 flex-shrink-0" />
+                <Text className="text-muted-foreground text-xs leading-relaxed flex-1">
+                  Your payment information is handled entirely by Stripe. ZOVA never has access to card or banking details. Payment processing is subject to Stripe's Terms of Service.
+                </Text>
               </View>
             </CardContent>
           </Card>

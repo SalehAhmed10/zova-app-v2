@@ -79,6 +79,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.10",
+    "expo-mcp": "^0.1.13",
     "supabase": "^2.45.5",
     "typescript": "~5.9.2"
   },

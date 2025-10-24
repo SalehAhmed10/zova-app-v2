@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { useCustomerBookings, type BookingData } from '@/hooks/customer';
-import { useAuthOptimized } from '@/hooks/shared';
+import { useAuthStore } from '@/stores/auth';
 import { ChevronLeft } from 'lucide-react-native';
 import { cn } from '@/lib/utils';
 
@@ -162,7 +162,7 @@ const BookingSkeleton = () => (
 );
 
 export default function BookingHistoryScreen() {
-  const { user } = useAuthOptimized();
+  const user = useAuthStore((state) => state.user);
   const { data: bookings, isLoading, refetch, isRefetching } = useCustomerBookings(user?.id);
   const [refreshing, setRefreshing] = useState(false);
   const { isDarkColorScheme } = useColorScheme();

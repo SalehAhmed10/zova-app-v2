@@ -5,7 +5,9 @@
  * to optimize the provider onboarding experience.
  */
 
-import { supabase } from '../core/supabase';
+import { supabase } from "@/lib/supabase";
+
+
 
 interface PaymentAnalyticsEvent {
   event_type: 'payment_prompt_shown' | 'payment_setup_started' | 'payment_setup_completed' | 'payment_setup_abandoned' | 'nudge_shown' | 'nudge_dismissed' | 'nudge_converted';
@@ -41,7 +43,7 @@ export class PaymentAnalyticsService {
     try {
       const { error } = await supabase.from('payment_analytics_events').insert({
         ...event,
-        timestamp: new Date().toISOString(),
+        created_at: new Date().toISOString(),
         session_id: this.getSessionId()
       });
 
@@ -192,7 +194,7 @@ export class PaymentAnalyticsService {
         .from('payment_analytics_events')
         .select('*')
         .eq('user_id', userId)
-        .order('timestamp', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (eventType) {
         query = query.eq('event_type', eventType);

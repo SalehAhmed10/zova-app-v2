@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { useAuthPure } from './useAuthPure';
+import { useAuthStore } from '@/stores/auth';
 
 interface TrackViewParams {
   type: 'profile' | 'service';
@@ -9,7 +9,7 @@ interface TrackViewParams {
 }
 
 export const useTrackView = () => {
-  const { user } = useAuthPure();
+  const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
 
   return useMutation({

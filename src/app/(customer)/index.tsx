@@ -28,13 +28,13 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Icon } from '@/components/ui/icon';
-import { useAuthOptimized } from '@/hooks';
 import {
   useProfile,
   useProfileStats,
   useUserBookings
 } from '@/hooks/shared/useProfileData';
 import { useTrustedProviders } from '@/hooks/customer';
+import { useAuthStore } from '@/stores/auth';
 import { 
   useActiveSubscription,
   hasActiveSubscription,
@@ -124,8 +124,8 @@ const StatCard = React.memo(({
 ));
 
 export default function CustomerDashboard() {
-  // ✅ MIGRATED: Using optimized auth hook following copilot-rules.md
-  const { user } = useAuthOptimized();
+  // ✅ MIGRATED: Using Zustand store for auth following copilot-rules.md
+  const user = useAuthStore((state) => state.user);
   const { data: profileData, isLoading: profileLoading } = useProfile(user?.id);
   const { data: statsData, isLoading: statsLoading } = useProfileStats(user?.id, 'customer');
   const { data: bookingsData, isLoading: bookingsLoading } = useUserBookings(user?.id);

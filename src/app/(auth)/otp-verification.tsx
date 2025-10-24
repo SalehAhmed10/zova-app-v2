@@ -3,12 +3,12 @@
  * 
  * ✅ MIGRATED TO REACT QUERY + ZUSTAND ARCHITECTURE
  * - Replaced useState + useEffect with React Query mutations
- * - Using SessionProvider (useSession) for auth state management
+ * - Using Zustand store (useAuthStore) for auth state management
  * - Direct Supabase integration for OTP verification
  * 
  * Architecture Changes:
  * - Removed: useState for loading/errors, useAppStore (deprecated)
- * - Added: React Query mutations for OTP operations, SessionProvider
+ * - Added: React Query mutations for OTP operations
  * - Improved: Error handling and user feedback
  */
 import React, { useState } from 'react';
@@ -20,17 +20,15 @@ import { OtpInput } from 'react-native-otp-entry';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { ScreenWrapper } from '@/components/ui/screen-wrapper';
-import { useAuthOptimized } from '@/hooks';
-import { useSession } from '@/app/ctx';
+import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/lib/supabase';
 import { createOrUpdateUserProfile } from '@/lib/auth/profile';
 
 export default function OTPVerificationScreen() {
   const [otp, setOtp] = useState('');
   
-  // ✅ OPTIMIZED: Using useAuthOptimized for better performance
-  const { refetchSession } = useAuthOptimized();
-  const { session } = useSession();
+  // ✅ OPTIMIZED: Using Zustand store for auth state
+  const session = useAuthStore((state) => state.session);
 
   // Get parameters from registration
   const params = useLocalSearchParams();
@@ -94,14 +92,12 @@ export default function OTPVerificationScreen() {
             // Don't fail the whole process for this
           }
         }
-
         console.log('[OTP] Profile created successfully:', profile);
         
-        // Refetch session to update auth state
-        refetchSession();
+        // Session will be updated by auth listener
       } catch (error) {
         console.error('[OTP] Error creating profile:', error);
-        Alert.alert('Error', 'Account verified but profile setup failed. Please try logging in again.');
+        Alert.alert('Error', 'Account verified but profile setup failed. Please try logging in again');
         return;
       }
     },

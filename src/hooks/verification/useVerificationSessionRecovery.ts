@@ -8,7 +8,7 @@
 
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useAuthPure as useAuthOptimized } from '../shared/useAuthPure';
+import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/lib/supabase';
 
 interface VerificationSessionRecovery {
@@ -25,7 +25,7 @@ interface VerificationSessionRecovery {
  * Returns whether user should resume verification flow
  */
 export const useVerificationSessionRecovery = (): VerificationSessionRecovery => {
-  const { user } = useAuthOptimized();
+  const user = useAuthStore((state) => state.user);
 
   // ✅ REACT QUERY: Check for incomplete verification sessions
   const { data: sessionData, isLoading, error } = useQuery({

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { useAuthPure } from '@/hooks/shared/useAuthPure';
+import { useAuthStore } from '@/stores/auth';
 
 interface PendingBooking {
   id: string;
@@ -29,7 +29,7 @@ interface PendingBooking {
  * Auto-refetches every minute to keep countdown timers accurate
  */
 export function usePendingBookings() {
-  const { user } = useAuthPure();
+  const user = useAuthStore((state) => state.user);
 
   return useQuery({
     queryKey: ['pending-bookings', user?.id],

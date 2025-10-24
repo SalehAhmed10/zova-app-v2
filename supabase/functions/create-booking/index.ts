@@ -10,8 +10,6 @@ interface BookingRequest {
   customer_notes?: string;
   service_address?: string;
   payment_intent_id: string;
-  authorization_amount?: number; // Full amount authorized
-  captured_deposit?: number; // Amount already captured as deposit
 }
 
 Deno.serve(async (req) => {
@@ -178,7 +176,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     console.log('Request body parsed successfully');
 
-    const { service_id, provider_id, customer_id, booking_date, start_time, customer_notes, service_address, payment_intent_id, authorization_amount, captured_deposit }: BookingRequest = body;
+    const { service_id, provider_id, customer_id, booking_date, start_time, customer_notes, service_address, payment_intent_id }: BookingRequest = body;
 
     console.log('Parsed booking request:', {
       service_id,
@@ -188,9 +186,7 @@ Deno.serve(async (req) => {
       start_time,
       customer_notes: customer_notes ? 'Present' : 'Not provided',
       service_address: service_address ? 'Present' : 'Not provided',
-      payment_intent_id,
-      authorization_amount,
-      captured_deposit
+      payment_intent_id
     });
 
     // Validate required fields
@@ -374,11 +370,11 @@ Deno.serve(async (req) => {
 
     console.log('Time slot validation passed');
 
-    // Calculate amounts
+    // ✅ IMPORTANT: Use amounts from Stripe PaymentIntent, not recalculated
+    // Frontend calculates: base_price + (base_price * 0.10) = totalAmount
+    // We trust the Stripe PaymentIntent as the source of truth
     const baseAmount = service.base_price;
-    const platformFee = Math.round(baseAmount * 0.10 * 100) / 100; // 10% platform fee
-    const totalAmount = baseAmount + platformFee;
-
+    
     // Retrieve and validate the existing PaymentIntent
     console.log('Validating payment intent:', payment_intent_id);
 
@@ -423,6 +419,19 @@ Deno.serve(async (req) => {
       amount_received: paymentIntent.amount_received
     });
 
+    // ✅ Extract amounts from PaymentIntent (convert from pence to pounds)
+    // Stripe stores amounts in pence, we convert to pounds
+    const totalAmount = paymentIntent.amount / 100; // Total customer pays (base + platform fee)
+    const platformFee = totalAmount - baseAmount; // Platform fee = total - base
+    const capturedAmount = paymentIntent.amount_received / 100; // What was actually captured
+
+    console.log('Amounts extracted from PaymentIntent:', {
+      totalAmount,
+      baseAmount,
+      platformFee,
+      capturedAmount
+    });
+
     // Verify the PaymentIntent metadata matches our booking
     const metadata = paymentIntent.metadata || {};
     if (metadata.service_id !== service_id || metadata.provider_id !== provider_id || metadata.customer_id !== customer_id) {
@@ -454,12 +463,9 @@ Deno.serve(async (req) => {
 
     console.log('Provider auto-confirm setting:', { autoConfirm, bookingStatus, autoConfirmed });
 
-    // Calculate authorization expiry (7 days from now, same as PaymentIntent)
-    const authorizationExpiry = new Date();
-    authorizationExpiry.setDate(authorizationExpiry.getDate() + 7);
-
     // Create booking record using service role (bypass RLS)
     // Status will be 'pending' if manual acceptance required, 'confirmed' if auto-accept
+    // ✅ ESCROW: Full amount is captured and held in escrow until service completion
     const { data: booking, error: bookingError } = await supabaseService
       .from('bookings')
       .insert({
@@ -475,15 +481,14 @@ Deno.serve(async (req) => {
         customer_notes: customer_notes,
         service_address: service_address,
         status: bookingStatus, // 'pending' or 'confirmed' based on provider setting
-        payment_status: 'paid', // Payment succeeded
+        payment_status: 'funds_held_in_escrow', // Full amount held in escrow
         auto_confirmed: autoConfirmed, // Track if this was auto-confirmed
-        // Authorization + Capture fields (convert decimals to integers for database)
+        // ✅ ESCROW FIELDS: Using correct column names for escrow tracking
         payment_intent_id: payment_intent_id,
-        authorization_amount: Math.round(authorization_amount || totalAmount),
-        captured_deposit: Math.round(captured_deposit || (authorization_amount ? authorization_amount * 0.2 : totalAmount * 0.2)),
-        remaining_to_capture: Math.round((authorization_amount || totalAmount) - (captured_deposit || (authorization_amount ? authorization_amount * 0.2 : totalAmount * 0.2))),
-        deposit_captured_at: new Date().toISOString(),
-        authorization_expires_at: authorizationExpiry.toISOString(),
+        captured_amount: Math.round(totalAmount * 100) / 100, // Full amount captured in escrow
+        amount_held_for_provider: Math.round(baseAmount * 100) / 100, // Provider's service amount
+        platform_fee_held: Math.round(platformFee * 100) / 100, // Platform's commission
+        funds_held_at: new Date().toISOString() // Timestamp when funds were held
         // provider_response_deadline set by trigger if status='pending'
       })
       .select()

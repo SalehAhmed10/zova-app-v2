@@ -52,8 +52,11 @@ export interface StepCompletionUpdate {
 /**
  * ✅ SINGLE SOURCE: Fetch complete verification data from database
  * No more dual tracking - database is the only truth
+ * 
+ * @param providerId - Provider ID to fetch data for
+ * @param options - Query options (e.g., { staleTime: 0 } for always fresh)
  */
-export const useVerificationData = (providerId: string | undefined) => {
+export const useVerificationData = (providerId: string | undefined, options?: { staleTime?: number }) => {
   return useQuery({
     queryKey: ['verification-data', providerId],
     queryFn: async (): Promise<VerificationData> => {
@@ -128,13 +131,14 @@ export const useVerificationData = (providerId: string | undefined) => {
       if (profileResult.error) throw profileResult.error;
 
       // Create default progress if none exists
+      // ✅ CORRECT: 8 steps total (Services step was removed)
       const progress = progressResult.data || {
         id: 'temp',
         provider_id: providerId,
         current_step: 1,
         steps_completed: {
           "1": false, "2": false, "3": false, "4": false, "5": false,
-          "6": false, "7": false, "8": false, "9": false
+          "6": false, "7": false, "8": false
         },
         verification_status: 'in_progress',
         started_at: new Date().toISOString(),
@@ -152,7 +156,7 @@ export const useVerificationData = (providerId: string | undefined) => {
       };
     },
     enabled: !!providerId,
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: options?.staleTime ?? 30 * 1000, // Default 30 seconds, or custom value
     gcTime: 5 * 60 * 1000, // 5 minutes
   });
 };
@@ -554,17 +558,22 @@ export const useVerificationValidation = () => {
           errors.push('Business name, phone, and address are required');
         }
         break;
-      case 6:
+      case 4:
+        if (!data?.categoryId) {
+          errors.push('Service category is required');
+        }
+        break;
+      case 5:  // Portfolio step - images required
         if (!data?.images || data.images.length === 0) {
           errors.push('At least one portfolio image is required');
         }
         break;
-      case 7:
+      case 6:  // Bio step - description and experience required
         if (!data?.businessDescription || data?.yearsOfExperience === undefined) {
           errors.push('Business description and years of experience are required');
         }
         break;
-      case 8:
+      case 7:
         if (!data?.termsAccepted) {
           errors.push('Terms must be accepted');
         }
@@ -607,11 +616,13 @@ export const useVerificationReconciliation = () => {
         supabase.from('profiles').select('selfie_verification_url').eq('id', providerId).single(),
         // Step 3: Business info
         supabase.from('profiles').select('business_name, phone_number, address').eq('id', providerId).single(),
-        // Step 6: Portfolio
+        // Step 4: Category
+        supabase.from('provider_selected_categories').select('id').eq('provider_id', providerId).limit(1),
+        // Step 5: Portfolio
         supabase.from('provider_portfolio_images').select('id').eq('provider_id', providerId).limit(1),
-        // Step 7: Bio
+        // Step 6: Bio
         supabase.from('profiles').select('business_description, years_of_experience').eq('id', providerId).single(),
-        // Step 8: Terms
+        // Step 7: Terms
         supabase.from('provider_business_terms').select('terms_accepted').eq('provider_id', providerId).single(),
       ]);
 
@@ -619,9 +630,11 @@ export const useVerificationReconciliation = () => {
       actualCompletion['1'] = checks[0].data && checks[0].data.length > 0;
       actualCompletion['2'] = !!(checks[1].data?.selfie_verification_url);
       actualCompletion['3'] = !!(checks[2].data?.business_name && checks[2].data?.phone_number && checks[2].data?.address);
-      actualCompletion['6'] = checks[3].data && checks[3].data.length > 0;
-      actualCompletion['7'] = !!(checks[4].data?.business_description && checks[4].data?.years_of_experience);
-      actualCompletion['8'] = checks[5].data?.terms_accepted === true;
+      actualCompletion['4'] = checks[3].data && checks[3].data.length > 0;
+      actualCompletion['5'] = checks[4].data && checks[4].data.length > 0;
+      actualCompletion['6'] = !!(checks[5].data?.business_description && checks[5].data?.years_of_experience);
+      actualCompletion['7'] = checks[6].data?.terms_accepted === true;
+      // Step 8 is not checked - it's auto-marked when verification completes
 
       // Compare with recorded status
       const recorded = currentData?.steps_completed || {};

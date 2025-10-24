@@ -13,14 +13,14 @@ import { THEME } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
 
 import { useCreateBooking } from '@/hooks/shared';
-import { useAuthPure } from '@/hooks/shared/useAuthPure';
+import { useAuthStore } from '@/stores/auth';
 
 export default function PaymentScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
   const { isDarkColorScheme } = useColorScheme();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
-  const { user } = useAuthPure();
+  const user = useAuthStore((state) => state.user);
 
   // Form state - REMOVED: Payment Sheet handles card collection
   const [isProcessing, setIsProcessing] = useState(false);

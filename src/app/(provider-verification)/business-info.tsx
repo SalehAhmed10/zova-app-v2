@@ -19,7 +19,6 @@ import { SearchableCountryCodeSelect } from '@/components/ui/searchable-country-
 import { VerificationHeader } from '@/components/verification/VerificationHeader';
 import { useVerificationData, useUpdateStepCompletion, useVerificationRealtime } from '@/hooks/provider/useVerificationSingleSource';
 import { useAuthStore } from '@/stores/auth';
-import { useVerificationNavigation } from '@/hooks/provider';
 import { useGeocoding } from '@/hooks/shared/useGeocoding';
 import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';
 import { COUNTRIES, getCountryByCode } from '@/constants/countries';
@@ -47,7 +46,6 @@ export default function BusinessInfoScreen() {
   const { user } = useAuthStore();
   const { data: verificationData, isLoading: verificationLoading } = useVerificationData(user?.id);
   const updateStepMutation = useUpdateStepCompletion();
-  const { navigateNext, navigateBack } = useVerificationNavigation();
 
   // Real-time subscription for live updates
   useVerificationRealtime(user?.id);
@@ -255,8 +253,8 @@ export default function BusinessInfoScreen() {
         },
       });
 
-      // ✅ EXPLICIT: Navigate to next step using centralized navigation
-      navigateNext();
+      // ✅ EXPLICIT: Navigate to next step
+      router.push('/(provider-verification)/category');
 
       console.log('[Business Info] Submission completed successfully');
     } catch (error) {
@@ -658,7 +656,10 @@ export default function BusinessInfoScreen() {
         <Button
           variant="outline"
           size="lg"
-          onPress={navigateBack}
+          onPress={() => {
+            // Go to selfie (step 2) - previous step before business info (step 3)
+            router.push('/(provider-verification)/selfie');
+          }}
           disabled={isSubmitting}
           className="w-full"
         >

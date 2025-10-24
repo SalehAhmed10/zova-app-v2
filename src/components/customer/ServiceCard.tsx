@@ -184,10 +184,8 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
             onPress={handleActionPress}
             className="w-full bg-primary hover:bg-primary/90 active:bg-primary/80"
           >
-            <View className="flex-row items-center justify-center gap-2">
-              <Text className="text-primary-foreground font-semibold">{actionButtonText}</Text>
-              <Feather name="arrow-right" size={16} color={isDarkColorScheme ? THEME.dark.primaryForeground : THEME.light.primaryForeground} />
-            </View>
+            <Text className="text-primary-foreground font-semibold">{actionButtonText}</Text>
+            <Feather name="arrow-right" size={16} color={isDarkColorScheme ? THEME.dark.primaryForeground : THEME.light.primaryForeground} />
           </Button>
         </CardContent>
       </Card>

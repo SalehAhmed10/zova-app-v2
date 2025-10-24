@@ -16,7 +16,8 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { usePaymentSetupStore } from '@/stores/verification/usePaymentSetupStore';
 import { useDeepLinkHandler } from '@/hooks/shared/useDeepLinkHandler';
 import * as WebBrowser from 'expo-web-browser';
-import { useProfile } from '@/hooks/auth/useProfile';
+import { useProfile } from '@/hooks/shared/useProfileData';
+import { useAuthStore } from '@/stores/auth';
 
 interface StripeAccountStatus {
   hasStripeAccount: boolean;
@@ -31,9 +32,10 @@ export default function PaymentsScreen() {
   const { colorScheme, isDarkColorScheme } = useColorScheme();
   const colors = THEME[colorScheme];
   const queryClient = useQueryClient();
+  const user = useAuthStore((state) => state.user);
 
   // ✅ REACT QUERY: Fetch user profile for phone info
-  const { data: profile } = useProfile();
+  const { data: profile } = useProfile(user?.id);
 
   console.log('[PaymentsScreen] Profile data:', {
     hasProfile: !!profile,

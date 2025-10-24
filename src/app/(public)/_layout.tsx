@@ -1,6 +1,5 @@
 import { Redirect, Stack } from 'expo-router';
 import { useAuthStore } from '@/stores/auth';
-import { useProfile } from '@/hooks/auth/useProfile';
 
 /**
  * (public) Route Group Layout

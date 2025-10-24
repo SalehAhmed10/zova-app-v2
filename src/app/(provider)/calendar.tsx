@@ -21,7 +21,7 @@ import {
   useCalendarTimeSlots,
   useCalendarWeekData
 } from '@/hooks/provider/useCalendarData';
-import { useAuthPure } from '@/hooks/shared/useAuthPure';
+import { useAuthStore } from '@/stores/auth';
 import { Skeleton } from '@/components/ui/skeleton';
 
 // Icons - Using proper Ionicons for better consistency and contrast
@@ -368,7 +368,7 @@ function isValidWeeklySchedule(schedule: any): schedule is WeeklySchedule {
 export default function ProviderCalendar() {
   const { colorScheme } = useColorScheme();
   const colors = THEME[colorScheme];
-  const { user } = useAuthPure();
+  const user = useAuthStore((state) => state.user);
 
   // Bottom sheet ref
   const bottomSheetModalRef = useRef<BottomSheetModal>(null);

@@ -13,7 +13,7 @@ import { BottomSheetModal, BottomSheetBackdrop, BottomSheetScrollView } from '@g
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 
 // React Query hooks
-import { useAuthOptimized } from '@/hooks';
+import { useAuthStore } from '@/stores/auth';
 import { useCustomerBookings } from '@/hooks/customer/useBookings';
 
 // UI Components
@@ -45,7 +45,7 @@ const ProviderSelectionScreen = () => {
   // Bottom sheet ref
   const bottomSheetModalRef = useRef<BottomSheetModal>(null);
 
-  const { user } = useAuthOptimized();
+  const user = useAuthStore((state) => state.user);
   const { data: bookings, isLoading: bookingsLoading, refetch: refetchBookings } = useCustomerBookings(user?.id);
   const { colorScheme, isDarkColorScheme } = useColorScheme();
   

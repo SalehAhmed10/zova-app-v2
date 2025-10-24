@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ScrollView } from 'react-native';
+import { View, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text } from '@/components/ui/text';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,11 +16,22 @@ import {
   hasActiveSubscription,
   type UserSubscription
 } from '@/hooks/shared/useSubscription';
-import { Star, Calendar, CreditCard, Plus, TrendingUp } from 'lucide-react-native';
+import {
+  Star,
+  Calendar,
+  Zap,
+  CheckCircle,
+  ArrowRight,
+  Sparkles,
+  TrendingUp
+} from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { THEME } from '@/lib/theme';
 import { formatCurrency } from '@/lib/utils';
+import { Icon } from '@/components/ui/icon';
+import { cn } from '@/lib/utils';
+import Animated, { FadeIn, SlideInUp } from 'react-native-reanimated';
 
 export default function ProviderSubscriptionsScreen() {
   const { data: allSubscriptions, isLoading } = useUserSubscriptions();
@@ -49,99 +60,115 @@ export default function ProviderSubscriptionsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <View className="p-4 gap-6">
-          {/* Header */}
-          <View>
-            <Text className="text-2xl font-bold text-foreground">Premium Subscription</Text>
-            <Text className="text-sm text-muted-foreground mt-1">
-              Boost your business with premium provider features
+      {/* Modern Header */}
+      <Animated.View entering={FadeIn} className="px-4 py-5 border-b border-border/50 bg-card/50 backdrop-blur-sm">
+        <View className="flex-row items-center gap-3">
+          <View className="w-12 h-12 bg-primary/10 rounded-xl items-center justify-center">
+            <Icon as={Sparkles} size={24} className="text-primary" />
+          </View>
+          <View className="flex-1">
+            <Text className="text-2xl font-bold text-foreground">Premium Plan</Text>
+            <Text className="text-xs text-muted-foreground mt-0.5">
+              Unlock advanced business features
             </Text>
           </View>
+        </View>
+      </Animated.View>
 
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        <View className="p-4 gap-5">
           {/* Active Subscription */}
           {providerSubscription && (
-            <View className="gap-3">
-              <Text className="text-lg font-semibold text-foreground">Current Plan</Text>
+            <Animated.View entering={SlideInUp}>
               <ProviderSubscriptionCard subscription={providerSubscription} />
-            </View>
+            </Animated.View>
           )}
 
           {/* Available Plan - Only show if no active subscription */}
           {!hasProviderPremium && !providerSubscription && !activeProviderSub && (
-            <View className="gap-3">
-              <Text className="text-lg font-semibold text-foreground">Available Plan</Text>
+            <Animated.View entering={SlideInUp.delay(100)}>
               <ProviderAvailablePlanCard />
-            </View>
+            </Animated.View>
           )}
 
-          {/* Benefits */}
-          <View className="gap-3">
-            <Text className="text-lg font-semibold text-foreground">Premium Benefits</Text>
-            <View className="gap-2">
-              <Card>
-                <CardContent className="p-4">
-                  <View className="flex-row items-center gap-3 mb-3">
-                    <View className="p-2 rounded-full bg-primary/10">
-                      <TrendingUp size={20} color={colors.success} />
+          {/* Benefits Section */}
+          <Animated.View entering={SlideInUp.delay(200)}>
+            <View className="gap-3">
+              <Text className="text-lg font-bold text-foreground px-1">Premium Benefits</Text>
+              
+              {/* Business Growth Benefits */}
+              <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+                <CardContent className="p-5">
+                  <View className="flex-row items-start gap-4">
+                    <View className="w-12 h-12 bg-primary/10 rounded-xl items-center justify-center flex-shrink-0">
+                      <Icon as={TrendingUp} size={24} className="text-primary" />
                     </View>
-                    <Text className="text-base font-medium text-foreground">Business Growth</Text>
-                  </View>
-                  <View className="gap-2">
-                    {[
-                      'Priority placement in search results',
-                      'Featured provider badge',
-                      'Advanced analytics dashboard',
-                    ].map((feature, index) => (
-                      <View key={index} className="flex-row items-center gap-3">
-                        <View className="w-2 h-2 rounded-full bg-primary" />
-                        <Text className="text-sm text-foreground flex-1">{feature}</Text>
+                    <View className="flex-1">
+                      <Text className="text-base font-bold text-foreground mb-3">Business Growth</Text>
+                      <View className="gap-2.5">
+                        {[
+                          { icon: CheckCircle, text: 'Priority search placement' },
+                          { icon: CheckCircle, text: 'Featured provider badge' },
+                          { icon: CheckCircle, text: 'Advanced analytics' }
+                        ].map((item, i) => (
+                          <View key={i} className="flex-row items-center gap-2">
+                            <Icon as={item.icon} size={14} className="text-primary flex-shrink-0" />
+                            <Text className="text-sm text-foreground">{item.text}</Text>
+                          </View>
+                        ))}
                       </View>
-                    ))}
+                    </View>
                   </View>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardContent className="p-4">
-                  <View className="flex-row items-center gap-3 mb-3">
-                    <View className="p-2 rounded-full bg-primary/10">
-                      <Star size={20} color={colors.success} />
+              {/* Enhanced Features Benefits */}
+              <Card className="border-secondary/20 bg-gradient-to-br from-secondary/5 to-transparent">
+                <CardContent className="p-5">
+                  <View className="flex-row items-start gap-4">
+                    <View className="w-12 h-12 bg-secondary/10 rounded-xl items-center justify-center flex-shrink-0">
+                      <Icon as={Star} size={24} className="text-secondary" />
                     </View>
-                    <Text className="text-base font-medium text-foreground">Enhanced Features</Text>
-                  </View>
-                  <View className="gap-2">
-                    {[
-                      'Customer insights & booking trends',
-                      'Enhanced profile customization',
-                      'Priority customer support',
-                    ].map((feature, index) => (
-                      <View key={index} className="flex-row items-center gap-3">
-                        <View className="w-2 h-2 rounded-full bg-primary" />
-                        <Text className="text-sm text-foreground flex-1">{feature}</Text>
+                    <View className="flex-1">
+                      <Text className="text-base font-bold text-foreground mb-3">Enhanced Features</Text>
+                      <View className="gap-2.5">
+                        {[
+                          { icon: CheckCircle, text: 'Customer insights' },
+                          { icon: CheckCircle, text: 'Profile customization' },
+                          { icon: CheckCircle, text: 'Priority support' }
+                        ].map((item, i) => (
+                          <View key={i} className="flex-row items-center gap-2">
+                            <Icon as={item.icon} size={14} className="text-secondary flex-shrink-0" />
+                            <Text className="text-sm text-foreground">{item.text}</Text>
+                          </View>
+                        ))}
                       </View>
-                    ))}
+                    </View>
                   </View>
                 </CardContent>
               </Card>
             </View>
-          </View>
+          </Animated.View>
 
           {/* Subscription History */}
           {allSubscriptions && allSubscriptions.filter(s => s.type === 'provider_premium').length > 0 && (
-            <View className="gap-3">
-              <Text className="text-lg font-semibold text-foreground">History</Text>
-              
-              {allSubscriptions
-                .filter(s => s.type === 'provider_premium')
-                .map((subscription) => (
-                  <HistorySubscriptionCard 
-                    key={subscription.id}
-                    subscription={subscription}
-                  />
-                ))}
-            </View>
+            <Animated.View entering={SlideInUp.delay(300)}>
+              <View className="gap-3">
+                <Text className="text-lg font-bold text-foreground px-1">Subscription History</Text>
+                {allSubscriptions
+                  .filter(s => s.type === 'provider_premium')
+                  .map((subscription) => (
+                    <HistorySubscriptionCard 
+                      key={subscription.id}
+                      subscription={subscription}
+                    />
+                  ))}
+              </View>
+            </Animated.View>
           )}
+
+          {/* Footer Spacing */}
+          <View className="h-4" />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -178,96 +205,110 @@ function ProviderSubscriptionCard({ subscription }: { subscription: UserSubscrip
   const period = getSubscriptionPeriod(subscription);
 
   return (
-    <Card className={`relative ${isActive ? 'border-primary' : 'border-border'}`}>
-      {isActive && (
-        <View className="absolute -top-2 -right-2">
-          <Badge variant="default">
-            <Text className="text-xs font-medium text-primary-foreground">Active</Text>
-          </Badge>
-        </View>
-      )}
-      
-      <CardHeader>
-        <View className="flex-row items-center gap-3">
-          <View className="p-2 rounded-full bg-primary/10">
-            <Star size={20} color={colors.success} />
+    <Animated.View entering={FadeIn}>
+      <Card className={cn(
+        'relative overflow-hidden border-2',
+        isActive ? 'bg-gradient-to-br from-primary/10 to-primary/5 border-primary/30' : 'bg-card border-border'
+      )}>
+        {/* Animated Background Gradient */}
+        {isActive && (
+          <View className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-50" />
+        )}
+
+        <CardContent className="p-5 relative z-10">
+          {/* Header */}
+          <View className="flex-row items-center justify-between mb-5">
+            <View className="flex-row items-center gap-3 flex-1">
+              <View className={cn(
+                "w-12 h-12 rounded-xl items-center justify-center",
+                isActive ? 'bg-primary/15' : 'bg-secondary/15'
+              )}>
+                <Icon as={Star} size={24} className={isActive ? 'text-primary' : 'text-secondary'} />
+              </View>
+              <View className="flex-1">
+                <Text className="text-base font-bold text-foreground">{priceInfo.displayName}</Text>
+                <View className="flex-row items-center gap-2 mt-1">
+                  <View className={cn(
+                    "w-2 h-2 rounded-full",
+                    isActive ? 'bg-success' : 'bg-warning'
+                  )} />
+                  <Text className="text-xs text-muted-foreground font-medium">
+                    {formatSubscriptionStatus(subscription.status)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+            {isActive && (
+              <Badge className="bg-success/15 border-success/30">
+                <Text className="text-xs font-bold text-success">Active</Text>
+              </Badge>
+            )}
           </View>
-          <View className="flex-1">
-            <CardTitle className="text-base">{priceInfo.displayName}</CardTitle>
-            <View className="flex-row items-center gap-2 mt-1">
-              <View className={`w-2 h-2 rounded-full ${
-                isActive ? 'bg-green-500' : 'bg-yellow-500'
-              }`} />
-              <Text className="text-xs text-muted-foreground">
-                {formatSubscriptionStatus(subscription.status)}
+
+          {/* Pricing */}
+          <View className="mb-5 pb-5 border-b border-border/50">
+            <View className="flex-row items-baseline gap-2">
+              <Text className="text-3xl font-bold text-foreground">
+                {formatCurrency(priceInfo.amount / 100)}
               </Text>
-              {subscription.cancel_at_period_end && (
-                <Badge variant="secondary" className="ml-auto">
-                  <Text className="text-xs">Ending Soon</Text>
-                </Badge>
-              )}
+              <Text className="text-sm text-muted-foreground font-medium">/month</Text>
             </View>
           </View>
-        </View>
-      </CardHeader>
 
-      <CardContent className="pt-0 gap-3">
-        {/* Pricing */}
-        <View className="flex-row items-baseline gap-1">
-          <Text className="text-xl font-bold text-foreground">
-            {formatCurrency(priceInfo.amount / 100)}
-          </Text>
-          <Text className="text-xs text-muted-foreground">per month</Text>
-        </View>
-
-        {/* Billing Period */}
-        <View className="flex-row items-center gap-2 p-2 bg-muted/50 rounded">
-          <Calendar size={14} color={colors.mutedForeground} />
-          <View className="flex-1">
-            <Text className="text-xs text-muted-foreground">Next billing</Text>
-            <Text className="text-sm text-foreground">
-              {period.end.toLocaleDateString()}
-            </Text>
+          {/* Billing Period */}
+          <View className="flex-row items-center gap-3 p-4 bg-card/50 border border-border/50 rounded-xl mb-5">
+            <View className="w-10 h-10 bg-primary/10 rounded-lg items-center justify-center">
+              <Icon as={Calendar} size={20} className="text-primary" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-xs text-muted-foreground">Next billing</Text>
+              <Text className="text-sm font-bold text-foreground">{period.end.toLocaleDateString()}</Text>
+            </View>
+            <View className="items-end">
+              <Badge className="bg-primary/10 border-primary/20">
+                <Text className="text-xs font-semibold text-primary">{period.daysRemaining}d</Text>
+              </Badge>
+            </View>
           </View>
-          <Text className="text-xs text-muted-foreground">
-            {period.daysRemaining} days
-          </Text>
-        </View>
 
-        {/* Actions */}
-        <View className="flex-row gap-2">
-          {subscription.cancel_at_period_end ? (
-            <Button 
-              onPress={handleReactivate}
-              disabled={reactivateMutation.isPending}
-              className="flex-1"
-            >
-              <Text className="text-primary-foreground font-medium text-sm">
-                {reactivateMutation.isPending ? 'Reactivating...' : 'Reactivate'}
+          {subscription.cancel_at_period_end && (
+            <View className="flex-row items-start gap-3 p-4 bg-warning/10 border border-warning/20 rounded-xl mb-5">
+              <Icon as={Zap} size={16} className="text-warning mt-0.5 flex-shrink-0" />
+              <Text className="text-xs text-warning font-medium">
+                Your subscription will end on {period.end.toLocaleDateString()}
               </Text>
-            </Button>
-          ) : (
-            <Button 
-              variant="outline"
-              onPress={handleCancel}
-              disabled={cancelMutation.isPending}
-              className="flex-1"
-            >
-              <Text className="text-foreground font-medium text-sm">
-                {cancelMutation.isPending ? 'Cancelling...' : 'Cancel'}
-              </Text>
-            </Button>
+            </View>
           )}
-          
-          <Button 
-            variant="ghost"
-            onPress={() => router.push('/(provider)/profile')}
-          >
-            <CreditCard size={16} color={colors.mutedForeground} />
-          </Button>
-        </View>
-      </CardContent>
-    </Card>
+
+          {/* Actions */}
+          <View className="flex-row gap-2">
+            {subscription.cancel_at_period_end ? (
+              <Button 
+                onPress={handleReactivate}
+                disabled={reactivateMutation.isPending}
+                className="flex-1"
+              >
+                <Icon as={Sparkles} size={16} className="text-primary-foreground mr-2" />
+                <Text className="text-primary-foreground font-bold text-sm">
+                  {reactivateMutation.isPending ? 'Reactivating...' : 'Reactivate'}
+                </Text>
+              </Button>
+            ) : (
+              <Button 
+                variant="outline"
+                onPress={handleCancel}
+                disabled={cancelMutation.isPending}
+                className="flex-1"
+              >
+                <Text className="text-foreground font-bold text-sm">
+                  {cancelMutation.isPending ? 'Cancelling...' : 'Cancel'}
+                </Text>
+              </Button>
+            )}
+          </View>
+        </CardContent>
+      </Card>
+    </Animated.View>
   );
 }
 
@@ -277,7 +318,6 @@ function ProviderAvailablePlanCard() {
   const colors = THEME[isDarkColorScheme ? 'dark' : 'light'];
   
   const handleSubscribe = () => {
-    // Navigate to checkout screen with subscription type
     router.push({
       pathname: '/subscriptions/checkout',
       params: { type: 'PROVIDER_PREMIUM' }
@@ -285,37 +325,61 @@ function ProviderAvailablePlanCard() {
   };
 
   return (
-    <Card className="border-dashed border-2 border-muted-foreground/30">
-      <CardHeader>
-        <View className="flex-row items-center gap-3">
-          <View className="p-2 rounded-full bg-muted">
-            <Star size={20} color={colors.mutedForeground} />
+    <Animated.View entering={FadeIn}>
+      <Card className="bg-gradient-to-br from-primary/15 to-primary/5 border-2 border-dashed border-primary/30">
+        <CardContent className="p-6">
+          <View className="flex-row items-start justify-between mb-6">
+            <View className="flex-row items-center gap-3 flex-1">
+              <View className="w-14 h-14 bg-primary/20 rounded-xl items-center justify-center">
+                <Icon as={Sparkles} size={28} className="text-primary" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-base font-bold text-foreground">{priceInfo.displayName}</Text>
+                <Text className="text-xs text-muted-foreground mt-1">
+                  {priceInfo.description}
+                </Text>
+              </View>
+            </View>
           </View>
-          <View className="flex-1">
-            <CardTitle className="text-base text-muted-foreground">
-              {priceInfo.displayName}
-            </CardTitle>
-            <CardDescription className="text-xs">
-              {priceInfo.description}
-            </CardDescription>
+
+          {/* Pricing Display */}
+          <View className="mb-6 pb-6 border-b border-primary/20">
+            <View className="flex-row items-baseline gap-2">
+              <Text className="text-4xl font-bold text-primary">
+                {formatCurrency(priceInfo.amount / 100)}
+              </Text>
+              <Text className="text-sm text-muted-foreground font-medium">/month</Text>
+            </View>
+            <Text className="text-xs text-muted-foreground mt-2">
+              First 7 days free • Cancel anytime
+            </Text>
           </View>
-        </View>
-      </CardHeader>
 
-      <CardContent className="pt-0 gap-3">
-        <View className="flex-row items-baseline gap-1">
-          <Text className="text-xl font-bold text-foreground">
-            {formatCurrency(priceInfo.amount / 100)}
-          </Text>
-          <Text className="text-xs text-muted-foreground">per month</Text>
-        </View>
+          {/* Quick Features */}
+          <View className="gap-3 mb-6">
+            {[
+              'Advanced analytics dashboard',
+              'Priority customer support',
+              'Enhanced profile visibility'
+            ].map((feature, i) => (
+              <View key={i} className="flex-row items-center gap-3">
+                <View className="w-5 h-5 bg-primary/20 rounded-full items-center justify-center flex-shrink-0">
+                  <Icon as={CheckCircle} size={12} className="text-primary" />
+                </View>
+                <Text className="text-sm text-foreground">{feature}</Text>
+              </View>
+            ))}
+          </View>
 
-        <Button onPress={handleSubscribe} className="w-full">
-          <Plus size={16} color={colors.primaryForeground} className="mr-2" />
-          <Text className="text-primary-foreground font-medium">Upgrade to Premium</Text>
-        </Button>
-      </CardContent>
-    </Card>
+          {/* CTA Button */}
+          <Button onPress={handleSubscribe} className="w-full h-12">
+            <Icon as={Sparkles} size={18} className="text-primary-foreground mr-2" />
+            <Text className="text-primary-foreground font-bold">Upgrade Now</Text>
+            <Icon as={ArrowRight} size={16} className="text-primary-foreground ml-auto" />
+          </Button>
+        </CardContent>
+      </Card>
+    </Animated.View>
   );
 }
 
@@ -326,13 +390,22 @@ function HistorySubscriptionCard({ subscription }: { subscription: UserSubscript
   const colors = THEME[isDarkColorScheme ? 'dark' : 'light'];
 
   return (
-    <Card className="opacity-75">
-      <CardContent className="p-3">
+    <Card className="opacity-70 border-border/50">
+      <CardContent className="p-4">
         <View className="flex-row items-center justify-between">
-          <View className="flex-row items-center gap-2">
-            <Star size={16} color={colors.mutedForeground} />
-            <View>
-              <Text className="text-sm font-medium text-foreground">
+          <View className="flex-row items-center gap-3 flex-1">
+            <View className={cn(
+              "w-10 h-10 rounded-lg items-center justify-center",
+              isActive ? 'bg-success/10' : 'bg-muted/50'
+            )}>
+              <Icon 
+                as={Star} 
+                size={18} 
+                className={isActive ? 'text-success' : 'text-muted-foreground'} 
+              />
+            </View>
+            <View className="flex-1">
+              <Text className="text-sm font-semibold text-foreground">
                 {priceInfo.displayName}
               </Text>
               <Text className="text-xs text-muted-foreground">
@@ -341,8 +414,13 @@ function HistorySubscriptionCard({ subscription }: { subscription: UserSubscript
             </View>
           </View>
           
-          <Badge variant={isActive ? 'default' : 'secondary'}>
-            <Text className="text-xs">
+          <Badge variant={isActive ? 'default' : 'secondary'} className={cn(
+            isActive ? 'bg-success/15 border-success/30' : 'bg-muted border-border'
+          )}>
+            <Text className={cn(
+              'text-xs font-bold',
+              isActive && 'text-success'
+            )}>
               {formatSubscriptionStatus(subscription.status)}
             </Text>
           </Badge>

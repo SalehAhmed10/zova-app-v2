@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -6,17 +6,22 @@ import { Filter, MapPin, Locate } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
-import {
-  SearchInput,
-  SearchResults,
-  SearchFilters,
-  ProviderSearchCard,
-  type SearchFilters as SearchFiltersType,
-} from '@/components/customer/search';
-import { useServiceSearch, useProviderSearch, useServiceCategories } from '@/hooks';
+
+import { BottomSheetModal, BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
+// Import directly from the RPC-based implementation to avoid confusion
+import { useProviderSearch } from '@/hooks/shared/use-provider-search';
+import { useServiceSearch, useServiceCategories } from '@/hooks';
 import { useSearchStore, useSearchHydration } from '@/stores/customer/search-store';
+import type { SearchFilters } from '@/stores/customer/search-store';
 import { useLocationPermission } from '@/hooks/shared/useLocation';
+import { useColorScheme } from '@/lib/core/useColorScheme';
 import { FlashList } from '@shopify/flash-list';
+import { ProviderSearchCard, SearchInput, SearchResults } from '@/components/customer/search';
+
+// Local filter type for UI
+interface UIFilters {
+  sortBy: 'rating' | 'price' | 'popularity';
+}
 
 /**
  * Modern Search Screen
@@ -33,13 +38,14 @@ import { FlashList } from '@shopify/flash-list';
 export default function SearchScreen() {
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'services' | 'providers'>('services');
-  const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState<SearchFiltersType>({
-    sortBy: 'relevance',
+  const [filters, setFilters] = useState<UIFilters>({
+    sortBy: 'rating',
   });
 
+  const filterBottomSheetRef = useRef<BottomSheetModal>(null);
   const isHydrated = useSearchHydration();
   const params = useLocalSearchParams();
+  const { colorScheme } = useColorScheme();
   const { hasPermission, requestPermission, getCurrentLocation } = useLocationPermission();
   const [isGettingLocation, setIsGettingLocation] = useState(false);
 
@@ -137,7 +143,7 @@ export default function SearchScreen() {
           <Button
             variant="outline"
             size="icon"
-            onPress={() => setShowFilters(true)}
+            onPress={() => filterBottomSheetRef.current?.present()}
             className="w-12 h-12"
           >
             <Icon as={Filter} size={20} />
@@ -166,9 +172,9 @@ export default function SearchScreen() {
                 ? 'Searching...' 
                 : `${resultsCount} ${activeTab} found`}
             </Text>
-            {filters.sortBy !== 'relevance' && (
+            {filters.sortBy !== 'rating' && (
               <Text className="text-xs text-muted-foreground">
-                Sorted by: {filters.sortBy.replace('_', ' ')}
+                Sorted by: {filters.sortBy}
               </Text>
             )}
           </View>
@@ -282,13 +288,83 @@ export default function SearchScreen() {
       </View>
 
       {/* Filters Bottom Sheet */}
-      <SearchFilters
-        filters={filters}
-        onFiltersChange={setFilters}
-        isVisible={showFilters}
-        onClose={() => setShowFilters(false)}
-        categories={categories || []} // Use dynamic categories from database
-      />
+      <BottomSheetModal
+        ref={filterBottomSheetRef}
+        index={0}
+        snapPoints={['85%']}
+        backdropComponent={(props) => (
+          <BottomSheetBackdrop
+            {...props}
+            disappearsOnIndex={-1}
+            appearsOnIndex={0}
+            opacity={0.5}
+          />
+        )}
+        backgroundStyle={{
+          backgroundColor: colorScheme === 'dark' ? 'hsl(270 5.5556% 7.0588%)' : 'hsl(0 0% 100%)',
+        }}
+        handleIndicatorStyle={{ backgroundColor: '#6B7280' }}
+      >
+        <BottomSheetScrollView className="flex-1 bg-background px-4 pb-8">
+          {/* Header */}
+          <View className="py-4 border-b border-border mb-4">
+            <View className="flex-row items-center justify-between">
+              <Text className="text-xl font-bold text-foreground">Filters</Text>
+              <Button
+                variant="ghost"
+                size="sm"
+                onPress={() => {
+                  setFilters({ sortBy: 'rating' });
+                  filterBottomSheetRef.current?.dismiss();
+                }}
+              >
+                <Text className="text-sm text-primary">Clear</Text>
+              </Button>
+            </View>
+          </View>
+
+          {/* Sort By */}
+          <View className="mb-6">
+            <Text className="text-sm font-semibold text-foreground mb-3">Sort By</Text>
+            <View className="gap-2">
+              {[
+                { value: 'rating' as const, label: 'Rating' },
+                { value: 'price' as const, label: 'Price' },
+                { value: 'popularity' as const, label: 'Popularity' },
+              ].map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  onPress={() => setFilters({ ...filters, sortBy: option.value })}
+                  className={`p-3 rounded-lg border ${
+                    filters.sortBy === option.value
+                      ? 'bg-primary/10 border-primary'
+                      : 'bg-card border-border'
+                  }`}
+                >
+                  <Text
+                    className={`text-sm font-medium ${
+                      filters.sortBy === option.value ? 'text-primary' : 'text-foreground'
+                    }`}
+                  >
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Apply Button */}
+          <Button
+            onPress={() => {
+              // Filters are already applied through state
+              filterBottomSheetRef.current?.dismiss();
+            }}
+            className="w-full mt-4"
+          >
+            <Text className="text-white font-semibold">Apply Filters</Text>
+          </Button>
+        </BottomSheetScrollView>
+      </BottomSheetModal>
     </SafeAreaView>
   );
 }

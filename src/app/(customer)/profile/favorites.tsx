@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Skeleton } from '@/components/ui/skeleton';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useAuthPure } from '@/hooks/shared/useAuthPure';
+import { useAuthStore } from '@/stores/auth';
 import { useUserFavorites, useToggleFavorite } from '@/hooks/customer/useFavorites';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChevronLeft } from 'lucide-react-native';
@@ -38,7 +38,7 @@ const FavoritesSkeleton = () => (
 export default function FavoritesScreen() {
   const [activeTab, setActiveTab] = React.useState('all');
   const [refreshing, setRefreshing] = React.useState(false);
-  const { user } = useAuthPure();
+  const user = useAuthStore((state) => state.user);
   const { data: favorites, isLoading, error, refetch } = useUserFavorites(user?.id);
   const toggleFavoriteMutation = useToggleFavorite();
   const { isDarkColorScheme } = useColorScheme();

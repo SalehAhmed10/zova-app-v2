@@ -5,7 +5,7 @@
  * using the centralized path system.
  */
 
-import { supabase } from '../core/supabase';
+import { supabase } from "@/lib/supabase";
 import * as FileSystem from 'expo-file-system/legacy';
 import { 
   ProviderVerificationPaths, 
@@ -187,46 +187,76 @@ export class OrganizedStorageService {
   }
 
   /**
-   * Get Multiple Signed URLs for Portfolio Images
+   * Get Long-Lived Signed URLs for Portfolio Images
+   * Since verification-images bucket is private, we use signed URLs with very long expiry
+   * Portfolio images should be viewable for extended periods (up to 10 years)
    */
-  async getPortfolioSignedUrls(portfolioImages: Array<{ image_url: string; id: string }>): Promise<Array<{ id: string; signedUrl: string | null }>> {
+  async getPortfolioPublicUrls(portfolioImages: Array<{ image_url: string; id: string }>): Promise<Array<{ id: string; signedUrl: string | null }>> {
+    console.log('[Portfolio] Generating long-lived signed URLs for', portfolioImages.length, 'portfolio images');
+    
     const results = await Promise.all(
       portfolioImages.map(async (img) => {
-        // Extract file path from stored URL
-        let filePath = StoragePathUtils.extractFilePathFromUrl(img.image_url) || img.image_url;
-        
-        // Try the extracted path first
-        let result = await this.getSignedUrl(filePath);
-        
-        // If not found, try to migrate from old path format
-        if (!result.success) {
-          console.log('Portfolio image not found at extracted path, trying migration');
+        try {
+          // Extract file path from stored URL or use image_url directly
+          let filePath = StoragePathUtils.extractFilePathFromUrl(img.image_url) || img.image_url;
           
-          // Extract filename from the path
-          const pathParts = filePath.split('/');
-          const filename = pathParts[pathParts.length - 1];
+          console.log(`[Portfolio] Processing image ${img.id}, filePath:`, filePath);
           
-          if (filename && filename.startsWith('image_')) {
-            // Try new organized path
-            const newPath = `providers/${this.providerId}/portfolio/${filename}`;
-            console.log('Trying new organized path for portfolio:', newPath);
-            
-            result = await this.getSignedUrl(newPath);
-            
-            if (result.success) {
-              console.log('Found portfolio image with new organized path');
-            }
+          // Remove bucket prefix if present
+          if (filePath.startsWith('verification-images/')) {
+            filePath = filePath.replace('verification-images/', '');
           }
+          
+          console.log(`[Portfolio] Cleaned filePath:`, filePath);
+          
+          // Create signed URL with 10-year expiry (315,360,000 seconds)
+          // This essentially makes it "never expire" in practical terms
+          const expirySeconds = 60 * 60 * 24 * 365 * 10; // 10 years
+          
+          const { data, error } = await supabase.storage
+            .from(STORAGE_CONFIG.buckets.verification)
+            .createSignedUrl(filePath, expirySeconds);
+          
+          if (error || !data?.signedUrl) {
+            throw error || new Error('Failed to generate signed URL');
+          }
+          
+          // Use the signed URL directly - ensure it's a valid string
+          const signedUrl = data.signedUrl;
+          
+          // Validate the URL format for React Native
+          if (!signedUrl.startsWith('https://')) {
+            throw new Error('Invalid signed URL format - must be HTTPS');
+          }
+          
+          console.log(`[Portfolio] Generated long-lived signed URL for ${img.id}:`, signedUrl.substring(0, 120) + '...');
+          console.log(`[Portfolio] FULL SIGNED URL: ${signedUrl}`);
+          console.log(`[Portfolio] URL is valid: ${signedUrl.startsWith('https://') && signedUrl.length > 50}`);
+          
+          return {
+            id: img.id,
+            signedUrl: signedUrl
+          };
+        } catch (error) {
+          console.error(`[Portfolio] Error generating signed URL for image ${img.id}:`, error);
+          return {
+            id: img.id,
+            signedUrl: null
+          };
         }
-        
-        return {
-          id: img.id,
-          signedUrl: result.success ? result.signedUrl! : null
-        };
       })
     );
 
+    console.log('[Portfolio] Signed URLs generated, results:', results.length);
     return results;
+  }
+
+  /**
+   * Get Multiple Signed URLs for Portfolio Images
+   */
+  async getPortfolioSignedUrls(portfolioImages: Array<{ image_url: string; id: string }>): Promise<Array<{ id: string; signedUrl: string | null }>> {
+    // Using long-lived signed URLs (10 year expiry) instead of short-lived ones
+    return this.getPortfolioPublicUrls(portfolioImages);
   }
 
   /**

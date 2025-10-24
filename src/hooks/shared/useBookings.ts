@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { useAuthPure } from '@/hooks/shared/useAuthPure';
+import { useAuthStore } from '@/stores/auth';
 import { Database } from '@/types/supabase';
 
 type Booking = Database['public']['Tables']['bookings']['Row'];
@@ -20,7 +20,7 @@ type CreateBookingParams = {
 
 // Hook for creating a booking
 export function useCreateBooking() {
-  const { user } = useAuthPure();
+  const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -85,7 +85,7 @@ export function useCreateBooking() {
 
 // Hook for fetching customer bookings
 export function useCustomerBookings() {
-  const { user } = useAuthPure();
+  const user = useAuthStore((state) => state.user);
 
   return useQuery({
     queryKey: ['customer-bookings', user?.id],
@@ -121,7 +121,7 @@ export function useCustomerBookings() {
 
 // Hook for fetching provider bookings
 export function useProviderBookings() {
-  const { user } = useAuthPure();
+  const user = useAuthStore((state) => state.user);
 
   return useQuery({
     queryKey: ['provider-bookings', user?.id],

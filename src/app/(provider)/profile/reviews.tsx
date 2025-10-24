@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useAuthOptimized } from '@/hooks';
+import { useAuthStore } from '@/stores/auth';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useColorScheme } from '@/lib/core/useColorScheme';
@@ -34,7 +34,7 @@ interface Review {
 }
 
 export default function ProviderReviewsScreen() {
-  const { user } = useAuthOptimized();
+  const user = useAuthStore((state) => state.user);
   const { isDarkColorScheme } = useColorScheme();
   const colors = THEME[isDarkColorScheme ? 'dark' : 'light'];
   const [refreshing, setRefreshing] = useState(false);

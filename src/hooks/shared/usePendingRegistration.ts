@@ -5,21 +5,13 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { useAuthPure } from './useAuthPure';
-
-interface PendingRegistration {
-  email: string;
-  role: 'customer' | 'provider';
-  timestamp: number;
-}
+import { checkPendingRegistration, clearPendingRegistration, type PendingRegistration } from '@/lib/auth/pending-registration';
 
 /**
  * Handles pending registration detection with React Query
  * ✅ No useEffect - pure React Query logic
  */
 export const usePendingRegistration = () => {
-  const { checkPendingRegistration, clearPendingRegistration } = useAuthPure();
-
   // ✅ React Query handles pending registration check
   const { 
     data: pendingRegistration, 

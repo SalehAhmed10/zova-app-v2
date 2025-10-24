@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useAuthPure as useAuthOptimized } from '../shared/useAuthPure';
+import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/lib/supabase';
 
 interface ConflictData {
@@ -30,7 +30,7 @@ interface UseConflictResolutionReturn {
  * ✅ Detects and resolves cross-device verification conflicts
  */
 export const useConflictResolution = (): UseConflictResolutionReturn => {
-  const { user } = useAuthOptimized();
+  const user = useAuthStore((state) => state.user);
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [conflictData, setConflictData] = useState<ConflictData | null>(null);
 

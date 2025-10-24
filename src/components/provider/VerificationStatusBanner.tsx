@@ -27,8 +27,8 @@ import { Text } from '@/components/ui/text';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { THEME } from '@/lib/theme';
 import { cn } from '@/lib/utils';
-import { useVerificationStatusPure } from '@/hooks/provider';
-import { useAuthOptimized } from '@/hooks';
+import { useVerificationData } from '@/hooks/provider/useVerificationSingleSource';
+import { useAuthStore } from '@/stores/auth';
 
 // AsyncStorage key for dismissal
 const BANNER_DISMISSED_KEY = 'verification-status-banner-dismissed';
@@ -102,10 +102,10 @@ export function VerificationStatusBanner() {
 
   // ✅ FIX: Use React Query directly instead of Zustand store
   // This prevents stale cache issues - database is source of truth
-  const { user } = useAuthOptimized();
-  const { data: verificationData, isLoading: isQueryLoading } = useVerificationStatusPure(user?.id);
-  // 🎯 CRITICAL: Don't default to 'pending' - wait for data to load first
-  const verificationStatus = verificationData?.status;
+  const user = useAuthStore((state) => state.user);
+  const { data: verificationData, isLoading: isQueryLoading } = useVerificationData(user?.id);
+  // 🎯 CRITICAL: Extract status from progress object, not top-level
+  const verificationStatus = verificationData?.progress?.verification_status;
 
   // Check dismissal state on mount
   useEffect(() => {

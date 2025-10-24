@@ -93,13 +93,28 @@ export const useProfile = (userId?: string) => {
     queryFn: async () => {
       if (!userId) throw new Error('User ID is required');
       
+      console.log('[useProfile] 🔍 Fetching profile from profiles table for userId:', userId);
+      
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[useProfile] ❌ Error fetching profile:', error);
+        throw error;
+      }
+      
+      console.log('[useProfile] ✅ Fetched profile data:', {
+        id: data?.id,
+        email: data?.email,
+        first_name: data?.first_name,
+        last_name: data?.last_name,
+        role: data?.role,
+        hasKeys: Object.keys(data || {})
+      });
+      
       return data as ProfileData;
     },
     enabled: !!userId,

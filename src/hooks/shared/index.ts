@@ -1,7 +1,3 @@
-// ✅ PURE: Auth hook with ZERO useEffect patterns
-export { useAuthPure as useAuthOptimized } from './useAuthPure';
-export { useProfileSync } from './useProfileSync';
-
 // ✅ SYSTEM INTEGRATION: Deep link handler (encapsulated useEffect for system events)
 export { useDeepLinkHandler } from './useDeepLinkHandler';
 

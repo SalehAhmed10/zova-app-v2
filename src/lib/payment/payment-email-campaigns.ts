@@ -4,7 +4,7 @@
  * Handles automated email follow-ups for providers who haven't completed payment setup
  */
 
-import { supabase } from '../core/supabase';
+import { supabase } from "@/lib/supabase";
 
 interface EmailCampaignData {
   provider_id: string;

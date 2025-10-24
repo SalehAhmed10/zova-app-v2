@@ -45,17 +45,20 @@ Deno.serve(async (req) => {
     const { amount, depositAmount, currency, serviceId, providerId, bookingId }: PaymentIntentRequest = await req.json();
 
     // Validate required fields
-    if (!amount || !depositAmount || !currency || !serviceId || !providerId) {
+    if (!amount || depositAmount === undefined || !currency || !serviceId || !providerId) {
+      console.error('[create-payment-intent] Missing required fields:', { amount, depositAmount, currency, serviceId, providerId });
       return new Response(
         JSON.stringify({ error: 'Missing required fields: amount, depositAmount, currency, serviceId, providerId' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Validate that deposit is less than total amount
-    if (depositAmount >= amount) {
+    // ✅ FIXED: Allow depositAmount === amount for full escrow capture scenarios
+    // Validate that deposit does not EXCEED total amount (but can equal it for full escrow)
+    if (depositAmount > amount) {
+      console.error('[create-payment-intent] Deposit exceeds total:', { depositAmount, amount });
       return new Response(
-        JSON.stringify({ error: 'Deposit amount must be less than total amount' }),
+        JSON.stringify({ error: 'Deposit amount cannot exceed total amount' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

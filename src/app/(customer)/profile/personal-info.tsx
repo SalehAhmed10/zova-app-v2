@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useForm, Controller, useWatch } from 'react-hook-form';
 import { useUpdateProfile } from '@/hooks';
 import { useProfile } from '@/hooks/shared/useProfileData';
-import { useAuthOptimized } from '@/hooks';
+import { useAuthStore } from '@/stores/auth';
 import { useGeocoding } from '@/hooks/shared/useGeocoding';
 import { COUNTRIES, getCountryByCode } from '@/constants/countries';
 import { SearchableCountrySelect } from '@/components/ui/searchable-country-select';
@@ -41,7 +41,7 @@ interface PersonalInfoForm {
 }
 
 export default function PersonalInfoScreen() {
-  const { user } = useAuthOptimized();
+  const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
   const { data: profileData, isLoading, error, refetch } = useProfile(user?.id);
   const updateProfileMutation = useUpdateProfile();

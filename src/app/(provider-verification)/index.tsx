@@ -19,7 +19,6 @@ import { createStorageService } from '@/lib/storage/organized-storage';
 import { normalizeImageUri } from '@/lib/utils';
 import { useStripeVerificationIntegration } from '@/lib/payment/stripe-verification-integration';
 import { useAuthStore } from '@/stores/auth';
-import { useVerificationNavigation } from '@/hooks/provider';
 import { VerificationFlowManager } from '@/lib/verification/verification-flow-manager';
 
 // Skeleton Loading Component
@@ -210,8 +209,6 @@ export default function DocumentVerificationScreen() {
   // Get current step and document data from new structure
   const currentStep = verificationData?.progress?.current_step || 1;
   const documentData = verificationData?.documents?.[0] || {};
-
-  const { completeCurrentStepAndNavigate } = useVerificationNavigation();
 
   const {
     control,
@@ -628,7 +625,20 @@ export default function DocumentVerificationScreen() {
               }, {
                 onSuccess: () => {
                   console.log('[DocumentSubmission] ✅ Document data saved to database');
-                  // Navigation will happen via the mutation's onSuccess handler
+                  // ✅ CRITICAL: Navigate to next step (same as new upload flow)
+                  Alert.alert(
+                    'Document Verified',
+                    'Your document has been verified and saved.',
+                    [
+                      {
+                        text: 'Continue',
+                        onPress: () => {
+                          console.log('[DocumentSubmission] User acknowledged, proceeding to next step');
+                          router.push('/(provider-verification)/selfie');
+                        },
+                      },
+                    ]
+                  );
                 },
                 onError: (error) => {
                   console.error('[DocumentSubmission] ❌ Failed to save document:', error);

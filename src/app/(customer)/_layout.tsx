@@ -3,7 +3,7 @@ import { Tabs, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/lib/core/useColorScheme';
-import { useAuthStore } from '@/stores/auth';
+import { useCustomerLayoutGuards } from '@/hooks/routing/useLayoutGuards';
 import { THEME } from '@/lib/theme';
 
 /**
@@ -15,26 +15,17 @@ import { THEME } from '@/lib/theme';
  * - Only allows authenticated customers
  */
 export default function CustomerLayout() {
+  // ✅ CRITICAL: Call all hooks BEFORE any conditional returns (Rules of Hooks)
+  const { guardResult } = useCustomerLayoutGuards();
   const { isDarkColorScheme } = useColorScheme();
   const insets = useSafeAreaInsets();
-  const session = useAuthStore((state) => state.session);
-  const userRole = useAuthStore((state) => state.userRole);
 
-  console.log('[CustomerLayout] 👥 Checking access...', { 
-    hasSession: !!session, 
-    userRole 
-  });
+  console.log('[CustomerLayout] 👥 Checking access...', guardResult);
 
-  // ✅ Guard 1: Redirect unauthenticated users to login
-  if (!session) {
-    console.log('[CustomerLayout] ❌ Not authenticated, redirecting to /(auth)');
-    return <Redirect href="/(auth)" />;
-  }
-
-  // ✅ Guard 2: Redirect non-customers to their dashboard
-  if (userRole !== 'customer') {
-    console.log('[CustomerLayout] ❌ Not a customer, redirecting to /(provider)');
-    return <Redirect href="/(provider)" />;
+  // ✅ Handle redirect if guard function requires it
+  if (guardResult.type === 'redirect') {
+    console.log(`[CustomerLayout] ❌ Access denied, redirecting to ${guardResult.href}`);
+    return <Redirect href={guardResult.href as any} />;
   }
 
   console.log('[CustomerLayout] ✅ Access granted for customer');

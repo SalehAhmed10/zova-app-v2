@@ -2,6 +2,7 @@ import React, { useMemo, useCallback, useState } from 'react';
 import { View, Pressable, ScrollView } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect } from '@react-navigation/native';
+import { router } from 'expo-router';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,6 @@ import { VerificationHeader } from '@/components/verification/VerificationHeader
 import { useUpdateStepCompletion, useVerificationRealtime } from '@/hooks/provider/useVerificationSingleSource';
 import { supabase } from '@/lib/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useVerificationNavigation } from '@/hooks/provider';
 import { useAuthStore } from '@/stores/auth';
 
 interface ServiceCategory {
@@ -87,7 +87,6 @@ export default function CategorySelectionScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const updateStepMutation = useUpdateStepCompletion();
-  const { navigateNext, navigateBack } = useVerificationNavigation();
 
   // Real-time subscription
   useVerificationRealtime(providerId);
@@ -197,14 +196,14 @@ export default function CategorySelectionScreen() {
       await queryClient.invalidateQueries({ queryKey: ['providerSelectedCategory', providerId] });
       await queryClient.refetchQueries({ queryKey: ['providerSelectedCategory', providerId] });
       
-      console.log('[Categories] Cache invalidated, navigating...');
-      navigateNext();
+      console.log('[Categories] Cache invalidated, navigating to portfolio (step 5)...');
+      router.push('/(provider-verification)/portfolio');
     } catch (error) {
       console.error('[Categories] Error submitting category:', error);
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedCategoryId, providerId, categories, updateStepMutation, navigateNext, queryClient]);
+  }, [selectedCategoryId, providerId, categories, updateStepMutation, queryClient]);
 
   // ✅ LOADING STATE
   if (loading || categoryLoading) {
@@ -293,7 +292,10 @@ export default function CategorySelectionScreen() {
           <Button
             variant="outline"
             size="lg"
-            onPress={navigateBack}
+            onPress={() => {
+              // Go to business-info (step 3) - previous step before category (step 4)
+              router.push('/(provider-verification)/business-info');
+            }}
             disabled={isSubmitting || updateStepMutation.isPending}
             className="w-full"
           >

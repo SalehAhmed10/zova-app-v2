@@ -28,7 +28,7 @@ import {
 
 // Hooks
 import { useCustomerBookingDetail } from '@/hooks/customer/useBookings';
-import { useProviderProfile } from '@/hooks/shared/useProviders';
+import { useProviderDetails } from '@/hooks/customer';
 
 export default function SOSConfirmationScreen() {
   const params = useLocalSearchParams<{
@@ -41,7 +41,7 @@ export default function SOSConfirmationScreen() {
   
   // ✅ Following React Query + Zustand architecture
   const { data: booking, isLoading: bookingLoading } = useCustomerBookingDetail(params.bookingId);
-  const { data: provider, isLoading: providerLoading } = useProviderProfile(params.providerId);
+  const { data: provider, isLoading: providerLoading } = useProviderDetails(params.providerId);
 
   // Update time every minute for accurate ETA
   useEffect(() => {
@@ -128,27 +128,27 @@ export default function SOSConfirmationScreen() {
               </CardHeader>
               <CardContent className="gap-4">
                 <View className="flex-row items-center gap-4">
-                  <Avatar className="w-16 h-16" alt={provider.name || 'Provider'}>
+                  <Avatar className="w-16 h-16" alt={`${provider.first_name} ${provider.last_name}`}>
                     <AvatarImage source={{ uri: provider.avatar_url }} />
                     <AvatarFallback className="bg-primary/10">
                       <Text className="text-primary font-bold text-lg">
-                        {provider.name?.charAt(0) || 'P'}
+                        {provider.first_name?.charAt(0) || 'P'}
                       </Text>
                     </AvatarFallback>
                   </Avatar>
                   
                   <View className="flex-1">
                     <Text className="text-lg font-semibold text-foreground">
-                      {provider.name || 'Professional Provider'}
+                      {provider.first_name} {provider.last_name}
                     </Text>
                     <View className="flex-row items-center gap-2 mb-1">
                       <View className="flex-row items-center gap-1">
                         <Star size={14} className="text-yellow-500" />
                         <Text className="text-sm text-muted-foreground">
-                          {provider.rating || '5.0'} rating
+                          {provider.average_rating || '5.0'} rating
                         </Text>
                       </View>
-                      {provider.is_verified && (
+                      {provider.verification_status === 'approved' && (
                         <>
                           <Text className="text-xs text-muted-foreground">•</Text>
                           <Badge variant="secondary" className="text-xs">
@@ -158,7 +158,7 @@ export default function SOSConfirmationScreen() {
                       )}
                     </View>
                     <Text className="text-sm text-muted-foreground">
-                      {provider.completed_jobs || 0} emergency jobs completed
+                      {provider.years_of_experience || 0} years of experience
                     </Text>
                   </View>
                 </View>
