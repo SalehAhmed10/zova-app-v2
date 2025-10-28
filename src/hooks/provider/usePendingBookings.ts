@@ -8,6 +8,9 @@ interface PendingBooking {
   auto_confirmed: boolean;
   provider_response_deadline: string | null;
   created_at: string;
+  booking_date: string;
+  start_time: string;
+  booking_mode: 'normal' | 'sos';
   base_amount: number;
   total_amount: number;
   customer: {
@@ -46,6 +49,9 @@ export function usePendingBookings() {
           auto_confirmed,
           provider_response_deadline,
           created_at,
+          booking_date,
+          start_time,
+          booking_mode,
           base_amount,
           total_amount,
           customer:profiles!bookings_customer_id_fkey(
@@ -78,6 +84,9 @@ export function usePendingBookings() {
         auto_confirmed: booking.auto_confirmed,
         provider_response_deadline: booking.provider_response_deadline,
         created_at: booking.created_at,
+        booking_date: booking.booking_date,
+        start_time: booking.start_time,
+        booking_mode: booking.booking_mode || 'normal',
         base_amount: booking.base_amount,
         total_amount: booking.total_amount,
         customer: Array.isArray(booking.customer) ? booking.customer[0] : booking.customer,

@@ -22,12 +22,13 @@ export default function BookingConfirmationScreen() {
     date: new Date(params.date as string),
     time: params.time as string,
     amount: parseFloat(params.amount as string),
-    // Calculate breakdown from total amount
-    servicePrice: parseFloat(params.amount as string) * (10/11), // Reverse calculate service price
-    platformFee: parseFloat(params.amount as string) * (1/11), // Reverse calculate platform fee (10% of service price)
+    // ✨ CRITICAL FIX: Use passed parameters instead of reverse-calculating
+    // This ensures we always show the correct amounts regardless of fee structure changes
+    servicePrice: parseFloat(params.servicePrice as string),
+    platformFee: parseFloat(params.platformFee as string),
   };
 
-  // Round to 2 decimal places
+  // Round to 2 decimal places for display
   confirmationDetails.servicePrice = Math.round(confirmationDetails.servicePrice * 100) / 100;
   confirmationDetails.platformFee = Math.round(confirmationDetails.platformFee * 100) / 100;
 

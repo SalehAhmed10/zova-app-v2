@@ -6,7 +6,6 @@ import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as React from 'react';
 import { Platform, LogBox, View } from 'react-native';
-import { LogoutLoadingScreen } from '@/components/ui/logout-loading-screen';
 
 // Ignore warnings immediately after imports
 LogBox.ignoreLogs([

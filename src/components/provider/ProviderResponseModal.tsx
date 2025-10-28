@@ -5,7 +5,7 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { useSubmitProviderResponse } from '@/hooks/shared/useSubmitProviderResponse';
+import { useSubmitProviderResponse } from '@/hooks/provider/useSubmitProviderResponse';
 import { cn } from '@/lib/utils';
 import { THEME } from '@/lib/theme';
 import { useColorScheme } from '@/lib/core/useColorScheme';

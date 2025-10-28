@@ -13,6 +13,7 @@ import {
   type CreateSubscriptionRequest
 } from '@/hooks/shared/useSubscription';
 import { useAuthStore } from '@/stores/auth';
+import { supabase } from '@/lib/supabase';
 import {
   ArrowLeft,
   RefreshCw,
@@ -31,7 +32,10 @@ import { cn } from '@/lib/utils';
 import { THEME } from '@/lib/theme';
 
 export default function SubscriptionCheckoutScreen() {
-  const { type } = useLocalSearchParams<{ type: 'CUSTOMER_SOS' | 'PROVIDER_PREMIUM' }>();  
+  const { type, subscriptionId } = useLocalSearchParams<{ 
+    type: 'CUSTOMER_SOS' | 'PROVIDER_PREMIUM',
+    subscriptionId?: string 
+  }>();  
   const user = useAuthStore((state) => state.user);
   const { presentPaymentSheet, initPaymentSheet } = useStripe();
   const { isDarkColorScheme } = useColorScheme();
@@ -50,18 +54,53 @@ export default function SubscriptionCheckoutScreen() {
     setIsProcessing(true);
 
     try {
-      // Step 1: Create subscription with Stripe
-      const subscriptionRequest: CreateSubscriptionRequest = {
-        subscriptionType: type,
-        priceId: priceInfo.priceId,
-        customerEmail: user.email,
-      };
+      // Check if this is a retry for an incomplete subscription
+      console.log('[Checkout] Subscription mode:', subscriptionId ? 'RETRY' : 'NEW');
+      console.log('[Checkout] Subscription ID:', subscriptionId);
 
-      const response = await createSubscriptionMutation.mutateAsync(subscriptionRequest);
+      let clientSecret: string;
+
+      // Get priceId for this subscription type
+      const priceIdToUse = priceInfo.priceId;
+      if (!priceIdToUse) {
+        throw new Error('Price information not available');
+      }
+
+      // Use create-subscription which handles BOTH new AND retry cases
+      // The edge function checks for existing incomplete subscriptions
+      console.log('[Checkout] Calling create-subscription (handles new and retry)');
+      const createSubResult = await createSubscriptionMutation.mutateAsync({
+        priceId: priceIdToUse,
+        subscriptionType: type,
+      });
+
+      if (!createSubResult?.clientSecret) {
+        console.error('[Checkout] No client secret in subscription response:', createSubResult);
+        throw new Error('No payment intent returned from subscription');
+      }
+
+      clientSecret = createSubResult.clientSecret;
+      console.log('[Checkout] Got client secret successfully');
+
+      if (false) {
+        // LEGACY RETRY MODE - no longer needed
+        // NEW MODE: Create new subscription
+        console.log('[Checkout] Creating new subscription');
+        
+        const subscriptionRequest: CreateSubscriptionRequest = {
+          subscriptionType: type,
+          priceId: priceInfo.priceId,
+          customerEmail: user.email,
+        };
+
+        const response = await createSubscriptionMutation.mutateAsync(subscriptionRequest);
+        clientSecret = response.clientSecret;
+        console.log('[Checkout] Created new subscription with client secret');
+      }
 
       // Step 2: Initialize payment sheet
       const { error: initError } = await initPaymentSheet({
-        paymentIntentClientSecret: response.clientSecret,
+        paymentIntentClientSecret: clientSecret,
         merchantDisplayName: 'ZOVA',
         appearance: {
           colors: {

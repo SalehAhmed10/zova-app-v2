@@ -1,10 +1,10 @@
 import { buttonTextVariants, buttonVariants } from '@/components/ui/button';
 import { NativeOnlyAnimatedView } from '@/components/ui/native-only-animated-view';
-import { TextClassContext } from '@/components/ui/text';
+import { Text, TextClassContext } from '@/components/ui/text';
 import { cn } from '@/lib/utils';
 import * as AlertDialogPrimitive from '@rn-primitives/alert-dialog';
 import * as React from 'react';
-import { Platform, View, type ViewProps } from 'react-native';
+import { Alert, Platform, View, type ViewProps } from 'react-native';
 import { FadeIn, FadeOut } from 'react-native-reanimated';
 import { FullWindowOverlay as RNFullWindowOverlay } from 'react-native-screens';
 
@@ -138,6 +138,54 @@ function AlertDialogCancel({
   );
 }
 
+/**
+ * Delete confirmation dialog for destructive actions
+ * Ensures users must confirm before permanently deleting or cancelling bookings
+ */
+function DeleteConfirmationDialog({
+  isOpen,
+  onConfirm,
+  onCancel,
+  title = 'Are you sure?',
+  description = 'This action cannot be undone.',
+  confirmText = 'Delete',
+  cancelText = 'Cancel',
+  isDangerous = true,
+}: {
+  isOpen: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+  title?: string;
+  description?: string;
+  confirmText?: string;
+  cancelText?: string;
+  isDangerous?: boolean;
+}) {
+  return (
+    <AlertDialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onPress={onCancel}>
+            <Text>{cancelText}</Text>
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onPress={onConfirm}
+            className={isDangerous ? 'bg-destructive' : ''}
+          >
+            <Text className={isDangerous ? 'text-destructive-foreground' : 'text-primary-foreground'}>
+              {confirmText}
+            </Text>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 export {
   AlertDialog,
   AlertDialogAction,
@@ -150,4 +198,5 @@ export {
   AlertDialogPortal,
   AlertDialogTitle,
   AlertDialogTrigger,
+  DeleteConfirmationDialog,
 };

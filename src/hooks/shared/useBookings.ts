@@ -9,6 +9,7 @@ type CreateBookingParams = {
   providerId: string;
   bookingDate: string;
   startTime: string;
+  bookingMode?: 'normal' | 'sos';
   specialRequests?: string;
   address?: string;
   depositAmount: number;
@@ -33,6 +34,7 @@ export function useCreateBooking() {
         customer_id: user.id,
         booking_date: params.bookingDate,
         start_time: params.startTime,
+        booking_mode: params.bookingMode || 'normal',
         customer_notes: params.specialRequests,
         service_address: params.address,
         payment_intent_id: params.paymentIntentId,
@@ -47,6 +49,7 @@ export function useCreateBooking() {
           customer_id: user.id,
           booking_date: params.bookingDate,
           start_time: params.startTime,
+          booking_mode: params.bookingMode || 'normal',
           customer_notes: params.specialRequests,
           service_address: params.address,
           payment_intent_id: params.paymentIntentId,
@@ -131,7 +134,14 @@ export function useProviderBookings() {
       const { data, error } = await supabase
         .from('bookings')
         .select(`
-          *,
+          id,
+          booking_date,
+          start_time,
+          status,
+          total_amount,
+          base_amount,
+          platform_fee,
+          booking_mode,
           service:provider_services!bookings_service_id_fkey (
             id,
             title,
@@ -146,10 +156,25 @@ export function useProviderBookings() {
           )
         `)
         .eq('provider_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('booking_date', { ascending: false });
 
       if (error) throw error;
-      return data;
+
+      // Transform database format to component format
+      return data?.map((booking: any) => ({
+        id: booking.id,
+        date: booking.booking_date, // Transform: booking_date → date
+        startTime: booking.start_time, // Transform: start_time → startTime
+        endTime: booking.start_time, // Placeholder (could add end_time calculation)
+        customerName: `${booking.customer?.first_name || ''} ${booking.customer?.last_name || ''}`.trim() || 'Unknown',
+        serviceTitle: booking.service?.title || 'Service',
+        status: booking.status,
+        amount: booking.total_amount, // Transform: total_amount → amount
+        total_amount_paid_by_customer: booking.total_amount,
+        service_price: booking.base_amount,
+        platform_fee: booking.platform_fee,
+        ...booking // Include all original fields for reference
+      })) || [];
     },
     enabled: !!user,
   });
@@ -214,37 +239,6 @@ export function useBooking(bookingId: string) {
       return data;
     },
     enabled: !!bookingId,
-  });
-}
-
-// Hook for completing a service (marks booking as complete and triggers payout)
-export function useCompleteService() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (bookingId: string) => {
-      console.log('[useCompleteService] Completing service for booking:', bookingId);
-
-      const response = await supabase.functions.invoke('complete-service', {
-        body: { booking_id: bookingId },
-      });
-
-      if (response.error) {
-        console.error('[useCompleteService] Error:', response.error);
-        throw new Error(response.error.message || 'Failed to complete service');
-      }
-
-      return response.data;
-    },
-    onSuccess: (data, bookingId) => {
-      console.log('[useCompleteService] Service completed successfully:', data);
-      // Invalidate all booking-related queries
-      queryClient.invalidateQueries({ queryKey: ['bookings'] });
-      queryClient.invalidateQueries({ queryKey: ['customer-bookings'] });
-      queryClient.invalidateQueries({ queryKey: ['provider-bookings'] });
-      queryClient.invalidateQueries({ queryKey: ['booking', bookingId] });
-      queryClient.invalidateQueries({ queryKey: ['provider-booking-detail', bookingId] });
-    },
   });
 }
 

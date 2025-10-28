@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { View, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import React, { useState, useCallback, useMemo } from 'react';
+import { View, ScrollView, TouchableOpacity, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,12 +8,15 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DeleteConfirmationDialog } from '@/components/ui/alert-dialog';
+
 import { useAuthStore } from '@/stores/auth';
-import { useUpdateBookingStatus } from '@/hooks/shared/useBookings';
+import { useUpdateBookingStatus, useProviderBookings } from '@/hooks/shared/useBookings';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { THEME } from '@/lib/theme';
 import { usePendingBookings } from '@/hooks/provider/usePendingBookings';
-import { BookingRequestCard } from '@/components/provider';
+import { useBookingActions } from '@/hooks/provider/useBookingActions';
+import { CountdownTimer } from '@/components/provider';
 import { FlashList } from '@shopify/flash-list';
 import { cn, formatCurrency } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -28,7 +31,11 @@ interface BookingItem {
   customerName: string;
   serviceTitle: string;
   status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'declined' | 'expired';
-  amount: number;
+  amount: number | null | undefined;
+  service_price?: number;
+  total_amount_paid_by_customer?: number;
+  booking_mode?: 'normal' | 'sos';
+  provider_response_deadline?: string; // ISO timestamp for urgent bookings
 }
 
 export default function ProviderBookingsScreen() {
@@ -38,23 +45,32 @@ export default function ProviderBookingsScreen() {
   const colors = THEME[isDarkColorScheme ? 'dark' : 'light'];
   const [activeTab, setActiveTab] = useState<'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'>('pending');
 
-  // Get bookings for the next 30 days - memoized to prevent infinite re-rendering
-  const dateRange = useMemo(() => {
-    const startDate = new Date();
-    const endDate = new Date();
-    endDate.setDate(endDate.getDate() + 30);
-    return { startDate, endDate };
-  }, []);
+  // Confirmation dialog state for cancelling/declining bookings
+  const [cancelConfirmationState, setCancelConfirmationState] = useState<{
+    isOpen: boolean;
+    bookingId: string | null;
+    action: 'cancel' | 'decline'; // Track whether this is a cancel or decline action
+  }>({ isOpen: false, bookingId: null, action: 'cancel' });
 
-  // TODO: useProviderBookings hook needs to be created or replaced
-  // const {
-  //   data: bookings = [],
-  //   isLoading,
-  //   refetch
-  // } = useProviderBookings(user?.id, dateRange.startDate, dateRange.endDate);
-  const bookings = [];
-  const isLoading = false;
-  const refetch = async () => {};
+  // ✅ UNIFIED BOOKING ACTIONS: Using new consolidated hook for all booking state changes
+  const { 
+    acceptBooking, 
+    declineBooking, 
+    completeBooking,
+    cancelBooking,
+    isAccepting,
+    isDeclining,
+    isCompleting,
+    isCanceling
+  } = useBookingActions();
+
+  // ✅ FIXED: Using React Query hook for provider bookings (server state management)
+  // Automatically fetches and caches bookings for this provider
+  const {
+    data: bookings = [],
+    isLoading,
+    refetch
+  } = useProviderBookings();
 
   // Get pending bookings that require provider response (with deadlines)
   const {
@@ -66,38 +82,76 @@ export default function ProviderBookingsScreen() {
   // Pull to refresh state
   const [refreshing, setRefreshing] = useState(false);
 
-  // Pull to refresh handler
+  // Handle pull-to-refresh
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       await Promise.all([refetch(), refetchPending()]);
-    } catch (error) {
-      console.error('Error refreshing bookings:', error);
     } finally {
       setRefreshing(false);
     }
   }, [refetch, refetchPending]);
 
+  // ✅ WRAPPER: Handle completion and refetch
+  const handleCompleteBookingWrapper = useCallback(async (bookingId: string) => {
+    try {
+      await completeBooking(bookingId);
+      // Refetch to update the UI
+      await Promise.all([refetch(), refetchPending()]);
+    } catch (error) {
+      console.error('Error completing booking:', error);
+    }
+  }, [completeBooking, refetch, refetchPending]);
+
+  // Transform pending bookings to BookingItem format for use in BookingCard
+  const transformedPendingBookings = useMemo(() => {
+    return pendingBookingsWithDeadline.map(booking => {
+      // Use actual booking date and time from the booking record
+      const dateStr = booking.booking_date || new Date().toISOString().split('T')[0];
+      const timeStr = booking.start_time || '00:00';
+
+      // Look up booking_mode from booking data (it's now included in pendingBookingsWithDeadline)
+      const bookingMode = booking.booking_mode || 'normal';
+
+      return {
+        id: booking.id,
+        date: dateStr,
+        startTime: timeStr,
+        endTime: timeStr,
+        customerName: booking.customer 
+          ? `${booking.customer.first_name || ''} ${booking.customer.last_name || ''}`.trim() || booking.customer.email
+          : 'Unknown Customer',
+        serviceTitle: booking.service?.title || 'Unknown Service',
+        status: 'pending' as const,
+        amount: booking.total_amount,
+        service_price: booking.service?.base_price,
+        total_amount_paid_by_customer: booking.total_amount,
+        booking_mode: bookingMode as 'normal' | 'sos',
+        provider_response_deadline: booking.provider_response_deadline || undefined,
+      } as BookingItem;
+    });
+  }, [pendingBookingsWithDeadline]);
+
   const updateBookingStatusMutation = useUpdateBookingStatus();
 
-  const handleAcceptBooking = async (bookingId: string) => {
+  const handleAcceptBookingWrapper = async (bookingId: string) => {
     try {
-      await updateBookingStatusMutation.mutateAsync({
-        bookingId,
-        status: 'confirmed',
-      });
+      await acceptBooking(bookingId);
       await Promise.all([refetch(), refetchPending()]);
     } catch (error) {
       console.error('Error accepting booking:', error);
     }
   };
 
-  const handleDeclineBooking = async (bookingId: string) => {
+  const handleDeclineBookingWrapper = async (bookingId: string | null) => {
+    if (!bookingId) {
+      console.error('❌ [handleDeclineBookingWrapper] No booking ID provided');
+      return;
+    }
+
     try {
-      await updateBookingStatusMutation.mutateAsync({
-        bookingId,
-        status: 'cancelled',
-      });
+      // Use unified hook which handles the alert and refund
+      await declineBooking({ bookingId });
       await Promise.all([refetch(), refetchPending()]);
     } catch (error) {
       console.error('Error declining booking:', error);
@@ -116,38 +170,51 @@ export default function ProviderBookingsScreen() {
     }
   };
 
-  const handleCompleteBooking = async (bookingId: string) => {
+  const handleCancelBooking = async (bookingId: string) => {
     try {
-      // Use the enterprise complete-service Edge Function for proper payment capture
-      const { data, error } = await supabase.functions.invoke('complete-service', {
-        body: {
-          booking_id: bookingId,
-          test_mode: false // Set to false for production
-        }
+      console.log('🎯 [CancelBooking] Starting for booking:', bookingId);
+
+      // Use the cancel-booking Edge Function for proper booking cancellation with refund
+      const { data: authSession } = await supabase.auth.getSession();
+      if (!authSession.session?.access_token) {
+        throw new Error('Not authenticated');
+      }
+
+      const response = await supabase.functions.invoke('cancel-booking', {
+        body: { booking_id: bookingId },
+        headers: {
+          'Authorization': `Bearer ${authSession.session.access_token}`,
+        },
       });
 
-      if (error) {
-        console.error('Error completing service:', error);
-        // Show user-friendly error message
+      console.log('📡 [CancelBooking] Raw response:', {
+        data: response.data,
+        error: response.error,
+      });
+
+      const { data, error } = response;
+
+      // Check if response was successful
+      if (!error && data && typeof data === 'object' && 'success' in data) {
+        console.log('✅ [CancelBooking] Success:', data);
+        Alert.alert('Success', (data as any).message || 'Booking cancelled and customer refunded.');
+        await Promise.all([refetch(), refetchPending()]);
         return;
       }
 
-      console.log('Service completed successfully:', data);
-      await Promise.all([refetch(), refetchPending()]);
-    } catch (error) {
-      console.error('Error completing booking:', error);
-    }
-  };
+      // Handle error response
+      if (error || (data && typeof data === 'object' && 'error' in data)) {
+        const errorMessage = (data as any)?.details || (data as any)?.error || error?.message || 'Unknown error';
+        console.error('❌ [CancelBooking] Error:', errorMessage);
+        Alert.alert('Error', `Failed to cancel booking: ${errorMessage}`);
+        return;
+      }
 
-  const handleCancelBooking = async (bookingId: string) => {
-    try {
-      await updateBookingStatusMutation.mutateAsync({
-        bookingId,
-        status: 'cancelled',
-      });
-      await Promise.all([refetch(), refetchPending()]);
+      console.warn('⚠️ [CancelBooking] Unexpected response format:', response);
+      Alert.alert('Warning', 'Unexpected response format from server');
     } catch (error) {
-      console.error('Error cancelling booking:', error);
+      console.error('💥 [CancelBooking] Exception:', error);
+      Alert.alert('Error', `Unexpected error: ${(error as any)?.message || 'Unknown'}`);
     }
   };
 
@@ -224,37 +291,66 @@ export default function ProviderBookingsScreen() {
     router.push(`/(provider)/bookingdetail/${bookingId}` as any);
   };
 
-  const BookingCard = ({ booking }: { booking: BookingItem }) => (
+  const BookingCard = ({ booking, isUrgent = false }: { booking: BookingItem; isUrgent?: boolean }) => (
     <TouchableOpacity 
       activeOpacity={0.7}
       onPress={() => handleBookingPress(booking.id)}
     >
-      <Card className="mb-3 border-border/50">
+      <Card className={cn(
+        "mb-3 border-border/50",
+        isUrgent && "border-destructive/50 bg-destructive/5 dark:bg-destructive/10"
+      )}>
         <CardContent className="p-4">
-          {/* Header with Customer and Status */}
+          {/* Header with Customer, Booking Mode Badge, and Status */}
           <View className="flex-row justify-between items-start mb-3">
             <View className="flex-row items-center flex-1">
-              <View className="w-10 h-10 rounded-full bg-primary/10 dark:bg-primary/20 items-center justify-center mr-3">
-                <Ionicons name="person" size={20} color={colors.primary} />
+              <View className={cn(
+                "w-10 h-10 rounded-full items-center justify-center mr-3",
+                booking.booking_mode === 'sos' 
+                  ? 'bg-destructive/20 dark:bg-destructive/30' 
+                  : 'bg-primary/10 dark:bg-primary/20'
+              )}>
+                <Ionicons 
+                  name={booking.booking_mode === 'sos' ? 'alert-circle' : 'person'} 
+                  size={20} 
+                  color={booking.booking_mode === 'sos' ? colors.destructive : colors.primary} 
+                />
               </View>
               <View className="flex-1">
                 <Text className="font-semibold text-foreground text-base">
                   {booking.customerName}
                 </Text>
                 <Text className="text-xs text-muted-foreground mt-0.5">
-                  Customer
+                  {booking.booking_mode === 'sos' ? '🚨 SOS Booking' : 'Standard Booking'}
                 </Text>
               </View>
             </View>
+            
+            {/* Booking Mode Badge */}
             <Badge
-              className={cn("ml-2", getStatusColor(booking.status))}
+              className={cn(
+                "ml-2",
+                booking.booking_mode === 'sos' 
+                  ? 'bg-destructive' 
+                  : 'bg-primary'
+              )}
               variant="secondary"
             >
-              <Text className="text-primary-foreground text-xs font-medium">
-                {getStatusText(booking.status)}
+              <Text className="text-primary-foreground text-xs font-medium uppercase tracking-wider">
+                {booking.booking_mode === 'sos' ? '🚨 SOS' : 'Normal'}
               </Text>
             </Badge>
           </View>
+
+          {/* Countdown Timer for SOS Bookings in Pending Tab */}
+          {isUrgent && booking.provider_response_deadline && (
+            <View className="mb-3 p-2 bg-destructive/10 rounded-lg flex-row items-center justify-between">
+              <CountdownTimer deadline={booking.provider_response_deadline} />
+              <View className="px-2 py-1 bg-destructive/20 rounded">
+                <Text className="text-xs font-bold text-destructive">⏱️ URGENT</Text>
+              </View>
+            </View>
+          )}
 
           {/* Service Info */}
           <View className="flex-row items-center mb-3 bg-muted/50 dark:bg-muted/30 p-3 rounded-lg">
@@ -275,17 +371,27 @@ export default function ProviderBookingsScreen() {
             <View className="flex-row items-center">
               <Ionicons name="cash" size={16} color={colors.success} />
               <Text className="text-lg font-bold text-primary ml-1">
-                {formatCurrency(booking.amount)}
+                {formatCurrency(booking.amount ?? booking.total_amount_paid_by_customer ?? booking.service_price ?? 0)}
               </Text>
             </View>
           </View>
 
-          {/* Tap for details hint */}
-          <View className="flex-row items-center justify-center py-1 border-t border-border/30 mt-2">
-            <Text className="text-xs text-muted-foreground mr-1">
-              Tap for details
-            </Text>
-            <Ionicons name="chevron-forward" size={12} color={colors.primary} />
+          {/* Status Badge Row */}
+          <View className="flex-row justify-between items-center py-2 border-t border-border/30 mt-2 mb-2">
+            <Badge
+              className={cn("", getStatusColor(booking.status))}
+              variant="secondary"
+            >
+              <Text className="text-primary-foreground text-xs font-medium">
+                {getStatusText(booking.status)}
+              </Text>
+            </Badge>
+            <View className="flex-row items-center">
+              <Text className="text-xs text-muted-foreground mr-1">
+                Tap for details
+              </Text>
+              <Ionicons name="chevron-forward" size={12} color={colors.primary} />
+            </View>
           </View>
 
           {/* Quick Action Buttons - Only show for pending/confirmed/in_progress */}
@@ -296,12 +402,12 @@ export default function ProviderBookingsScreen() {
                 className="flex-1"
                 onPress={(e) => {
                   e.stopPropagation();
-                  handleAcceptBooking(booking.id);
+                  handleAcceptBookingWrapper(booking.id);
                 }}
-                disabled={updateBookingStatusMutation.isPending}
+                disabled={isAccepting}
               >
                 <Text className="text-primary-foreground font-medium">
-                  {updateBookingStatusMutation.isPending ? 'Accepting...' : 'Accept'}
+                  {isAccepting ? 'Accepting...' : 'Accept'}
                 </Text>
               </Button>
               <Button
@@ -310,12 +416,12 @@ export default function ProviderBookingsScreen() {
                 className="flex-1"
                 onPress={(e) => {
                   e.stopPropagation();
-                  handleDeclineBooking(booking.id);
+                  setCancelConfirmationState({ isOpen: true, bookingId: booking.id, action: 'decline' });
                 }}
-                disabled={updateBookingStatusMutation.isPending}
+                disabled={isDeclining}
               >
                 <Text className="text-foreground font-medium">
-                  {updateBookingStatusMutation.isPending ? 'Declining...' : 'Decline'}
+                  {isDeclining ? 'Declining...' : 'Decline'}
                 </Text>
               </Button>
             </View>
@@ -342,7 +448,11 @@ export default function ProviderBookingsScreen() {
                 className="flex-1"
                 onPress={(e) => {
                   e.stopPropagation();
-                  handleCancelBooking(booking.id);
+                  setCancelConfirmationState({
+                    isOpen: true,
+                    bookingId: booking.id,
+                    action: 'cancel',
+                  });
                 }}
                 disabled={updateBookingStatusMutation.isPending}
               >
@@ -360,12 +470,12 @@ export default function ProviderBookingsScreen() {
                 className="flex-1"
                 onPress={(e) => {
                   e.stopPropagation();
-                  handleCompleteBooking(booking.id);
+                  handleCompleteBookingWrapper(booking.id);
                 }}
-                disabled={updateBookingStatusMutation.isPending}
+                disabled={isCompleting}
               >
                 <Text className="text-primary-foreground font-medium">
-                  {updateBookingStatusMutation.isPending ? 'Completing...' : 'Mark Complete'}
+                  {isCompleting ? 'Completing...' : 'Mark Complete'}
                 </Text>
               </Button>
             </View>
@@ -379,7 +489,8 @@ export default function ProviderBookingsScreen() {
     { 
       key: 'pending', 
       label: 'Pending', 
-      count: bookings.filter(b => b.status === 'pending').length + pendingBookingsWithDeadline.length 
+      // ✅ FIXED: Don't double-count - pendingBookingsWithDeadline is a subset of pending bookings
+      count: bookings.filter(b => b.status === 'pending').length
     },
     { key: 'confirmed', label: 'Confirmed', count: bookings.filter(b => b.status === 'confirmed').length },
     { key: 'in_progress', label: 'In Progress', count: bookings.filter(b => b.status === 'in_progress').length },
@@ -473,14 +584,19 @@ export default function ProviderBookingsScreen() {
             data={(() => {
               const items = [];
               
-              // Add urgent header if there are urgent bookings
-              if (activeTab === 'pending' && pendingBookingsWithDeadline.length > 0) {
+              // ✅ FIXED: Use TRANSFORMED pending bookings (with enriched data) for urgent SOS bookings
+              const sosBookingsWithDeadline = transformedPendingBookings.filter(
+                b => b && b.booking_mode === 'sos'
+              );
+              
+              // Add urgent header if there are urgent SOS bookings
+              if (activeTab === 'pending' && sosBookingsWithDeadline.length > 0) {
                 items.push({ type: 'urgent-header' as const, id: 'urgent-header' });
               }
               
-              // Add urgent booking cards
-              if (activeTab === 'pending' && pendingBookingsWithDeadline.length > 0) {
-                pendingBookingsWithDeadline.forEach((booking, index) => {
+              // Add urgent SOS booking cards
+              if (activeTab === 'pending' && sosBookingsWithDeadline.length > 0) {
+                sosBookingsWithDeadline.forEach((booking, index) => {
                   items.push({ 
                     type: 'urgent' as const, 
                     booking, 
@@ -490,12 +606,15 @@ export default function ProviderBookingsScreen() {
               }
               
               // Add divider if both urgent and regular bookings exist
-              if (activeTab === 'pending' && filteredBookings.length > 0 && pendingBookingsWithDeadline.length > 0) {
+              if (activeTab === 'pending' && filteredBookings.length > 0 && sosBookingsWithDeadline.length > 0) {
                 items.push({ type: 'divider' as const, id: 'divider' });
               }
               
-              // Add regular booking cards
-              filteredBookings.forEach((booking, index) => {
+              // Add regular booking cards (excluding urgent SOS ones to avoid duplication)
+              const urgentIds = new Set(sosBookingsWithDeadline.map(b => b.id));
+              const regularBookings = filteredBookings.filter(b => !urgentIds.has(b.id));
+              
+              regularBookings.forEach((booking, index) => {
                 items.push({ 
                   type: 'regular' as const, 
                   booking, 
@@ -507,16 +626,21 @@ export default function ProviderBookingsScreen() {
             })()}
             renderItem={({ item }) => {
               if (item.type === 'urgent-header') {
+                // Get SOS count - only count SOS bookings with deadline in pending tab
+                const sosCount = pendingBookingsWithDeadline.filter(
+                  b => b && filteredBookings.some(fb => fb.id === b.id && fb.booking_mode === 'sos')
+                ).length;
+                
                 return (
                   <View className="px-4 pt-2 pb-2">
                     <View className="flex-row items-center bg-destructive/10 p-3 rounded-lg">
                       <Ionicons name="alert-circle" size={20} color={colors.destructive} />
                       <Text className="ml-2 text-sm font-bold text-destructive flex-1">
-                        ⏰ Urgent: Requires Response
+                        ⏰ Urgent: SOS Bookings
                       </Text>
                       <View className="bg-destructive px-2.5 py-1 rounded-full">
                         <Text className="text-xs font-bold text-destructive-foreground">
-                          {pendingBookingsWithDeadline.length}
+                          {sosCount}
                         </Text>
                       </View>
                     </View>
@@ -526,17 +650,23 @@ export default function ProviderBookingsScreen() {
               if (item.type === 'urgent') {
                 return (
                   <View className="px-4 pb-3">
-                    <BookingRequestCard booking={item.booking} />
+                    <BookingCard booking={item.booking} isUrgent={true} />
                   </View>
                 );
               }
               if (item.type === 'divider') {
+                // Calculate regular bookings count (excluding SOS ones already shown above)
+                const urgentIds = new Set(pendingBookingsWithDeadline.filter(
+                  b => b && filteredBookings.some(fb => fb.id === b.id && fb.booking_mode === 'sos')
+                ).map(b => b.id));
+                const regularCount = filteredBookings.filter(b => !urgentIds.has(b.id)).length;
+                
                 return (
                   <View className="px-4 py-3">
                     <View className="flex-row items-center">
                       <View className="flex-1 h-px bg-border" />
                       <Text className="mx-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Other Pending ({filteredBookings.length})
+                        Other Pending ({regularCount})
                       </Text>
                       <View className="flex-1 h-px bg-border" />
                     </View>
@@ -601,6 +731,30 @@ export default function ProviderBookingsScreen() {
           />
         )}
       </View>
+
+      {/* Booking Cancellation/Decline Confirmation Dialog */}
+      <DeleteConfirmationDialog
+        isOpen={cancelConfirmationState.isOpen}
+        title={cancelConfirmationState.action === 'decline' ? 'Decline Booking?' : 'Cancel Booking?'}
+        description={cancelConfirmationState.action === 'decline' 
+          ? 'Decline this service request? The customer will be refunded immediately.'
+          : 'Are you sure you want to cancel this booking? The customer will be refunded immediately.'
+        }
+        confirmText={cancelConfirmationState.action === 'decline' ? 'Decline' : 'Cancel Booking'}
+        cancelText="Keep It"
+        isDangerous={true}
+        onConfirm={() => {
+          if (cancelConfirmationState.bookingId) {
+            if (cancelConfirmationState.action === 'decline') {
+              handleDeclineBookingWrapper(cancelConfirmationState.bookingId);
+            } else {
+              handleCancelBooking(cancelConfirmationState.bookingId);
+            }
+          }
+          setCancelConfirmationState({ isOpen: false, bookingId: null, action: 'cancel' });
+        }}
+        onCancel={() => setCancelConfirmationState({ isOpen: false, bookingId: null, action: 'cancel' })}
+      />
     </SafeAreaView>
   );
 }

@@ -83,17 +83,38 @@ export default function SubscriptionsScreen() {
             )}
           </View>
 
+          {/* Incomplete Subscriptions */}
+          {allSubscriptions && allSubscriptions.some(s => s.status === 'incomplete') && (
+            <View className="gap-3">
+              <Text className="text-lg font-semibold text-foreground">Pending Payment</Text>
+              <Text className="text-xs text-muted-foreground -mt-2">
+                Complete payment to activate your subscription
+              </Text>
+              
+              {allSubscriptions
+                .filter(s => s.status === 'incomplete')
+                .map((subscription) => (
+                  <HistorySubscriptionCard 
+                    key={subscription.id}
+                    subscription={subscription}
+                  />
+                ))}
+            </View>
+          )}
+
           {/* Subscription History */}
-          {allSubscriptions && allSubscriptions.length > 0 && (
+          {allSubscriptions && allSubscriptions.some(s => !['active', 'trialing', 'incomplete'].includes(s.status)) && (
             <View className="gap-3">
               <Text className="text-lg font-semibold text-foreground">Subscription History</Text>
               
-              {allSubscriptions.map((subscription) => (
-                <HistorySubscriptionCard 
-                  key={subscription.id}
-                  subscription={subscription}
-                />
-              ))}
+              {allSubscriptions
+                .filter(s => !['active', 'trialing', 'incomplete'].includes(s.status))
+                .map((subscription) => (
+                  <HistorySubscriptionCard 
+                    key={subscription.id}
+                    subscription={subscription}
+                  />
+                ))}
             </View>
           )}
         </View>
@@ -283,14 +304,27 @@ function HistorySubscriptionCard({ subscription }: { subscription: UserSubscript
   const priceInfo = useSubscriptionPrice(subscriptionType);
   const Icon = subscription.type === 'customer_sos' ? Shield : Star;
   const isActive = ['active', 'trialing'].includes(subscription.status);
+  const isIncomplete = subscription.status === 'incomplete';
+
+  const handleCompletePayment = () => {
+    if (isIncomplete) {
+      router.push({
+        pathname: '/subscriptions/checkout',
+        params: {
+          type: subscriptionType,
+          subscriptionId: subscription.stripe_subscription_id
+        }
+      });
+    }
+  };
 
   return (
     <Card className="opacity-75">
       <CardContent className="p-3">
         <View className="flex-row items-center justify-between">
-          <View className="flex-row items-center gap-2">
+          <View className="flex-row items-center gap-2 flex-1">
             <Icon size={16} className="text-muted-foreground" />
-            <View>
+            <View className="flex-1">
               <Text className="text-sm font-medium text-foreground">
                 {priceInfo.displayName}
               </Text>
@@ -300,11 +334,22 @@ function HistorySubscriptionCard({ subscription }: { subscription: UserSubscript
             </View>
           </View>
           
-          <Badge variant={isActive ? 'default' : 'secondary'}>
-            <Text className="text-xs">
-              {formatSubscriptionStatus(subscription.status)}
-            </Text>
-          </Badge>
+          <View className="flex-row items-center gap-2">
+            {isIncomplete && (
+              <Button
+                size="sm"
+                variant="outline"
+                onPress={handleCompletePayment}
+              >
+                <Text className="text-xs font-medium text-primary">Complete</Text>
+              </Button>
+            )}
+            <Badge variant={isActive ? 'default' : 'secondary'}>
+              <Text className="text-xs">
+                {formatSubscriptionStatus(subscription.status)}
+              </Text>
+            </Badge>
+          </View>
         </View>
       </CardContent>
     </Card>

@@ -33,6 +33,9 @@ export interface SearchState {
   searchQuery: string;
   searchMode: 'services' | 'providers';
 
+  // SOS Mode (emergency booking)
+  sosModeEnabled: boolean;
+
   // Filters
   filters: SearchFilters;
   isFiltersCollapsed: boolean;
@@ -42,6 +45,7 @@ export interface SearchState {
   setSearchQuery: (query: string) => void;
   setSearchMode: (mode: 'services' | 'providers') => void;
   handleModeSwitch: (mode: 'services' | 'providers') => void;
+  setSOSMode: (enabled: boolean) => void;
   handleFiltersChange: (filters: Partial<SearchFilters>) => void;
   setUserLocation: (latitude: number, longitude: number) => void;
   clearUserLocation: () => void;
@@ -70,6 +74,7 @@ export const useSearchStore = create<SearchState>()(
       _hasHydrated: false,
       searchQuery: '',
       searchMode: 'services',
+      sosModeEnabled: false,
       filters: { ...defaultFilters },
       isFiltersCollapsed: true,
       priceSortDirection: 'asc',
@@ -83,6 +88,11 @@ export const useSearchStore = create<SearchState>()(
       setSearchMode: (mode: 'services' | 'providers') => {
         console.log(`[SearchStore] Setting search mode: ${mode}`);
         set({ searchMode: mode });
+      },
+
+      setSOSMode: (enabled: boolean) => {
+        console.log(`[SearchStore] Setting SOS mode: ${enabled}`);
+        set({ sosModeEnabled: enabled });
       },
 
       handleModeSwitch: (mode: 'services' | 'providers') => {
@@ -133,6 +143,7 @@ export const useSearchStore = create<SearchState>()(
         set({
           searchQuery: '',
           searchMode: 'services',
+          sosModeEnabled: false,
           filters: { ...defaultFilters },
           isFiltersCollapsed: true,
           priceSortDirection: 'asc',
@@ -146,6 +157,7 @@ export const useSearchStore = create<SearchState>()(
       partialize: (state) => ({
         searchQuery: state.searchQuery,
         searchMode: state.searchMode,
+        sosModeEnabled: state.sosModeEnabled,
         filters: state.filters,
         priceSortDirection: state.priceSortDirection,
       }),
@@ -163,6 +175,7 @@ export const useSearchActions = () => {
   const {
     setSearchQuery,
     handleModeSwitch,
+    setSOSMode,
     handleFiltersChange,
     setUserLocation,
     clearUserLocation,
@@ -175,6 +188,7 @@ export const useSearchActions = () => {
   return {
     setSearchQuery,
     handleModeSwitch,
+    setSOSMode,
     handleFiltersChange,
     setUserLocation,
     clearUserLocation,

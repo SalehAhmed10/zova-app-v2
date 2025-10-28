@@ -14,6 +14,11 @@ import {
 } from '@/hooks/provider';
 import { useAuthStore } from '@/stores/auth';
 import { useProviderAccess } from '@/hooks/provider/useProviderAccess';
+import {
+  useProviderEarnings,
+  useProviderPayouts,
+  useProviderEarningsAnalytics
+} from '@/hooks/shared/useProfileData';
 import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
 import { useColorScheme } from '@/lib/core/useColorScheme';
@@ -81,15 +86,22 @@ export default function ProviderEarningsScreen() {
     getPrimaryCTA 
   } = useProviderAccess();
 
-  // React Query hooks
-  // TODO: These hooks need to be created or replaced with proper React Query hooks
-  const earningsLoading = false;
-  const earnings = null;
-  const refetchEarnings = async () => {};
-  const payoutsLoading = false;
-  const payoutHistory = null;
-  const analyticsLoading = false;
-  const analytics = null;
+  // ✅ React Query hooks - Fetch provider earnings data
+  const { 
+    data: earnings, 
+    isLoading: earningsLoading, 
+    refetch: refetchEarnings 
+  } = useProviderEarnings(user?.id);
+
+  const { 
+    data: payoutHistory = [], 
+    isLoading: payoutsLoading 
+  } = useProviderPayouts(user?.id);
+
+  const { 
+    data: analytics, 
+    isLoading: analyticsLoading 
+  } = useProviderEarningsAnalytics(user?.id);
 
   // ✅ REACT QUERY: Fetch stripe account ID from profile
   const { data: profileWithStripe } = useQuery({
@@ -158,9 +170,9 @@ export default function ProviderEarningsScreen() {
   const screenWidth = Dimensions.get('window').width - 64; // Account for padding (32px on each side)
 
   const calculateGrowth = () => {
-    if (!analytics?.monthlyEarnings || analytics.monthlyEarnings.length < 2) return 0;
-    const current = analytics.monthlyEarnings[analytics.monthlyEarnings.length - 1].value;
-    const previous = analytics.monthlyEarnings[analytics.monthlyEarnings.length - 2].value;
+    if (!analytics?.monthlyRevenue || analytics.monthlyRevenue.length < 2) return 0;
+    const current = analytics.monthlyRevenue[analytics.monthlyRevenue.length - 1];
+    const previous = analytics.monthlyRevenue[analytics.monthlyRevenue.length - 2];
     return previous > 0 ? ((current - previous) / previous) * 100 : 0;
   };
 
@@ -566,13 +578,13 @@ export default function ProviderEarningsScreen() {
               <CardContent>
                 {analyticsLoading ? (
                   <Skeleton className="w-full h-64 rounded-lg" />
-                ) : analytics?.monthlyEarnings && analytics.monthlyEarnings.length > 0 ? (
+                ) : analytics?.monthlyRevenue && analytics.monthlyRevenue.length > 0 ? (
                   <View style={{ backgroundColor: isDarkColorScheme ? '#1e293b' : '#ffffff', borderRadius: 16, padding: 8 }}>
                     <LineChart
                       data={{
-                        labels: analytics.monthlyEarnings.slice(-6).map(d => d.month),
+                        labels: Array.from({ length: 6 }, (_, i) => `M${i + 1}`),
                         datasets: [{
-                          data: analytics.monthlyEarnings.slice(-6).map(d => d.value),
+                          data: analytics.monthlyRevenue.slice(-6),
                           color: (opacity = 1) => isDarkColorScheme ? `rgba(34, 197, 94, ${opacity})` : `rgba(22, 163, 74, ${opacity})`,
                           strokeWidth: 3,
                         }],
@@ -629,13 +641,13 @@ export default function ProviderEarningsScreen() {
               <CardContent>
                 {analyticsLoading ? (
                   <Skeleton className="w-full h-64 rounded-lg" />
-                ) : analytics?.servicePerformance && analytics.servicePerformance.length > 0 ? (
+                ) : analytics?.topServices && analytics.topServices.length > 0 ? (
                   <View style={{ backgroundColor: isDarkColorScheme ? '#1e293b' : '#ffffff', borderRadius: 16, padding: 8 }}>
                     <BarChart
                       data={{
-                        labels: analytics.servicePerformance.slice(0, 5).map(s => s.service.substring(0, 8) + (s.service.length > 8 ? '...' : '')),
+                        labels: analytics.topServices.slice(0, 5).map(s => s.service_name.substring(0, 8) + (s.service_name.length > 8 ? '...' : '')),
                         datasets: [{
-                          data: analytics.servicePerformance.slice(0, 5).map(s => s.revenue),
+                          data: analytics.topServices.slice(0, 5).map(s => s.revenue),
                         }],
                       }}
                       width={screenWidth - 16}

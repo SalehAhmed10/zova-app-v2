@@ -588,14 +588,12 @@ export default function CustomerDashboard() {
                         <Text className="font-semibold text-foreground text-base">
                           {provider.first_name} {provider.last_name}
                         </Text>
-                        {provider.is_verified && (
-                          <View className="w-5 h-5 bg-success/10 rounded-full items-center justify-center">
-                            <Icon as={CheckCircle} size={12} className="text-success" />
-                          </View>
-                        )}
+                        <View className="w-5 h-5 bg-success/10 rounded-full items-center justify-center">
+                          <Icon as={CheckCircle} size={12} className="text-success" />
+                        </View>
                       </View>
                       <Text className="text-muted-foreground text-sm mb-2">
-                        {provider.featured_service?.title || 'Service Provider'}
+                        Service Provider
                       </Text>
                       <View className="flex-row items-center gap-4">
                         <View className="flex-row items-center">
@@ -604,12 +602,6 @@ export default function CustomerDashboard() {
                             {provider.avg_rating?.toFixed(1) || 'New'}
                           </Text>
                         </View>
-                        {provider.city && (
-                          <View className="flex-row items-center">
-                            <Icon as={MapPin} size={12} className="text-muted-foreground mr-1" />
-                            <Text className="text-xs text-muted-foreground">{provider.city}</Text>
-                          </View>
-                        )}
                         <View className="flex-row items-center">
                           <Icon as={Users} size={12} className="text-muted-foreground mr-1" />
                           <Text className="text-xs text-muted-foreground">

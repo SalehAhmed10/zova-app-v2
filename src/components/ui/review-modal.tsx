@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, TextInput, Alert, Modal } from 'react-native';
-import { useSubmitReview } from '@/hooks/shared/useSubmitReview';
+import { useSubmitReview } from '@/hooks/customer/useSubmitReview';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Star, X } from 'lucide-react-native';

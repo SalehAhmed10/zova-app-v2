@@ -104,26 +104,7 @@ function ProfileContent() {
   const { data: statsData, isLoading: statsLoading } = useProfileStats(shouldFetchData ? user?.id : undefined, userRole);
   const { data: favoritesData } = useUserFavorites(shouldFetchData ? user?.id : undefined);
 
-  // Handle errors
-  if (profileError) {
-    return <ProfileError error={profileError as Error} refetch={refetch} />;
-  }
-
-  // Ensure we have profile data
-  if (!profileData) {
-    return <ProfileSkeleton />;
-  }
-
-  const getDisplayName = () => {
-    if (profileData?.first_name && profileData?.last_name) {
-      return `${profileData.first_name} ${profileData.last_name}`;
-    }
-    if (profileData?.first_name) {
-      return profileData.first_name;
-    }
-    return profileData?.email?.split('@')[0] || 'User';
-  };
-
+  // CRITICAL: All hooks must be called before any conditional returns
   const menuData = useMemo(() => [
     {
       id: 'personal-info',
@@ -189,6 +170,25 @@ function ProfileContent() {
       onPress: () => router.push('/(customer)/profile/notifications'),
     },
   ], []);
+
+  // Now safe to do conditional returns after all hooks
+  if (profileError) {
+    return <ProfileError error={profileError as Error} refetch={refetch} />;
+  }
+
+  if (!profileData) {
+    return <ProfileSkeleton />;
+  }
+
+  const getDisplayName = () => {
+    if (profileData?.first_name && profileData?.last_name) {
+      return `${profileData.first_name} ${profileData.last_name}`;
+    }
+    if (profileData?.first_name) {
+      return profileData.first_name;
+    }
+    return profileData?.email?.split('@')[0] || 'User';
+  };
 
   type MenuItemType = {
     id: string;

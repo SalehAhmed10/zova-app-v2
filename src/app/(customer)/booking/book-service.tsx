@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, TouchableOpacity, Alert, Modal, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -15,6 +15,12 @@ import { supabase } from '@/lib/supabase';
 // React Query hooks
 import { useServiceDetails } from '@/hooks/customer/useServiceDetails';
 import { useProviderAvailability, useProviderSchedule, useProviderBlackouts } from '@/hooks/customer/useProviderAvailability';
+import { useUserSubscriptions, hasActiveSubscription } from '@/hooks/shared/useSubscription';
+import { useProfile } from '@/hooks/shared/useProfileData';
+import { useAuthStore } from '@/stores/auth';
+
+// Components
+import { BookingModeSelector } from '@/components/customer/booking/booking-mode-selector';
 
 export default function BookServiceScreen() {
   const { serviceId, providerId, providerName, serviceTitle, servicePrice } = useLocalSearchParams();
@@ -22,6 +28,13 @@ export default function BookServiceScreen() {
   console.log('[book-service] Provider ID from params:', providerId);
   console.log('[book-service] Provider name from params:', providerName);
   const router = useRouter();
+
+  // Get current user from auth store
+  const session = useAuthStore((state) => state.session);
+  const userId = session?.user?.id;
+
+  // Fetch user profile to get saved address
+  const { data: userProfile, isLoading: profileLoading } = useProfile(userId);
 
   // Helper function to format time
   const formatTime = (timeString: string) => {
@@ -39,19 +52,51 @@ export default function BookServiceScreen() {
   const [selectedTime, setSelectedTime] = useState('');
   const [specialRequests, setSpecialRequests] = useState('');
   const [address, setAddress] = useState('');
+  const [useSavedAddress, setUseSavedAddress] = useState(true); // Toggle for using saved address
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [tempSelectedTime, setTempSelectedTime] = useState('');
+  const [bookingMode, setBookingMode] = useState<'normal' | 'sos'>('normal');
+  const [showModeSelector, setShowModeSelector] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Initialize address from saved profile data on mount only
+  // Use ref to track if we've already auto-populated to prevent overwriting user input
+  const hasAutoPopulated = React.useRef(false);
+
+  useEffect(() => {
+    // Only auto-populate on first mount and when useSavedAddress is true
+    if (userProfile && useSavedAddress && !hasAutoPopulated.current) {
+      const fullAddress = [
+        userProfile.address,
+        userProfile.city,
+        userProfile.postal_code
+      ]
+        .filter(Boolean)
+        .join(', ');
+      
+      if (fullAddress) {
+        setAddress(fullAddress);
+        hasAutoPopulated.current = true;
+        console.log('[book-service] 📍 Loaded saved address on mount:', fullAddress);
+      }
+    } else if (!useSavedAddress && hasAutoPopulated.current) {
+      // Reset flag when user switches to custom address
+      hasAutoPopulated.current = false;
+      console.log('[book-service] 🔄 Switched to custom address mode - clearing auto-populate flag');
+    }
+  }, [userProfile, useSavedAddress]);
 
 
   // Get service details
   const { data: service, isLoading } = useServiceDetails(serviceId as string);
 
-  // Get provider schedule and availability
-  const { data: providerSchedule } = useProviderSchedule(providerId as string);
+  // Get user subscriptions and check for SOS
+  const { data: allSubscriptions } = useUserSubscriptions();
+  const hasSOSSubscription = hasActiveSubscription(allSubscriptions, 'customer_sos');
 
-  console.log('[book-service] Provider schedule hook result:', providerSchedule);
-  console.log('[book-service] Provider schedule data:', providerSchedule?.schedule_data);
+  // Get provider schedule and availability
+  const { data: providerSchedule, isLoading: scheduleLoading } = useProviderSchedule(providerId as string);
   
   // Get provider blackout dates
   const { data: blackoutDates = [] } = useProviderBlackouts(providerId as string);
@@ -216,50 +261,68 @@ export default function BookServiceScreen() {
 
 
   const handleProceedToPayment = async () => {
-    // Basic validation
-    if (!selectedTime) {
-      Alert.alert('Error', 'Please select a time for your booking');
-      return;
-    }
+    // Validation based on booking mode
+    if (bookingMode === 'normal') {
+      // Regular booking validation
+      if (!selectedTime) {
+        Alert.alert('Error', 'Please select a time for your booking');
+        return;
+      }
 
-    if (!address && service?.isHomeService) {
-      Alert.alert('Error', 'Please enter your address for home service');
-      return;
-    }
+      if (!address && service?.isHomeService) {
+        Alert.alert('Error', 'Please enter your address for home service');
+        return;
+      }
 
-    // Additional validation: Check if the selected time slot is actually available
-    if (providerSchedule?.schedule_data && service?.duration) {
-      try {
-        // Check time slot availability by calling the edge function
-        const { data: availabilityData, error } = await supabase.functions.invoke('get-provider-availability', {
-          body: { providerId, date: selectedDate }
-        });
+      // Additional validation: Check if the selected time slot is actually available
+      if (providerSchedule?.schedule_data && service?.duration) {
+        try {
+          // Check time slot availability by calling the edge function
+          const { data: availabilityData, error } = await supabase.functions.invoke('get-provider-availability', {
+            body: { providerId, date: selectedDate }
+          });
 
-        if (error) {
-          console.error('Error checking availability:', error);
-          Alert.alert('Error', 'Unable to verify availability. Please try again.');
-          return;
-        }
+          if (error) {
+            console.error('Error checking availability:', error);
+            Alert.alert('Error', 'Unable to verify availability. Please try again.');
+            return;
+          }
 
-        // Check if selected time is in available slots
-        const isSlotAvailable = availabilityData?.availableSlots?.some(
-          (slot: any) => slot.time === selectedTime && slot.available
-        );
-
-        if (!isSlotAvailable) {
-          Alert.alert(
-            'Time Slot Unavailable',
-            'The selected time slot is no longer available. Please choose a different time.',
-            [{ text: 'OK' }]
+          // Check if selected time is in available slots
+          const isSlotAvailable = availabilityData?.availableSlots?.some(
+            (slot: any) => slot.time === selectedTime && slot.available
           );
+
+          if (!isSlotAvailable) {
+            Alert.alert(
+              'Time Slot Unavailable',
+              'The selected time slot is no longer available. Please choose a different time.',
+              [{ text: 'OK' }]
+            );
+            return;
+          }
+        } catch (error) {
+          console.error('Error validating time slot:', error);
+          Alert.alert('Error', 'Unable to verify time slot availability. Please try again.');
           return;
         }
-      } catch (error) {
-        console.error('Error validating time slot:', error);
-        Alert.alert('Error', 'Unable to verify time slot availability. Please try again.');
+      }
+    } else {
+      // SOS/Instant booking validation
+      if (!address && service?.isHomeService) {
+        Alert.alert('Error', 'Please enter your address for home service');
         return;
       }
     }
+
+    // Log booking details being sent
+    console.log('[book-service] 📋 Booking Details:', {
+      serviceTitle,
+      servicePrice,
+      bookingMode,
+      address: service?.isHomeService ? address : 'N/A (not a home service)',
+      usingSavedAddress: service?.isHomeService ? useSavedAddress : false,
+    });
 
     // Navigate to payment screen with booking details
     router.push({
@@ -270,8 +333,11 @@ export default function BookServiceScreen() {
         providerName: service?.provider?.name || providerName || 'Provider',
         serviceTitle,
         servicePrice,
-        selectedDate,
-        selectedTime,
+        bookingMode,
+        ...(bookingMode === 'normal' && {
+          selectedDate,
+          selectedTime,
+        }),
         specialRequests,
         address
       }
@@ -412,7 +478,44 @@ export default function BookServiceScreen() {
         </CardHeader>
       </Card>
 
-      {/* Date Selection */}
+      {/* Booking Mode Display & Selector */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Booking Mode</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TouchableOpacity
+            onPress={() => setShowModeSelector(true)}
+            className="flex-row items-center justify-between p-4 border border-border rounded-lg bg-card active:bg-card/80"
+          >
+            <View className="flex-1">
+              <Text className="text-foreground font-semibold capitalize">
+                {bookingMode === 'sos' ? 'SOS Emergency' : 'Regular'} Booking
+              </Text>
+              <Text className="text-sm text-muted-foreground mt-1">
+                {bookingMode === 'sos' 
+                  ? 'Urgent service for immediate needs'
+                  : 'Schedule for a future date and time'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward-outline" size={20} className="text-muted-foreground" />
+          </TouchableOpacity>
+        </CardContent>
+      </Card>
+
+      {/* Booking Mode Selector */}
+      <BookingModeSelector 
+        visible={showModeSelector}
+        onSelect={(mode) => {
+          setBookingMode(mode as 'normal' | 'sos');
+          setShowModeSelector(false);
+        }}
+        onCancel={() => setShowModeSelector(false)}
+        hasSOSSubscription={hasSOSSubscription}
+      />
+
+      {/* Date Selection - Only show for scheduled bookings */}
+      {bookingMode === 'normal' && (
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Select Date & Time</CardTitle>
@@ -483,55 +586,118 @@ export default function BookServiceScreen() {
             )}
             
             {/* Working hours display */}
-            {(() => {
-              if (providerSchedule?.schedule_data) {
-                const dayOfWeek = new Date(selectedDate).toLocaleString('en-US', { weekday: 'long' }).toLowerCase();
-                const daySchedule = providerSchedule.schedule_data[dayOfWeek as keyof typeof providerSchedule.schedule_data];
-                
-                if (daySchedule?.enabled && daySchedule.start && daySchedule.end) {
-                  return (
-                    <View className="mt-3 p-3 bg-primary/5 rounded-lg border border-primary/10">
-                      <View className="flex-row items-center justify-center gap-2">
-                        <Ionicons name="time-outline" size={16} className="text-primary" />
-                        <Text className="text-sm font-medium text-primary">
-                          Working hours: {formatTime(daySchedule.start)} - {formatTime(daySchedule.end)}
-                        </Text>
-                      </View>
+            {providerSchedule?.schedule_data && (() => {
+              const dayOfWeek = new Date(selectedDate).toLocaleString('en-US', { weekday: 'long' }).toLowerCase();
+              const daySchedule = providerSchedule.schedule_data[dayOfWeek as keyof typeof providerSchedule.schedule_data];
+              
+              if (daySchedule?.enabled && daySchedule.start && daySchedule.end) {
+                return (
+                  <View className="mt-3 p-3 bg-primary/5 rounded-lg border border-primary/10">
+                    <View className="flex-row items-center justify-center gap-2">
+                      <Ionicons name="time-outline" size={16} className="text-primary" />
+                      <Text className="text-sm font-medium text-primary">
+                        Working hours: {formatTime(daySchedule.start)} - {formatTime(daySchedule.end)}
+                      </Text>
                     </View>
-                  );
-                }
+                  </View>
+                );
               }
               return null;
             })()}
           </View>
         </CardContent>
       </Card>
+      )}
 
       {/* Address (if home service) */}
       {service?.isHomeService && (
         <Card className="mb-6">
           <CardHeader>
-            <View className="flex-row items-center gap-3">
-              <View className="w-10 h-10 rounded-full bg-emerald-500/10 items-center justify-center">
-                <Ionicons name="location" size={20} className="text-emerald-600 dark:text-emerald-400" />
+            <View className="flex-row items-center justify-between gap-3">
+              <View className="flex-row items-center gap-3 flex-1">
+                <View className="w-10 h-10 rounded-full bg-emerald-500/10 items-center justify-center">
+                  <Ionicons name="location" size={20} className="text-emerald-600 dark:text-emerald-400" />
+                </View>
+                <View className="flex-1">
+                  <CardTitle>Service Address</CardTitle>
+                  <Text className="text-sm text-muted-foreground">
+                    {useSavedAddress && userProfile?.address ? 'Using saved address' : 'Enter delivery address'}
+                  </Text>
+                </View>
               </View>
-              <View>
-                <CardTitle>Service Address</CardTitle>
-                <Text className="text-sm text-muted-foreground">Where should we provide the service?</Text>
-              </View>
+              {userProfile?.address && (
+                <TouchableOpacity
+                  onPress={() => {
+                    if (useSavedAddress) {
+                      // Switching to custom address - clear the address to let user type
+                      setAddress('');
+                      setUseSavedAddress(false);
+                      hasAutoPopulated.current = false; // Allow re-population if they switch back
+                      console.log('[book-service] 🔄 Switched to custom address - cleared address');
+                    } else {
+                      // Switching back to saved address - load it
+                      const fullAddress = [
+                        userProfile.address,
+                        userProfile.city,
+                        userProfile.postal_code
+                      ]
+                        .filter(Boolean)
+                        .join(', ');
+                      setAddress(fullAddress);
+                      setUseSavedAddress(true);
+                      hasAutoPopulated.current = true;
+                      console.log('[book-service] 🔄 Switched back to saved address:', fullAddress);
+                    }
+                  }}
+                  className="px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20"
+                >
+                  <Text className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                    {useSavedAddress ? 'Change' : 'Use Saved'}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </CardHeader>
           <CardContent>
+            {/* Address Status Badge */}
+            {useSavedAddress && userProfile?.address ? (
+              <View className="mb-4 p-4 bg-emerald-500/5 rounded-lg border border-emerald-500/20 flex-row items-start gap-3">
+                <View className="w-6 h-6 rounded-full bg-emerald-500/20 items-center justify-center mt-0.5">
+                  <Ionicons name="checkmark-circle" size={16} className="text-emerald-600 dark:text-emerald-400" />
+                </View>
+                <View className="flex-1">
+                  <Text className="font-semibold text-emerald-600 dark:text-emerald-400 mb-1">
+                    Using Saved Address
+                  </Text>
+                  <Text className="text-sm text-emerald-600/80 dark:text-emerald-400/80">
+                    {address}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
+            {/* Address Input */}
             <Textarea
               placeholder="Enter your complete address including street, city, and postal code..."
-              value={address}
-              onChangeText={setAddress}
-              className="min-h-[100px] text-base border-2 focus:border-primary"
+              value={useSavedAddress && userProfile?.address ? '' : address}
+              onChangeText={(text) => {
+                setAddress(text);
+                // Allow user to type custom address
+                console.log('[book-service] 📝 User entered custom address:', text);
+              }}
+              editable={!useSavedAddress || !userProfile?.address}
+              className={`min-h-[100px] text-base border-2 focus:border-primary ${
+                useSavedAddress && userProfile?.address ? 'opacity-50 bg-muted' : ''
+              }`}
             />
+
+            {/* Info Messages */}
             <View className="flex-row items-center gap-2 mt-3 p-3 bg-primary/5 rounded-lg border border-primary/10">
               <Ionicons name="information-circle" size={16} className="text-primary" />
               <Text className="text-xs text-primary/80 flex-1">
-                Please provide a detailed address to ensure our provider can find you easily
+                {useSavedAddress && userProfile?.address
+                  ? 'Tap "Change" to enter a different address for this booking'
+                  : 'Please provide a detailed address to ensure our provider can find you easily'}
               </Text>
             </View>
           </CardContent>
@@ -620,9 +786,18 @@ export default function BookServiceScreen() {
                   <View className="w-6 h-6 rounded-full bg-violet-500/10 items-center justify-center">
                     <Ionicons name="location-outline" size={14} className="text-violet-600 dark:text-violet-400" />
                   </View>
-                  <Text className="text-foreground font-medium flex-1" numberOfLines={2}>
-                    {address}
-                  </Text>
+                  <View className="flex-1 flex-row items-center gap-2">
+                    <Text className="text-foreground font-medium flex-1" numberOfLines={2}>
+                      {address}
+                    </Text>
+                    {useSavedAddress && userProfile?.address && (
+                      <View className="px-2 py-1 bg-emerald-500/10 rounded border border-emerald-500/20">
+                        <Text className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                          Saved
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
               )}
             </View>
@@ -665,29 +840,29 @@ export default function BookServiceScreen() {
       <View className="mb-6">
         <Button
           onPress={handleProceedToPayment}
-          className={`w-full h-16 ${selectedTime ? 'bg-primary hover:bg-primary/90' : 'bg-muted opacity-50'}`}
+          className={`w-full h-16 ${(bookingMode === 'sos' || selectedTime) ? 'bg-primary hover:bg-primary/90' : 'bg-muted opacity-50'}`}
           size="lg"
-          disabled={!selectedTime}
+          disabled={bookingMode === 'normal' && !selectedTime}
         >
           <View className="flex-row items-center justify-center gap-3">
             <View className="w-8 h-8 rounded-full bg-primary-foreground/10 items-center justify-center">
               <Ionicons 
-                name={selectedTime ? "shield-checkmark" : "time-outline"} 
+                name={(bookingMode === 'sos' || selectedTime) ? "shield-checkmark" : "time-outline"} 
                 size={18} 
                 className="text-primary-foreground" 
               />
             </View>
             <View className="items-center">
               <Text className="text-primary-foreground font-bold text-lg">
-                {selectedTime ? "Proceed to Secure Payment" : "Select Time First"}
+                {(bookingMode === 'sos' || selectedTime) ? "Proceed to Secure Payment" : "Select Time First"}
               </Text>
-              {selectedTime && (
+              {(bookingMode === 'sos' || selectedTime) && (
                 <Text className="text-primary-foreground/80 text-sm">
                   Pay £{(parseFloat(servicePrice as string) * 1.1).toFixed(2)} - Held in Escrow
                 </Text>
               )}
             </View>
-            {selectedTime && (
+            {(bookingMode === 'sos' || selectedTime) && (
               <Ionicons name="arrow-forward" size={20} className="text-primary-foreground" />
             )}
           </View>
@@ -826,7 +1001,7 @@ export default function BookServiceScreen() {
                   onPress={handleTimeCancel}
                   className="flex-1"
                 >
-                  <Text>Cancel</Text>
+                  <Text className="text-foreground font-semibold">Cancel</Text>
                 </Button>
                 <Button
                   onPress={handleTimeConfirm}

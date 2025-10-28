@@ -10,8 +10,19 @@ export function cn(...inputs: ClassValue[]) {
  * Centralized currency formatting utility
  * Ensures consistent currency display across the entire app
  */
-export function formatCurrency(amount: number | string): string {
+export function formatCurrency(amount: number | string | null | undefined): string {
+  // Handle null/undefined
+  if (amount === null || amount === undefined) {
+    return '£0.00';
+  }
+  
   const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  
+  // Handle NaN
+  if (isNaN(numAmount)) {
+    return '£0.00';
+  }
+  
   return `£${numAmount.toFixed(2)}`;
 }
 

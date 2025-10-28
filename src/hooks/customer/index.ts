@@ -13,6 +13,7 @@ export { useUserFavorites, useToggleFavorite, useIsFavorited, type UserFavorite,
 // ✅ Customer booking management hooks
 export { useCancelBooking } from './useCancelBooking';
 export { useUserReviews, type UserReview } from './useUserReviews';
+export { useSubmitReview } from './useSubmitReview';
 
 // ✅ Detail hooks for service and provider screens
 export { useServiceDetails } from './useServiceDetails';

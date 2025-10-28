@@ -20,7 +20,7 @@ export type Database = {
           auto_confirmed: boolean | null
           base_amount: number
           booking_date: string
-          booking_mode: string | null
+          booking_mode: Database["public"]["Enums"]["booking_mode"]
           captured_amount: number | null
           created_at: string | null
           customer_id: string | null
@@ -50,14 +50,14 @@ export type Database = {
           status: Database["public"]["Enums"]["booking_status"] | null
           total_amount: number
           updated_at: string | null
-          urgency_level: string | null
+          urgency_level: Database["public"]["Enums"]["urgency_level"] | null
         }
         Insert: {
           amount_held_for_provider?: number | null
           auto_confirmed?: boolean | null
           base_amount: number
           booking_date: string
-          booking_mode?: string | null
+          booking_mode?: Database["public"]["Enums"]["booking_mode"]
           captured_amount?: number | null
           created_at?: string | null
           customer_id?: string | null
@@ -87,14 +87,14 @@ export type Database = {
           status?: Database["public"]["Enums"]["booking_status"] | null
           total_amount: number
           updated_at?: string | null
-          urgency_level?: string | null
+          urgency_level?: Database["public"]["Enums"]["urgency_level"] | null
         }
         Update: {
           amount_held_for_provider?: number | null
           auto_confirmed?: boolean | null
           base_amount?: number
           booking_date?: string
-          booking_mode?: string | null
+          booking_mode?: Database["public"]["Enums"]["booking_mode"]
           captured_amount?: number | null
           created_at?: string | null
           customer_id?: string | null
@@ -124,7 +124,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["booking_status"] | null
           total_amount?: number
           updated_at?: string | null
-          urgency_level?: string | null
+          urgency_level?: Database["public"]["Enums"]["urgency_level"] | null
         }
         Relationships: [
           {
@@ -334,7 +334,7 @@ export type Database = {
           is_read: boolean | null
           message: string
           title: string
-          type: string
+          type: Database["public"]["Enums"]["notification_type"]
           updated_at: string | null
           user_id: string
         }
@@ -345,7 +345,7 @@ export type Database = {
           is_read?: boolean | null
           message: string
           title: string
-          type: string
+          type?: Database["public"]["Enums"]["notification_type"]
           updated_at?: string | null
           user_id: string
         }
@@ -356,7 +356,7 @@ export type Database = {
           is_read?: boolean | null
           message?: string
           title?: string
-          type?: string
+          type?: Database["public"]["Enums"]["notification_type"]
           updated_at?: string | null
           user_id?: string
         }
@@ -413,7 +413,7 @@ export type Database = {
           id: string
           metadata: Json | null
           payment_method_types: string[] | null
-          status: string
+          status: Database["public"]["Enums"]["payment_intent_status"]
           stripe_payment_intent_id: string
           updated_at: string | null
         }
@@ -426,7 +426,7 @@ export type Database = {
           id?: string
           metadata?: Json | null
           payment_method_types?: string[] | null
-          status: string
+          status: Database["public"]["Enums"]["payment_intent_status"]
           stripe_payment_intent_id: string
           updated_at?: string | null
         }
@@ -439,7 +439,7 @@ export type Database = {
           id?: string
           metadata?: Json | null
           payment_method_types?: string[] | null
-          status?: string
+          status?: Database["public"]["Enums"]["payment_intent_status"]
           stripe_payment_intent_id?: string
           updated_at?: string | null
         }
@@ -1171,7 +1171,7 @@ export type Database = {
       provider_verification_documents: {
         Row: {
           created_at: string | null
-          document_type: string
+          document_type: Database["public"]["Enums"]["document_type"]
           document_url: string
           id: string
           provider_id: string
@@ -1185,7 +1185,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
-          document_type: string
+          document_type: Database["public"]["Enums"]["document_type"]
           document_url: string
           id?: string
           provider_id: string
@@ -1199,7 +1199,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
-          document_type?: string
+          document_type?: Database["public"]["Enums"]["document_type"]
           document_url?: string
           id?: string
           provider_id?: string
@@ -1590,7 +1590,7 @@ export type Database = {
         Row: {
           created_at: string | null
           favorite_id: string
-          favorite_type: string
+          favorite_type: Database["public"]["Enums"]["favorite_type"]
           id: string
           updated_at: string | null
           user_id: string
@@ -1598,7 +1598,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           favorite_id: string
-          favorite_type: string
+          favorite_type: Database["public"]["Enums"]["favorite_type"]
           id?: string
           updated_at?: string | null
           user_id: string
@@ -1606,7 +1606,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           favorite_id?: string
-          favorite_type?: string
+          favorite_type?: Database["public"]["Enums"]["favorite_type"]
           id?: string
           updated_at?: string | null
           user_id?: string
@@ -1629,11 +1629,11 @@ export type Database = {
           current_period_start: string | null
           id: string
           price_id: string | null
-          status: string
+          status: Database["public"]["Enums"]["subscription_status"]
           stripe_customer_id: string | null
           stripe_subscription_id: string
           trial_end: string | null
-          type: string
+          type: Database["public"]["Enums"]["subscription_type"]
           updated_at: string | null
           user_id: string
         }
@@ -1644,11 +1644,11 @@ export type Database = {
           current_period_start?: string | null
           id?: string
           price_id?: string | null
-          status?: string
+          status?: Database["public"]["Enums"]["subscription_status"]
           stripe_customer_id?: string | null
           stripe_subscription_id: string
           trial_end?: string | null
-          type: string
+          type: Database["public"]["Enums"]["subscription_type"]
           updated_at?: string | null
           user_id: string
         }
@@ -1659,11 +1659,11 @@ export type Database = {
           current_period_start?: string | null
           id?: string
           price_id?: string | null
-          status?: string
+          status?: Database["public"]["Enums"]["subscription_status"]
           stripe_customer_id?: string | null
           stripe_subscription_id?: string
           trial_end?: string | null
-          type?: string
+          type?: Database["public"]["Enums"]["subscription_type"]
           updated_at?: string | null
           user_id?: string
         }
@@ -2932,6 +2932,7 @@ export type Database = {
       }
     }
     Enums: {
+      booking_mode: "normal" | "sos"
       booking_status:
         | "pending"
         | "confirmed"
@@ -2940,7 +2941,24 @@ export type Database = {
         | "cancelled"
         | "declined"
         | "expired"
+      document_type: "passport" | "driving_license" | "id_card"
+      favorite_type: "service" | "provider"
       message_type: "text" | "image" | "system"
+      notification_type:
+        | "booking_confirmed"
+        | "booking_cancelled"
+        | "booking_reminder"
+        | "payment_received"
+        | "review_request"
+        | "general"
+      payment_intent_status:
+        | "requires_payment_method"
+        | "requires_confirmation"
+        | "requires_action"
+        | "processing"
+        | "succeeded"
+        | "canceled"
+        | "requires_capture"
       payment_status:
         | "pending"
         | "paid"
@@ -2950,6 +2968,14 @@ export type Database = {
         | "payout_completed"
       payout_status: "pending" | "processing" | "completed" | "failed"
       price_type: "fixed" | "hourly"
+      subscription_status:
+        | "active"
+        | "canceled"
+        | "past_due"
+        | "incomplete"
+        | "trialing"
+      subscription_type: "customer_sos" | "provider_premium"
+      urgency_level: "low" | "medium" | "high" | "emergency"
       user_availability: "available" | "busy" | "unavailable"
       user_role: "customer" | "provider" | "admin" | "super-admin"
       verification_status:
@@ -3094,6 +3120,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      booking_mode: ["normal", "sos"],
       booking_status: [
         "pending",
         "confirmed",
@@ -3103,7 +3130,26 @@ export const Constants = {
         "declined",
         "expired",
       ],
+      document_type: ["passport", "driving_license", "id_card"],
+      favorite_type: ["service", "provider"],
       message_type: ["text", "image", "system"],
+      notification_type: [
+        "booking_confirmed",
+        "booking_cancelled",
+        "booking_reminder",
+        "payment_received",
+        "review_request",
+        "general",
+      ],
+      payment_intent_status: [
+        "requires_payment_method",
+        "requires_confirmation",
+        "requires_action",
+        "processing",
+        "succeeded",
+        "canceled",
+        "requires_capture",
+      ],
       payment_status: [
         "pending",
         "paid",
@@ -3114,6 +3160,15 @@ export const Constants = {
       ],
       payout_status: ["pending", "processing", "completed", "failed"],
       price_type: ["fixed", "hourly"],
+      subscription_status: [
+        "active",
+        "canceled",
+        "past_due",
+        "incomplete",
+        "trialing",
+      ],
+      subscription_type: ["customer_sos", "provider_premium"],
+      urgency_level: ["low", "medium", "high", "emergency"],
       user_availability: ["available", "busy", "unavailable"],
       user_role: ["customer", "provider", "admin", "super-admin"],
       verification_status: [

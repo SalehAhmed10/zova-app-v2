@@ -6,7 +6,7 @@ import { THEME } from '@/lib/theme';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Star, X } from 'lucide-react-native';
-import { useSubmitReview } from '@/hooks/shared/useSubmitReview';
+import { useSubmitReview } from '@/hooks/customer/useSubmitReview';
 
 interface ReviewPromptProps {
   bookingId: string;

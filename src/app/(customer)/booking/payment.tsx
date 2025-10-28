@@ -32,7 +32,8 @@ export default function PaymentScreen() {
     providerName: params.providerName as string,
     serviceTitle: params.serviceTitle as string,
     servicePrice: parseFloat(params.servicePrice as string),
-    selectedDate: new Date(params.selectedDate as string),
+    bookingMode: (params.bookingMode as 'normal' | 'sos') || 'normal',
+    selectedDate: params.selectedDate ? new Date(params.selectedDate as string) : null,
     selectedTime: params.selectedTime as string,
     specialRequests: params.specialRequests as string,
     address: params.address as string,
@@ -60,19 +61,53 @@ export default function PaymentScreen() {
     setIsProcessing(true);
 
     try {
+      // ✨ Verify user is authenticated before attempting payment
+      const { data: { user: currentUser }, error: sessionError } = await supabase.auth.getUser();
+      console.log('[Payment] Auth check:', { 
+        hasUser: !!currentUser, 
+        userId: currentUser?.id,
+        sessionError: sessionError?.message 
+      });
+      
+      if (!currentUser || sessionError) {
+        Alert.alert('Authentication Error', 'You must be logged in to make a payment');
+        setIsProcessing(false);
+        return;
+      }
+
+      // ✨ Extract auth token and create payment intent
+      // Manually pass the bearer token to ensure Edge Function receives auth
+      const { data: { session }, error: sessionFetchError } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        console.error('[Payment] No access token found in session');
+        Alert.alert('Authentication Error', 'Unable to retrieve authentication token');
+        setIsProcessing(false);
+        return;
+      }
+
+      const accessToken = session.access_token;
+      console.log('[Payment] Auth token retrieved, length:', accessToken.length);
+
       // ✨ ESCROW SYSTEM: Authorize and capture FULL amount immediately
       // This implements true marketplace escrow - full payment held until service completion
       console.log('[Payment] Creating payment intent for FULL AMOUNT (escrow)...');
       console.log('[Payment] Total amount to authorize and capture:', totalCustomerPays);
       
+      // ✨ FIX: Stringify body for proper serialization through Supabase client
+      const paymentBody = {
+        amount: Math.round(totalCustomerPays * 100), // Full amount in pence
+        depositAmount: Math.round(totalCustomerPays * 100), // Capture full amount (not deposit)
+        currency: 'gbp',
+        serviceId: bookingDetails.serviceId,
+        providerId: bookingDetails.providerId,
+        userId: currentUser.id, // ✨ Pass user ID in body as fallback
+      };
+      console.log('[Payment] Request body:', paymentBody);
+      
+      // ✨ FIX: Remove custom headers that might interfere with Supabase client
+      // The Supabase client handles auth headers automatically
       const { data: paymentData, error: paymentError } = await supabase.functions.invoke('create-payment-intent', {
-        body: {
-          amount: Math.round(totalCustomerPays * 100), // Full amount in pence
-          depositAmount: Math.round(totalCustomerPays * 100), // Capture full amount (not deposit)
-          currency: 'gbp',
-          serviceId: bookingDetails.serviceId,
-          providerId: bookingDetails.providerId,
-        },
+        body: paymentBody,
       });
 
       if (paymentError) {
@@ -152,7 +187,10 @@ export default function PaymentScreen() {
       console.log('[Payment] Booking params:', {
         serviceId: bookingDetails.serviceId,
         providerId: bookingDetails.providerId,
-        bookingDate: bookingDetails.selectedDate.toISOString().split('T')[0],
+        bookingMode: bookingDetails.bookingMode,
+        bookingDate: bookingDetails.bookingMode === 'normal' 
+          ? bookingDetails.selectedDate?.toISOString().split('T')[0]
+          : new Date().toISOString().split('T')[0],
         startTime: bookingDetails.selectedTime,
         specialRequests: bookingDetails.specialRequests,
         address: bookingDetails.address,
@@ -167,8 +205,11 @@ export default function PaymentScreen() {
         bookingResponse = await createBookingMutation.mutateAsync({
           serviceId: bookingDetails.serviceId,
           providerId: bookingDetails.providerId,
-          bookingDate: bookingDetails.selectedDate.toISOString().split('T')[0],
-          startTime: bookingDetails.selectedTime,
+          bookingMode: bookingDetails.bookingMode,
+          bookingDate: bookingDetails.bookingMode === 'normal' 
+            ? bookingDetails.selectedDate!.toISOString().split('T')[0]
+            : new Date().toISOString().split('T')[0],
+          startTime: bookingDetails.selectedTime || (bookingDetails.bookingMode === 'sos' ? 'ASAP' : ''),
           specialRequests: bookingDetails.specialRequests,
           address: bookingDetails.address,
           depositAmount: totalCustomerPays, // Now represents full captured amount
@@ -208,9 +249,16 @@ export default function PaymentScreen() {
           bookingId: bookingResponse?.booking?.id || 'temp-id', // Use real booking ID from response
           serviceTitle: bookingDetails.serviceTitle,
           providerName: bookingDetails.providerName,
-          date: bookingDetails.selectedDate.toISOString(),
-          time: bookingDetails.selectedTime,
+          bookingMode: bookingDetails.bookingMode,
+          date: bookingDetails.bookingMode === 'normal' 
+            ? bookingDetails.selectedDate!.toISOString()
+            : new Date().toISOString(),
+          time: bookingDetails.bookingMode === 'normal' 
+            ? bookingDetails.selectedTime
+            : 'ASAP',
           amount: totalCustomerPays.toString(), // Full amount charged
+          servicePrice: bookingDetails.servicePrice.toString(), // ✨ CRITICAL FIX: Pass actual service price
+          platformFee: platformFee.toString(), // ✨ CRITICAL FIX: Pass actual platform fee
         }
       });
 
@@ -278,14 +326,24 @@ export default function PaymentScreen() {
               <Text className="text-muted-foreground">Provider</Text>
               <Text className="font-medium">{bookingDetails.providerName}</Text>
             </View>
-            <View className="flex-row justify-between">
-              <Text className="text-muted-foreground">Date</Text>
-              <Text className="font-medium">{bookingDetails.selectedDate.toLocaleDateString()}</Text>
-            </View>
-            <View className="flex-row justify-between">
-              <Text className="text-muted-foreground">Time</Text>
-              <Text className="font-medium">{bookingDetails.selectedTime}</Text>
-            </View>
+            {bookingDetails.bookingMode === 'normal' && (
+              <>
+                <View className="flex-row justify-between">
+                  <Text className="text-muted-foreground">Date</Text>
+                  <Text className="font-medium">{bookingDetails.selectedDate?.toLocaleDateString()}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-muted-foreground">Time</Text>
+                  <Text className="font-medium">{bookingDetails.selectedTime}</Text>
+                </View>
+              </>
+            )}
+            {bookingDetails.bookingMode === 'sos' && (
+              <View className="flex-row justify-between">
+                <Text className="text-muted-foreground">Booking Type</Text>
+                <Text className="font-medium text-destructive">SOS Emergency - ASAP</Text>
+              </View>
+            )}
             <View className="border-t border-border pt-2 mt-2 gap-2">
               <View className="flex-row justify-between">
                 <Text className="text-muted-foreground">Service Price</Text>

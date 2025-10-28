@@ -5,7 +5,7 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { useSubmitReview } from '@/hooks/shared/useSubmitReview';
+import { useSubmitReview } from '@/hooks/customer/useSubmitReview';
 import { cn } from '@/lib/utils';
 import { THEME } from '@/lib/theme';
 import { useColorScheme } from '@/lib/core/useColorScheme';

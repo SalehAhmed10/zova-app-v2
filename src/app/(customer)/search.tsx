@@ -2,10 +2,11 @@ import React, { useState, useRef, useCallback } from 'react';
 import { View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
-import { Filter, MapPin, Locate } from 'lucide-react-native';
+import { Filter, MapPin, Locate, Shield } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
+import { Badge } from '@/components/ui/badge';
 
 import { BottomSheetModal, BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 // Import directly from the RPC-based implementation to avoid confusion
@@ -15,6 +16,7 @@ import { useSearchStore, useSearchHydration } from '@/stores/customer/search-sto
 import type { SearchFilters } from '@/stores/customer/search-store';
 import { useLocationPermission } from '@/hooks/shared/useLocation';
 import { useColorScheme } from '@/lib/core/useColorScheme';
+import { useActiveSubscription, hasActiveSubscription, useUserSubscriptions } from '@/hooks/shared/useSubscription';
 import { FlashList } from '@shopify/flash-list';
 import { ProviderSearchCard, SearchInput, SearchResults } from '@/components/customer/search';
 
@@ -48,6 +50,12 @@ export default function SearchScreen() {
   const { colorScheme } = useColorScheme();
   const { hasPermission, requestPermission, getCurrentLocation } = useLocationPermission();
   const [isGettingLocation, setIsGettingLocation] = useState(false);
+
+  // ✅ NEW: SOS mode and subscription state
+  const sosModeEnabled = useSearchStore((state) => state.sosModeEnabled);
+  const setSOSMode = useSearchStore((state) => state.setSOSMode);
+  const { data: allSubscriptions } = useUserSubscriptions();
+  const hasSOSSubscription = hasActiveSubscription(allSubscriptions, 'customer_sos');
 
   // Fetch service categories dynamically
   const { data: categories } = useServiceCategories();
@@ -130,6 +138,36 @@ export default function SearchScreen() {
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       {/* Header */}
       <View className="px-4 py-3 border-b border-border bg-card">
+        {/* SOS Toggle (only visible if subscribed) */}
+        {hasSOSSubscription && (
+          <View className="mb-3 flex-row items-center">
+            <TouchableOpacity
+              onPress={() => {
+                setSOSMode(!sosModeEnabled);
+                // Optional: auto-switch to services tab for SOS mode
+                if (!sosModeEnabled) {
+                  setActiveTab('services');
+                }
+              }}
+              className={`flex-1 flex-row items-center gap-2 p-3 rounded-lg border-2 ${
+                sosModeEnabled
+                  ? 'bg-destructive/10 border-destructive/30'
+                  : 'bg-muted border-border'
+              }`}
+            >
+              <Icon as={Shield} size={18} className={sosModeEnabled ? 'text-destructive' : 'text-muted-foreground'} />
+              <Text className={`flex-1 font-semibold text-sm ${sosModeEnabled ? 'text-destructive' : 'text-muted-foreground'}`}>
+                {sosModeEnabled ? '🚨 SOS Mode Active' : 'SOS Mode'}
+              </Text>
+              {sosModeEnabled && (
+                <Badge className="bg-destructive/20 border-destructive/30 px-2">
+                  <Text className="text-destructive text-xs font-medium">ON</Text>
+                </Badge>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+
         <View className="flex-row items-center gap-3 mb-3">
           <SearchInput
             value={query}
@@ -232,7 +270,7 @@ export default function SearchScreen() {
             }
             headerComponent={
               query.length === 0 && !servicesLoading && serviceResults && serviceResults.length > 0 ? (
-                <View className="px-4 py-3 bg-primary/5 border-b border-primary/20">
+                <View className="py-3 mb-2 bg-primary/5 rounded-lg border border-primary/20 px-4">
                   <Text className="text-sm font-semibold text-primary mb-1">
                     🌟 Browse Services
                   </Text>

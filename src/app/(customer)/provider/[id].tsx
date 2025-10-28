@@ -10,12 +10,24 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useProviderDetails, ProviderDetails } from '@/hooks/customer/useProviderDetails';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { ServiceCard } from '@/components/customer/ServiceCard';
+import { useAuthStore } from '@/stores/auth';
+import { useProviderCompletedBookings } from '@/hooks/customer/useProviderCompletedBookings';
 
 export default function ProviderDetailsScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const { isDarkColorScheme } = useColorScheme();
+  const user = useAuthStore((state) => state.user);
   const { data: provider, isLoading, error } = useProviderDetails(id as string);
+  const { data: completedBookingsWithProvider = [] } = useProviderCompletedBookings(
+    user?.id,
+    id as string
+  );
+
+  // Filter bookings for display (already filtered by hook for this specific provider)
+  const displayBookings = completedBookingsWithProvider.filter(
+    booking => booking.status === 'completed'
+  );
 
   if (isLoading) {
     return (
@@ -152,6 +164,12 @@ export default function ProviderDetailsScreen() {
                 {(provider as any).total_reviews || 0} reviews
               </Text>
             </View>
+            <View className="items-center flex-1">
+              <Text className="text-2xl font-bold text-primary">
+                {completedBookingsWithProvider.length}
+              </Text>
+              <Text className="text-sm text-muted-foreground">Completed</Text>
+            </View>
           </Animated.View>
 
           {/* Description */}
@@ -284,6 +302,78 @@ export default function ProviderDetailsScreen() {
                         day: 'numeric'
                       }) : 'Date not available'}
                     </Text>
+                  </Animated.View>
+                ))}
+              </View>
+            </Animated.View>
+          )}
+
+          {/* Completed Bookings */}
+          {completedBookingsWithProvider.length > 0 && (
+            <Animated.View
+              entering={FadeInUp.duration(600).delay(1200)}
+              className="mb-6"
+            >
+              <Text className="text-lg font-semibold text-foreground mb-3">Your Service History</Text>
+              <View className="gap-3">
+                {completedBookingsWithProvider.slice(0, 2).map((booking, index) => (
+                  <Animated.View
+                    key={booking.id}
+                    entering={FadeInUp.duration(400).delay(1250 + index * 100)}
+                  >
+                    <TouchableOpacity
+                      onPress={() => router.push(`/(customer)/booking/${booking.id}` as any)}
+                      activeOpacity={0.7}
+                    >
+                      <View className="bg-card border border-border rounded-xl p-4">
+                        <View className="flex-row items-start justify-between mb-2">
+                          <View className="flex-1">
+                            <Text className="font-semibold text-foreground text-base mb-1">
+                              {booking.service_title}
+                            </Text>
+                            <View className="flex-row items-center gap-2">
+                              {booking.rating && (
+                                <View className="flex-row items-center">
+                                  <Ionicons name="star" size={14} className="text-primary" />
+                                  <Text className="text-xs font-medium text-primary ml-1">
+                                    {booking.rating}/5
+                                  </Text>
+                                </View>
+                              )}
+                              {booking.duration_minutes && (
+                                <Text className="text-xs text-muted-foreground">
+                                  {booking.duration_minutes} min
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+                          <View className="items-end">
+                            <Text className="font-bold text-primary text-base">
+                              £{parseFloat(booking.total_amount).toFixed(2)}
+                            </Text>
+                            <View className="mt-1 px-2 py-1 bg-green-500/10 rounded-full">
+                              <Text className="text-xs font-medium text-green-600">
+                                Completed
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+                        <View className="flex-row items-center mt-3 pt-3 border-t border-border">
+                          <Ionicons name="calendar-outline" size={14} className="text-muted-foreground mr-2" />
+                          <Text className="text-sm text-muted-foreground">
+                            {new Date(booking.booking_date).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
+                          </Text>
+                          <Ionicons name="time-outline" size={14} className="text-muted-foreground ml-4 mr-2" />
+                          <Text className="text-sm text-muted-foreground">
+                            {booking.start_time}
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
                   </Animated.View>
                 ))}
               </View>

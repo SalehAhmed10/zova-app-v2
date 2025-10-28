@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ScrollView, TouchableOpacity, Linking, Alert, Pressable } from 'react-native';
+import { View, ScrollView, TouchableOpacity, Linking, Alert, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useProviderBookingDetail } from '@/hooks/provider';
-import { useUpdateBookingStatus, useCompleteService } from '@/hooks/shared/useBookings';
+import { useUpdateBookingStatus } from '@/hooks/shared/useBookings';
+import { useBookingActions } from '@/hooks/provider/useBookingActions';
 import { useProviderAccess } from '@/hooks/provider/useProviderAccess';
 import { useColorScheme } from '@/lib/core/useColorScheme';
 import { THEME } from '@/lib/theme';
@@ -34,7 +35,16 @@ export default function ProviderBookingDetailScreen() {
   } = useProviderBookingDetail(id);
 
   const updateBookingStatusMutation = useUpdateBookingStatus();
-  const completeServiceMutation = useCompleteService();
+  const { 
+    acceptBooking, 
+    declineBooking, 
+    completeBooking: completeBookingAction,
+    cancelBooking,
+    isAccepting,
+    isDeclining,
+    isCompleting,
+    isCanceling
+  } = useBookingActions();
 
   /**
    * ✅ PAYMENT GATE: Booking Accept Action Guard
@@ -64,45 +74,17 @@ export default function ProviderBookingDetailScreen() {
       return; // Block the action
     }
     
-    // Payment is active, proceed with accepting booking
-    try {
-      await updateBookingStatusMutation.mutateAsync({
-        bookingId: booking.id,
-        status: 'confirmed',
-      });
-      await refetch();
-    } catch (error) {
-      console.error('Error accepting booking:', error);
-      Alert.alert('Error', 'Failed to accept booking. Please try again.');
-    }
+    // Payment is active, proceed with accepting booking using unified hook
+    await acceptBooking(booking.id);
+    await refetch();
   };
 
   const handleDeclineBooking = async () => {
     if (!booking) return;
-
-    Alert.alert(
-      'Decline Booking',
-      'Are you sure you want to decline this booking? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Decline',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await updateBookingStatusMutation.mutateAsync({
-                bookingId: booking.id,
-                status: 'declined',
-              });
-              await refetch();
-            } catch (error) {
-              console.error('Error declining booking:', error);
-              Alert.alert('Error', 'Failed to decline booking. Please try again.');
-            }
-          }
-        }
-      ]
-    );
+    
+    // Use unified hook which shows confirmation and handles everything
+    await declineBooking({ bookingId: booking.id });
+    await refetch();
   };
 
   const handleStartBooking = async () => {
@@ -122,63 +104,20 @@ export default function ProviderBookingDetailScreen() {
 
   const handleCompleteBooking = async () => {
     if (!booking) return;
-
-    Alert.alert(
-      'Complete Service',
-      'Are you sure you want to mark this service as complete? This will release payment to you and notify the customer.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Complete Service',
-          style: 'default',
-          onPress: async () => {
-            try {
-              await completeServiceMutation.mutateAsync(booking.id);
-              Alert.alert(
-                'Service Completed',
-                'The service has been marked as complete. Payment will be released to you shortly.',
-                [{ text: 'OK' }]
-              );
-            } catch (error) {
-              console.error('Error completing service:', error);
-              Alert.alert(
-                'Error',
-                'Failed to complete service. Please try again.',
-                [{ text: 'OK' }]
-              );
-            }
-          }
-        }
-      ]
-    );
+    
+    // ✅ UNIFIED: Use the centralized hook which shows alert and handles everything
+    await completeBookingAction(booking.id);
+    
+    // Refetch to update the booking detail
+    await refetch();
   };
 
   const handleCancelBooking = async () => {
     if (!booking) return;
 
-    Alert.alert(
-      'Cancel Booking',
-      'Are you sure you want to cancel this booking? The customer will be notified.',
-      [
-        { text: 'No', style: 'cancel' },
-        {
-          text: 'Yes, Cancel',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await updateBookingStatusMutation.mutateAsync({
-                bookingId: booking.id,
-                status: 'cancelled',
-              });
-              await refetch();
-            } catch (error) {
-              console.error('Error cancelling booking:', error);
-              Alert.alert('Error', 'Failed to cancel booking. Please try again.');
-            }
-          }
-        }
-      ]
-    );
+    // Use unified hook which shows confirmation and handles everything
+    await cancelBooking({ bookingId: booking.id });
+    await refetch();
   };
 
   const handleCallCustomer = () => {
@@ -316,12 +255,12 @@ export default function ProviderBookingDetailScreen() {
               className="w-full"
               size="lg"
               onPress={handleAcceptBooking}
-              disabled={updateBookingStatusMutation.isPending}
+              disabled={isAccepting}
             >
               <View className="flex-row items-center gap-2">
                 <Ionicons name="checkmark-circle" size={20} color="white" />
                 <Text className="text-primary-foreground font-bold">
-                  {updateBookingStatusMutation.isPending ? 'Accepting...' : 'Accept Booking'}
+                  {isAccepting ? 'Accepting...' : 'Accept Booking'}
                 </Text>
               </View>
             </Button>
@@ -330,12 +269,12 @@ export default function ProviderBookingDetailScreen() {
               className="w-full"
               size="lg"
               onPress={handleDeclineBooking}
-              disabled={updateBookingStatusMutation.isPending}
+              disabled={isDeclining}
             >
               <View className="flex-row items-center gap-2">
                 <Ionicons name="close-circle" size={20} color={colors.foreground} />
                 <Text className="text-foreground font-bold">
-                  {updateBookingStatusMutation.isPending ? 'Declining...' : 'Decline Booking'}
+                  {isDeclining ? 'Declining...' : 'Decline Booking'}
                 </Text>
               </View>
             </Button>
@@ -363,12 +302,12 @@ export default function ProviderBookingDetailScreen() {
               className="w-full"
               size="lg"
               onPress={handleCancelBooking}
-              disabled={updateBookingStatusMutation.isPending}
+              disabled={isCanceling}
             >
               <View className="flex-row items-center gap-2">
                 <Ionicons name="trash" size={20} color={colors.foreground} />
                 <Text className="text-foreground font-bold">
-                  {updateBookingStatusMutation.isPending ? 'Cancelling...' : 'Cancel Booking'}
+                  {isCanceling ? 'Cancelling...' : 'Cancel Booking'}
                 </Text>
               </View>
             </Button>
@@ -381,12 +320,16 @@ export default function ProviderBookingDetailScreen() {
             className="w-full"
             size="lg"
             onPress={handleCompleteBooking}
-            disabled={completeServiceMutation.isPending}
+            disabled={isCompleting}
           >
             <View className="flex-row items-center gap-2">
-              <Ionicons name="checkmark-done-circle" size={20} color="white" />
+              {isCompleting ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Ionicons name="checkmark-done-circle" size={20} color="white" />
+              )}
               <Text className="text-primary-foreground font-bold">
-                {completeServiceMutation.isPending ? 'Completing...' : 'Mark as Complete'}
+                {isCompleting ? 'Processing...' : 'Mark as Complete'}
               </Text>
             </View>
           </Button>

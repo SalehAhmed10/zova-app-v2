@@ -1,16 +1,16 @@
 // Provider hooks index - centralized exports for all provider-specific hooks
 
-export { useAcceptBooking } from './useAcceptBooking';
-export { useBookings } from './useBookings';
+// ✅ UNIFIED BOOKING ACTIONS - Use this for all booking state changes
+export { useBookingActions } from './useBookingActions';
 export { useBusinessAvailability } from './useBusinessAvailability';
 export { useCalendarData } from './useCalendarData';
-export { useDeclineBooking } from './useDeclineBooking';
 export { usePaymentStatus } from './usePaymentStatus';
 export { usePendingBookings } from './usePendingBookings';
 export { useProviderAccess } from './useProviderAccess';
 export { useProviderBookingDetail } from './useProviderBookingDetail';
 export { useProviderProfile } from './useProviderProfile';
 export { useProviderReviews } from './useProviderReviews';
+export { useSubmitProviderResponse } from './useSubmitProviderResponse';
 // NOTE: useProviderSearch is exported from ./shared/use-provider-search (use-provider-search.ts)
 // Do NOT import from ./useProviderSearch - that file is deprecated
 export { useServiceSubcategories, useCategories } from './useProviderVerificationQueries';
